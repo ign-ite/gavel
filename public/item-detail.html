@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exhibition | Gavel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        .bid-container { 
+            display: flex; 
+            gap: 60px; 
+            padding: 80px 50px; 
+            max-width: 1300px; 
+            margin: 0 auto; 
+            align-items: flex-start;
+        }
+
+        .item-display { 
+            flex: 1.4; 
+            position: relative;
+        }
+
+        .item-img { 
+            width: 100%; 
+            height: auto;
+            border-radius: 4px; 
+            border: 12px solid var(--parchment); 
+            outline: 2px solid var(--brass-gold);
+            box-shadow: 25px 25px 50px rgba(0, 0, 0, 0.3);
+            display: block;
+        }
+
+        .bid-panel { 
+            background: var(--parchment); 
+            padding: 40px; 
+            border: 2px solid var(--brass-gold); 
+            border-radius: 4px; 
+            flex: 1; 
+            box-shadow: 15px 15px 40px rgba(0,0,0,0.2), inset 0 0 60px rgba(139, 111, 91, 0.1);
+            position: sticky;
+            top: 120px;
+        }
+
+        .bid-panel h2 { 
+            font-family: 'Montserrat', sans-serif;
+            color: var(--deep-oak);
+            font-size: 2.2rem;
+            margin-top: 0;
+            border-bottom: 2px solid var(--brass-gold);
+            padding-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .price-tag { 
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem; 
+            color: var(--polished-walnut); 
+            font-weight: 700;
+            margin: 30px 0 10px 0; 
+        }
+
+        .lot-number {
+            color: #8b6f5b;
+            font-style: italic;
+            font-size: 0.9rem;
+            margin-bottom: 25px;
+        }
+
+        .bid-input-container {
+            background: white;
+            padding: 20px;
+            border: 1px solid #c4b4a5;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .bid-input-container label {
+            display: block;
+            font-weight: bold;
+            color: var(--deep-oak);
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+
+        .bid-input-container input { 
+            width: 100%; 
+            border: none;
+            font-size: 1.5rem;
+            color: var(--polished-walnut);
+            font-weight: bold;
+            outline: none;
+        }
+
+        .place-bid-btn {
+            width: 100%;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .seller-note {
+            margin-top: 30px;
+            font-size: 0.85rem;
+            color: #5c4033;
+            border-top: 1px dashed #c4b4a5;
+            padding-top: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .bid-container { flex-direction: column; padding: 40px 20px; }
+            .bid-panel { position: static; width: 100%; box-sizing: border-box; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="logo">
+                <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+                    <img src="images/logo.png" alt="Gavel Logo" class="logo-icon">
+                    <span>Gavel</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="login.html">Login</a></li>
+                <li><a href="signup.html">Sign Up</a></li>
+                <li><a href="auction.html">Auctions</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="bid-container">
+        <div class="item-display">
+            <img id="display-img" class="item-img" src="" alt="Item">
+        </div>
+
+        <div class="bid-panel">
+            <p class="lot-number">Live Auction • Lot #8821</p>
+            <h2 id="display-title">Loading...</h2>
+            
+            <div class="price-tag">₹<span id="display-price">0</span></div>
+            <p style="margin-top: -10px; color: #5c4033; font-weight: bold;">Current Highest Bid</p>
+
+            <div class="bid-input-container">
+                <label for="bid-amount">Set Your Maximum Bid</label>
+                <div style="display: flex; align-items: center;">
+                    <span style="font-size: 1.5rem; font-weight: bold; margin-right: 5px;">₹</span>
+                    <input type="number" id="bid-amount" placeholder="Enter amount">
+                </div>
+            </div>
+
+            <button class="btn-primary place-bid-btn">PLACE YOUR BID</button>
+
+            <div class="seller-note">
+                <strong>Auctioneer's Note:</strong> This item is verified by Gavel Trust. Bidding requires a 10% holding deposit. 
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Gavel. All rights reserved.</p>
+    </footer>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const itemName = urlParams.get('item');
+
+        const catalog = {
+            "Antique Vase": {
+                img: "https://images.unsplash.com/photo-1695902047073-796e00ccd35f?q=80&w=769",
+                price: 12000
+            },
+            "Vintage Watch": {
+                img: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?q=80&w=1000",
+                price: 45000
+            },
+            "Art Painting": {
+                img: "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=1000",
+                price: 30000
+            },
+            "Collector Coins": {
+                img: "https://images.unsplash.com/photo-1635946680486-09420d25eb0b?q=80&w=1170",
+                price: 8500
+            }
+        };
+
+        if (itemName) { 
+            const decodedName = decodeURIComponent(itemName);
+            document.getElementById('display-title').textContent = decodedName; 
+            
+            const itemData = catalog[decodedName];
+            if(itemData) {
+                document.getElementById('display-img').src = itemData.img;
+                // Formats the price for the Indian numbering system
+                document.getElementById('display-price').textContent = itemData.price.toLocaleString('en-IN');
+            }
+        }
+    </script>
+</body>
+</html>
