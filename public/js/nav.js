@@ -23,7 +23,10 @@
             <li><a href="/signup.html">Sign Up</a></li>
         ` : ''}
         <li><a href="/auction.html">Auctions</a></li>
+        <li><a href="/explore.html">Explore</a></li>
+        <li><a href="/analytics.html">Analytics</a></li>
         ${user ? `<li><a href="/my-products.html">My Products</a></li>` : ''}
+        ${user ? `<li><a href="/watchlist.html">Watchlist</a></li>` : ''}
         ${user ? `
             <li>
                 <a href="/chats.html" id="nav-chats-link" style="position:relative; display:inline-flex; align-items:center; gap:6px;">
@@ -63,7 +66,14 @@
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async (e) => {
             e.preventDefault();
+            // Clear server cookie
             await fetch('/api/logout', { method: 'POST' });
+            // Clear client cookie
+            document.cookie = "sb_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            // Sign out from Supabase SDK if loaded
+            if (window.sbClient && window.sbClient.auth) {
+                try { await window.sbClient.auth.signOut(); } catch(e) {}
+            }
             window.location.href = '/login.html';
         });
     }
@@ -80,5 +90,21 @@
                 badge.style.display  = 'inline-flex';
             }
         } catch(e) {}
+    }
+})();
+
+// PWA Manifest and Service Worker Injection
+(function initPWA() {
+    if (!document.querySelector('link[rel="manifest"]')) {
+        const m = document.createElement('link');
+        m.rel = 'manifest';
+        m.href = '/manifest.json';
+        document.head.appendChild(m);
+    }
+    
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW setup failed', err));
+        });
     }
 })();

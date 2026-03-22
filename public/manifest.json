@@ -1,0 +1,22 @@
+{
+  "name": "Gavel Protocol",
+  "short_name": "Gavel",
+  "description": "Premium Asset Verification & Bidding Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#110E0D",
+  "theme_color": "#D4AF37",
+  "icons": [
+    {
+      "src": "/images/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/images/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

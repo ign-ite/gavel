@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>List Your Item | Gavel</title>
+    <title>Create Market | Gavel</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         .sell-container {
             display: flex;
@@ -16,66 +16,88 @@
         }
 
         .sell-card {
-            background: var(--parchment);
+            background: var(--bg-card);
             padding: 50px;
-            border-radius: 4px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
-            border: 2px solid var(--brass-gold);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
             width: 100%;
-            max-width: 700px;
+            max-width: 760px;
         }
 
         .sell-card h2 {
-            font-family: 'Montserrat', sans-serif;
-            color: var(--deep-oak);
+            font-size: 2.2rem;
+            color: var(--text-primary);
             text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 3px;
+            margin-top: 0;
             margin-bottom: 10px;
+            letter-spacing: -1px;
         }
 
         .sell-subtitle {
             text-align: center;
-            color: #8b6f5b;
-            font-style: italic;
+            color: var(--text-secondary);
             margin-bottom: 40px;
             display: block;
+            font-size: 1.05rem;
         }
 
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 24px;
         }
 
         .full-width { grid-column: span 2; }
 
         .form-group label {
             display: block;
-            font-weight: bold;
-            color: var(--deep-oak);
+            font-weight: 600;
+            color: var(--text-secondary);
             margin-bottom: 8px;
             font-size: 0.9rem;
-            text-transform: uppercase;
         }
 
         .form-group input, .form-group textarea {
             width: 100%;
-            padding: 12px;
-            border: 1px solid #c4b4a5;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.6);
+            padding: 14px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-main);
+            color: var(--text-primary);
             font-family: inherit;
             box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
         }
 
-        .form-group textarea { height: 120px; resize: none; }
+        .form-group textarea { height: 140px; resize: none; }
 
         .sell-btn {
             width: 100%;
-            margin-top: 30px;
+            margin-top: 20px;
             cursor: pointer;
             border: none;
+            padding: 16px;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        
+        input[type=file]::file-selector-button {
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: var(--glass-bg);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-right: 12px;
+        }
+        input[type=file]::file-selector-button:hover {
+            background: rgba(255,255,255,0.1);
         }
     </style>
 </head>
@@ -84,75 +106,170 @@
         <nav class="navbar">
             <div class="logo">
                 <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
-                    <img src="images/logo.png" alt="Gavel Logo" class="logo-icon">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                     <span>Gavel</span>
                 </a>
             </div>
-            <ul class="nav-links">
-                <li><a href="auction.html">Auctions</a></li>
-                <li class="nav-profile">
-                    <a href="profile.html" class="nav-avatar-initial" id="nav-avatar">G</a>
-                </li>
-            </ul>
+            <ul class="nav-links"><!-- Populated by nav.js --></ul>
         </nav>
     </header>
 
     <main class="sell-container">
         <div class="sell-card">
-            <h2>Consign Your Item</h2>
-            <span class="sell-subtitle">Submit your lot for verification.</span>
+            <h2>List Your Asset</h2>
+            <span class="sell-subtitle">Submit your asset for market verification.</span>
             
-            <form action="/api/sell" method="POST" enctype="multipart/form-data" class="form-grid">
+            <form id="sell-form" action="/api/sell" method="POST" enctype="multipart/form-data" class="form-grid">
                 <div class="form-group full-width">
-                    <label>Item Title</label>
-                    <input type="text" name="title" required>
+                    <label>Asset Title</label>
+                    <input type="text" name="title" required placeholder="Ex. Patek Philippe Nautilus Ref. 5711">
                 </div>
 
                 <div class="form-group">
-                    <label>Starting Bid (₹)</label>
-                    <input type="number" name="price" required>
+                    <label>Starting Liquidity (₹)</label>
+                    <input type="number" name="price" required placeholder="0">
                 </div>
 
                 <div class="form-group">
+                    <label>Reserve Price (₹) - Optional</label>
+                    <input type="number" name="reserve_price" placeholder="Hidden minimum price">
+                </div>
+
+                <div class="form-group full-width">
                     <label>Category</label>
-                    <input type="text" name="category">
+                    <select name="category" id="category-select" required style="width: 100%; padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-main); color: var(--text-primary); cursor:pointer;">
+                        <option value="" disabled selected>Select a category...</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Vehicles">Vehicles</option>
+                        <option value="Real Estate">Real Estate</option>
+                        <option value="Collectibles">Collectibles</option>
+                        <option value="Fashion">Fashion</option>
+                        <option value="Art">Art</option>
+                        <option value="Jewellery">Jewellery</option>
+                        <option value="Antiques">Antiques</option>
+                    </select>
+                </div>
+
+                <!-- Dynamic Fields Container -->
+                <div id="dynamic-fields" class="form-grid full-width" style="display: none; padding: 20px; background: var(--glass-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+                    <h3 style="grid-column: span 2; margin-top: 0; font-size: 1.1rem; color: var(--brass-gold);">Category specifics</h3>
+                    <div id="dynamic-inputs" style="display: contents;"></div>
                 </div>
 
                 <div class="form-group">
-                    <label>Cover Photo (Image)</label>
+                    <label>Primary Image (Cover)</label>
                     <input type="file" name="image" accept="image/*" required>
                 </div>
 
                 <div class="form-group">
                     <label>360° Verification (Video)</label>
                     <input type="file" name="video" accept="video/*" required>
-                    <small style="color: #8b6f5b; font-size: 0.7rem; display: block; margin-top: 5px;">
-                        *Show a 360 view and hold the item to verify authenticity.
+                    <small style="color: var(--text-secondary); font-size: 0.75rem; display: block; margin-top: 8px;">
+                        *Must show 360 view for authenticity review.
                     </small>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>Provenance & Description</label>
-                    <textarea name="description" required></textarea>
+                    <label>Asset Provenance & Description</label>
+                    <textarea id="base-description" required placeholder="Describe the asset's history, condition, and any accompanying documentation."></textarea>
+                    <!-- Hidden input to hold the combined final description -->
+                    <input type="hidden" name="description" id="final-description">
                 </div>
 
                 <div class="full-width">
-                    <button type="submit" class="btn-primary sell-btn">Authorize Listing</button>
+                    <button type="submit" class="btn-primary sell-btn">Submit for Verification</button>
                 </div>
             </form>
         </div>
     </main>
 
     <footer>
-        <p>&copy; 2026 Gavel. All rights reserved.</p>
+        <p>&copy; 2026 Gavel Protocol. All rights reserved.</p>
     </footer>
     <script src="js/nav.js"></script>
     <script>
+        const categoryConfigs = {
+            "Electronics": [
+                { name: "Brand", placeholder: "e.g. Apple, Leica", type: "text" },
+                { name: "Model", placeholder: "e.g. iPhone 15 Pro, M6", type: "text" },
+                { name: "Condition", placeholder: "e.g. Mint, Refurbished", type: "text" },
+                { name: "Specs", placeholder: "e.g. 512GB, 16GB RAM", type: "text" }
+            ],
+            "Vehicles": [
+                { name: "Make", placeholder: "e.g. Porsche, Tesla", type: "text" },
+                { name: "Model", placeholder: "e.g. 911 Carrera, Model S", type: "text" },
+                { name: "Year", placeholder: "e.g. 2021", type: "number" },
+                { name: "Mileage", placeholder: "e.g. 15,000 miles", type: "text" }
+            ],
+            "Real Estate": [
+                { name: "Location", placeholder: "e.g. Manhattan, NY", type: "text" },
+                { name: "Area", placeholder: "e.g. 2,500 sqft", type: "text" },
+                { name: "Type", placeholder: "e.g. Villa, Penthouse", type: "text" }
+            ],
+            "Fashion": [
+                { name: "Brand", placeholder: "e.g. Hermès, Gucci", type: "text" },
+                { name: "Size", placeholder: "e.g. 30, Medium", type: "text" },
+                { name: "Material", placeholder: "e.g. Togo Leather", type: "text" }
+            ],
+            "Art": [
+                { name: "Artist", placeholder: "e.g. Banksy", type: "text" },
+                { name: "Medium", placeholder: "e.g. Oil on Canvas", type: "text" },
+                { name: "Dimensions", placeholder: "e.g. 48x48 inches", type: "text" }
+            ],
+            "Jewellery": [
+                { name: "Designer", placeholder: "e.g. Cartier, Rolex", type: "text" },
+                { name: "Material", placeholder: "e.g. 18k Gold, Platinum", type: "text" },
+                { name: "Gemstone", placeholder: "e.g. 2.4ct Diamond", type: "text" }
+            ]
+        };
+
+        const catSelect = document.getElementById('category-select');
+        const dynContainer = document.getElementById('dynamic-fields');
+        const dynInputs = document.getElementById('dynamic-inputs');
+        const form = document.getElementById('sell-form');
+        const baseDesc = document.getElementById('base-description');
+        const finalDesc = document.getElementById('final-description');
+
+        catSelect.addEventListener('change', (e) => {
+            const cat = e.target.value;
+            const fields = categoryConfigs[cat];
+            
+            if (!fields) {
+                dynContainer.style.display = 'none';
+                dynInputs.innerHTML = '';
+                return;
+            }
+
+            dynContainer.style.display = 'grid';
+            dynInputs.innerHTML = fields.map(f => `
+                <div class="form-group dyn-field-wrapper">
+                    <label>${f.name}</label>
+                    <input type="${f.type}" data-label="${f.name}" class="dyn-input" placeholder="${f.placeholder}" required>
+                </div>
+            `).join('');
+        });
+
+        form.addEventListener('submit', (e) => {
+            // Combine dynamic fields into the main description
+            let specsText = "";
+            const inputs = document.querySelectorAll('.dyn-input');
+            if (inputs.length > 0) {
+                specsText += "### Specifications\n";
+                inputs.forEach(input => {
+                    specsText += `- **${input.getAttribute('data-label')}:** ${input.value}\n`;
+                });
+                specsText += "\n### Description\n";
+            }
+            
+            finalDesc.value = specsText + baseDesc.value;
+        });
+
         document.querySelector('input[name="video"]').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
-                // This provides immediate feedback to the Auctioneer
-                alert("Verification Video Received: Our curators will review the 360° footage upon submission.");
+                alert("Verification video attached. Our compliance team will review the footage upon listing submission.");
             }
         });
     </script>

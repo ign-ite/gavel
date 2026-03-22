@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shorts | Gavel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+            overflow: hidden;
+            color: white;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .shorts-layout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .shorts-video-area {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0d0d0d;
+            cursor: pointer;
+        }
+
+        .shorts-video-area video,
+        .shorts-video-area img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+
+        /* Overlay for video */
+        .shorts-overlay {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            pointer-events: none;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            padding: 40px 20px 20px 20px;
+            border-radius: 12px;
+            width: calc(100% - 80px);
+        }
+
+        .shorts-overlay h1 {
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .tap-prompt {
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.8);
+            pointer-events: none;
+            animation: pulse-op 2s infinite;
+        }
+
+        @keyframes pulse-op {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        .shorts-sidebar {
+            width: 400px;
+            background: var(--bg-card);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .seller-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .seller-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .bids-feed {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .bid-comment {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .bid-comment .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--glass-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: var(--brass-gold);
+            border: 1px solid var(--border-color);
+        }
+        
+        .bid-comment-body {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 10px 14px;
+            border-radius: 12px;
+            flex: 1;
+        }
+
+        .bid-action-bar {
+            padding: 20px;
+            background: var(--bg-main);
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        @media (max-width: 900px) {
+            .shorts-layout { flex-direction: column; }
+            .shorts-video-area { height: 50vh; flex: none; }
+            .shorts-sidebar { width: 100%; height: 50vh; }
+            .shorts-overlay { bottom: 20px; left: 20px; width: calc(100% - 40px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="shorts-layout">
+        <div class="shorts-video-area" id="video-area">
+            <div class="tap-prompt">Tap video for full details</div>
+            <!-- Video or Image injected here -->
+            <div class="shorts-overlay">
+                <h1 id="short-title">Loading...</h1>
+                <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+                    <div>
+                        <div style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:4px;">Current Bid</div>
+                        <div style="font-size: 1.8rem; font-weight: 800; color: var(--neon-green);" id="short-price">₹0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside class="shorts-sidebar">
+            <div class="sidebar-header">
+                <a href="/index.html" style="color:var(--text-secondary); text-decoration:none; display:flex; align-items:center; gap:8px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                    Back
+                </a>
+                <span class="live-badge"><span class="live-dot"></span>Live Chat</span>
+            </div>
+
+            <div class="seller-info">
+                <div class="seller-avatar" id="seller-avatar">S</div>
+                <div>
+                    <div style="font-weight:600; font-size:1.1rem;" id="seller-name">Seller</div>
+                    <div style="color:var(--accent-blue); font-size:0.85rem;" id="seller-trust">Trust Score: 100</div>
+                </div>
+            </div>
+
+            <div class="bids-feed" id="bids-feed">
+                <!-- Bids loaded as 'comments' -->
+                <p style="text-align:center; color:var(--text-secondary); margin-top:20px;">No trades yet. Be the first!</p>
+            </div>
+
+            <div class="bid-action-bar">
+                <button class="btn-primary" style="width:100%; padding:14px; font-size:1.1rem; background:rgba(0,255,136,0.1); color:var(--neon-green); border-color:rgba(0,255,136,0.3);" id="jump-to-bid">
+                    Join Bidding War
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            if(!id) return window.location.href = '/';
+
+            // Click routing
+            document.getElementById('video-area').addEventListener('click', () => {
+                window.location.href = `/item-detail.html?id=${id}`;
+            });
+            document.getElementById('jump-to-bid').addEventListener('click', () => {
+                window.location.href = `/item-detail.html?id=${id}#bid-form-area`;
+            });
+
+            try {
+                // Fetch auction details
+                const res = await fetch(`/api/auction/${id}`);
+                const data = await res.json();
+
+                // Populate media
+                const videoArea = document.getElementById('video-area');
+                const mediaUrl = data.videoUrl || data.imageUrl;
+                if(data.videoUrl) {
+                    const vid = document.createElement('video');
+                    vid.src = data.videoUrl;
+                    vid.autoplay = true;
+                    vid.loop = true;
+                    vid.muted = true;
+                    vid.playsInline = true;
+                    videoArea.insertBefore(vid, document.querySelector('.shorts-overlay'));
+                } else {
+                    const img = document.createElement('img');
+                    img.src = data.imageUrl;
+                    videoArea.insertBefore(img, document.querySelector('.shorts-overlay'));
+                }
+
+                document.getElementById('short-title').textContent = data.title;
+                document.getElementById('short-price').textContent = `₹${data.currentBid.toLocaleString('en-IN')}`;
+                
+                document.getElementById('seller-name').textContent = data.sellerEmail.split('@')[0];
+                document.getElementById('seller-avatar').textContent = data.sellerEmail.charAt(0).toUpperCase();
+
+                // Fetch bids for details
+                const bidsRes = await fetch(`/api/bid-history/${id}`);
+                const bidsData = await bidsRes.json();
+
+                const feed = document.getElementById('bids-feed');
+                if(bidsData.length > 0) {
+                    feed.innerHTML = bidsData.map(b => `
+                        <div class="bid-comment">
+                            <div class="avatar">${b.bidder_name.charAt(0).toUpperCase()}</div>
+                            <div class="bid-comment-body">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                    <span style="font-weight:600; font-size:0.9rem;">${b.bidder_name}</span>
+                                    <span style="color:var(--text-secondary); font-size:0.75rem;">${new Date(b.placed_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                </div>
+                                <div>Placed a trade of <span style="color:var(--neon-green); font-weight:700;">₹${b.amount.toLocaleString('en-IN')}</span></div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                // WebSocket live updates
+                const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+                const ws = new WebSocket(`${protocol}://${location.host}`);
+                ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'watch', itemId: id })));
+                
+                ws.addEventListener('message', async (event) => {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'bid_update' && msg.itemId === id) {
+                        document.getElementById('short-price').textContent = `₹${msg.newBid.toLocaleString('en-IN')}`;
+                        
+                        // Refetch bids
+                        const newBidsRes = await fetch(`/api/bid-history/${id}`);
+                        const newBids = await newBidsRes.json();
+                        if(newBids.length > 0) {
+                            feed.innerHTML = newBids.map(b => `
+                                <div class="bid-comment">
+                                    <div class="avatar">${b.bidder_name.charAt(0).toUpperCase()}</div>
+                                    <div class="bid-comment-body">
+                                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                            <span style="font-weight:600; font-size:0.9rem;">${b.bidder_name}</span>
+                                            <span style="color:var(--text-secondary); font-size:0.75rem;">${new Date(b.placed_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                        </div>
+                                        <div>Placed a trade of <span style="color:var(--neon-green); font-weight:700;">₹${b.amount.toLocaleString('en-IN')}</span></div>
+                                    </div>
+                                </div>
+                            `).join('');
+                            feed.scrollTop = 0;
+                        }
+                    }
+                });
+
+            } catch(e) { console.error('Error loading short'); }
+        });
+    </script>
+</body>
+</html>
