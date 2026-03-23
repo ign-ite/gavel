@@ -2,16 +2,122 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>My Collection | Gavel</title>
+    <title>My Portfolio | Gavel</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .my-products-section {
+            padding: 60px 50px;
+            max-width: 1400px;
+            margin: 0 auto;
+            min-height: 80vh;
+        }
+
+        .my-products-section h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+        
+        .my-products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 40px;
+        }
+
+        .my-product-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2sease, border-color 0.2sease;
+        }
+        
+        .my-product-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .my-product-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .my-product-info {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .my-product-info h3 {
+            margin: 0 0 12px 0;
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        .my-product-status {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .status-active { color: var(--neon-green); }
+        .status-closed { color: var(--text-secondary); }
+
+        .btn-withdraw {
+            background: rgba(255, 59, 48, 0.1);
+            color: var(--neon-red);
+            border: 1px solid rgba(255, 59, 48, 0.3);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        .btn-withdraw:hover {
+            background: rgba(255, 59, 48, 0.2);
+            border-color: var(--neon-red);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            grid-column: 1 / -1;
+            background: var(--glass-bg);
+            border-radius: 12px;
+            border: 1px dashed var(--border-color);
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
     <header>
         <nav class="navbar">
             <div class="logo">
                 <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
-                    <img src="images/logo.png" alt="Gavel Logo" class="logo-icon">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                     <span>Gavel</span>
                 </a>
             </div>
@@ -19,15 +125,17 @@
         </nav>
     </header>
 
-    <section class="auctions-section">
-        <h1>My Listed Products</h1>
-        <p style="color: #8b6f5b; margin-bottom: 20px;">Manage your active and closed lots.</p>
-        <div class="auction-cards" id="my-products-list"></div>
+    <section class="my-products-section">
+        <h1>My Listed Markets</h1>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">Manage your active and closed asset listings.</p>
+        <div class="my-products-grid" id="my-products-list"></div>
     </section>
 
-    <footer><p>&copy; 2026 Gavel. All rights reserved.</p></footer>
+    <footer><p>&copy; 2026 Gavel Protocol. All rights reserved.</p></footer>
 
     <script src="js/nav.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
     <script src="js/my_products.js"></script>
 </body>
 </html>

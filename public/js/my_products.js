@@ -2,6 +2,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const listContainer = document.getElementById("my-products-list");
     if (!listContainer) return;
 
+    window.activeTimers = window.activeTimers || [];
+
     // Auth check
     let currentUser = null;
     try {
@@ -10,8 +12,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!meData.loggedIn) {
             listContainer.innerHTML = `
                 <div style="grid-column:1/-1; text-align:center; padding:80px 20px;">
-                    <p style="color:#8b6f5b; font-size:1.1rem;">You must be logged in to view your listings.</p>
-                    <a href="/login.html" class="btn-primary" style="display:inline-block; margin-top:20px;">Sign In</a>
+                    <p style="color:var(--text-secondary); font-size:1.1rem; margin-bottom: 20px;">You must be logged in to view your listings.</p>
+                    <a href="/login.html" class="btn-primary" style="display:inline-block;">Sign In</a>
                 </div>`;
             return;
         }
@@ -25,19 +27,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Build tab bar
     const tabBar = document.createElement('div');
-    tabBar.style.cssText = 'display:flex; gap:10px; margin-bottom:30px;';
+    tabBar.style.cssText = 'display:flex; gap:12px; margin-bottom:30px; grid-column: 1 / -1;';
     tabBar.innerHTML = `
         <button id="tab-active" onclick="switchTab('active')"
-            style="padding:10px 25px; border:2px solid var(--brass-gold); background:var(--brass-gold);
-                   color:var(--polished-walnut); font-weight:bold; cursor:pointer; border-radius:4px;
-                   font-size:0.85rem; text-transform:uppercase;">
-            Active Lots
+            style="padding:10px 20px; border:1px solid rgba(0, 196, 255, 0.4); background:rgba(0, 196, 255, 0.1);
+                   color:var(--accent-blue); font-weight:600; cursor:pointer; border-radius:8px;
+                   font-size:0.9rem; transition: all 0.2s;">
+            Active Markets
         </button>
         <button id="tab-closed" onclick="switchTab('closed')"
-            style="padding:10px 25px; border:2px solid var(--brass-gold); background:transparent;
-                   color:var(--deep-oak); font-weight:bold; cursor:pointer; border-radius:4px;
-                   font-size:0.85rem; text-transform:uppercase;">
-            Closed Lots
+            style="padding:10px 20px; border:1px solid var(--border-color); background:transparent;
+                   color:var(--text-secondary); font-weight:600; cursor:pointer; border-radius:8px;
+                   font-size:0.9rem; transition: all 0.2s;">
+            Settled Markets
         </button>`;
     listContainer.before(tabBar);
 
@@ -46,21 +48,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         const btnActive = document.getElementById('tab-active');
         const btnClosed = document.getElementById('tab-closed');
         if (tab === 'active') {
-            btnActive.style.background = 'var(--brass-gold)';
-            btnActive.style.color      = 'var(--polished-walnut)';
+            btnActive.style.background = 'rgba(0, 196, 255, 0.1)';
+            btnActive.style.color      = 'var(--accent-blue)';
+            btnActive.style.borderColor = 'rgba(0, 196, 255, 0.4)';
             btnClosed.style.background = 'transparent';
-            btnClosed.style.color      = 'var(--deep-oak)';
+            btnClosed.style.color      = 'var(--text-secondary)';
+            btnClosed.style.borderColor = 'var(--border-color)';
         } else {
-            btnClosed.style.background = 'var(--brass-gold)';
-            btnClosed.style.color      = 'var(--polished-walnut)';
+            btnClosed.style.background = 'var(--glass-bg)';
+            btnClosed.style.color      = 'var(--text-primary)';
+            btnClosed.style.borderColor = 'rgba(255,255,255,0.2)';
             btnActive.style.background = 'transparent';
-            btnActive.style.color      = 'var(--deep-oak)';
+            btnActive.style.color      = 'var(--text-secondary)';
+            btnActive.style.borderColor = 'var(--border-color)';
         }
         loadMyProducts();
     };
 
     async function loadMyProducts() {
-        listContainer.innerHTML = '<p style="color:#8b6f5b; text-align:center; padding:30px;">Loading...</p>';
+        listContainer.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:30px; grid-column: 1 / -1;">Loading...</p>';
+        window.activeTimers = [];
         try {
             const [activeRes, closedRes] = await Promise.all([
                 fetch('/api/auctions'),
@@ -73,134 +80,146 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (myItems.length === 0) {
                 listContainer.innerHTML = activeTab === 'active' ? `
-                    <div style="grid-column:1/-1; text-align:center; padding:50px; color:#8b6f5b;">
-                        <p>No active lots on the floor.</p>
-                        <a href="sell-product.html" class="btn-primary" style="display:inline-block; margin-top:15px;">List an Item</a>
+                    <div class="empty-state">
+                        <p>No active markets found in your portfolio.</p>
+                        <a href="sell-product.html" class="btn-primary" style="display:inline-block;">Create Listing</a>
                     </div>` : `
-                    <div style="grid-column:1/-1; text-align:center; padding:50px; color:#8b6f5b;">
-                        <p style="font-style:italic;">No closed auctions yet.</p>
+                    <div class="empty-state">
+                        <p>No settled markets yet.</p>
                     </div>`;
                 return;
             }
 
             listContainer.innerHTML = "";
             myItems.forEach(item => renderCard(item));
+            startTimerLoop();
 
         } catch (error) {
-            listContainer.innerHTML = "<p>Error loading your collection.</p>";
+            listContainer.innerHTML = "<p style='color:var(--neon-red); grid-column: 1 / -1;'>Error loading your portfolio.</p>";
         }
     }
 
     function renderCard(item) {
-        const div      = document.createElement("div");
-        div.classList.add("auction-item");
+        const div = document.createElement("div");
+        div.classList.add("my-product-card");
         div.id = `card-${item.id}`;
 
         const isClosed = item.status === 'closed';
 
         const statusBadge = isClosed
-            ? `<span style="position:absolute; top:10px; right:10px; background:#2d1e16; color:#d4af37; padding:4px 8px; font-size:0.7rem; font-weight:bold; border-radius:3px;">CLOSED</span>`
+            ? `<span style="position:absolute; top:12px; right:12px; background:var(--glass-bg); color:var(--text-secondary); padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid var(--border-color);">SETTLED</span>`
             : item.verified
-                ? `<span style="position:absolute; top:10px; right:10px; background:#27ae60; color:white; padding:4px 8px; font-size:0.7rem; font-weight:bold; border-radius:3px;">VERIFIED</span>`
-                : `<span style="position:absolute; top:10px; right:10px; background:#f39c12; color:white; padding:4px 8px; font-size:0.7rem; font-weight:bold; border-radius:3px;">PENDING</span>`;
+                ? `<span style="position:absolute; top:12px; right:12px; background:rgba(0,255,136,0.1); color:var(--neon-green); padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid rgba(0,255,136,0.3);">VERIFIED</span>`
+                : `<span style="position:absolute; top:12px; right:12px; background:rgba(255,165,0,0.1); color:orange; padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid rgba(255,165,0,0.3);">PENDING</span>`;
 
-        let endTimeHtml = '';
+        let timeHtml = '';
         if (!isClosed && item.endTime) {
-            const end = new Date(item.endTime);
-            endTimeHtml = `<p style="font-size:0.8rem; color:#8b6f5b; margin-bottom:10px;">
-                Ends: ${end.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
-                at ${end.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}
-            </p>`;
+            const timerId = `timer-${item.id}`;
+            window.activeTimers.push({ el: timerId, end: new Date(item.endTime).getTime() });
+            timeHtml = `<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:20px;">
+                            <div style="display:flex; flex-direction:column;">
+                                <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Top Bid</span>
+                                <span style="font-size: 1.25rem; font-weight: 700; color: var(--neon-green);">₹${item.currentBid.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; display:block;">Time Left</span>
+                                <span id="${timerId}" style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums;">--:--:--</span>
+                            </div>
+                        </div>`;
+        } else {
+            timeHtml = `<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:20px;">
+                            <div style="display:flex; flex-direction:column;">
+                                <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Final Bid</span>
+                                <span style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">₹${item.currentBid.toLocaleString('en-IN')}</span>
+                            </div>
+                        </div>`;
         }
 
-        // Winner block for closed items
         let winnerHtml = '';
         if (isClosed) {
             if (item.winnerName) {
                 winnerHtml = `
-                    <div style="background:#f0fff4; border:1px solid #27ae60; border-radius:4px; padding:12px; margin-bottom:10px;">
-                        <p style="margin:0; font-size:0.8rem; color:#27ae60; font-weight:bold; text-transform:uppercase;">Winner</p>
-                        <p style="margin:4px 0 0; font-weight:bold; color:#2d4a3e;">${item.winnerName}</p>
-                        <p style="margin:2px 0 0; font-size:0.9rem; color:var(--polished-walnut);">
-                            ₹${Number(item.winningBid).toLocaleString('en-IN')}
-                        </p>
-                        <button onclick="showWinnerContact(${item.id})"
-                            style="margin-top:8px; width:100%; padding:7px; background:var(--brass-gold); color:var(--polished-walnut);
-                                   border:none; border-radius:3px; font-weight:bold; font-size:0.75rem; cursor:pointer; text-transform:uppercase;">
-                            View Contact Details
+                    <div style="background:rgba(0,196,255,0.05); border:1px dashed rgba(0,196,255,0.3); border-radius:8px; padding:12px; margin-bottom:20px;">
+                        <p style="margin:0; font-size:0.75rem; color:var(--accent-blue); font-weight:700; text-transform:uppercase;">Winning Counterparty</p>
+                        <p style="margin:4px 0 0; font-weight:600; color:var(--text-primary);">${item.winnerName}</p>
+                        <button onclick="showWinnerContact('${item.id}')"
+                            style="margin-top:10px; width:100%; padding:8px; background:var(--glass-bg); color:var(--text-primary);
+                                   border:1px solid var(--border-color); border-radius:6px; font-weight:600; font-size:0.8rem; cursor:pointer; transition:background 0.2s;">
+                            View Settlement Info
                         </button>
-                        <div id="winner-contact-${item.id}" style="display:none; margin-top:8px; font-size:0.85rem; color:#5c4033;"></div>
+                        <div id="winner-contact-${item.id}" style="display:none; margin-top:10px; font-size:0.85rem; color:var(--text-secondary);"></div>
                     </div>`;
             } else {
-                winnerHtml = `<p style="color:#8b6f5b; font-style:italic; font-size:0.85rem; margin-bottom:10px;">No bids were placed.</p>`;
+                winnerHtml = `<p style="color:var(--text-secondary); font-style:italic; font-size:0.85rem; margin-bottom:20px; text-align:center;">Market closed with no trades.</p>`;
             }
         }
 
-        // Action buttons
         let actionsHtml = '';
         if (!isClosed) {
             actionsHtml = `
-                <a href="/item-detail.html?id=${item.id}" class="btn-primary"
-                   style="display:block; text-align:center; font-size:0.85rem; margin-bottom:8px;">
-                    VIEW LIVE BID
-                </a>
-                <button onclick="endAuction(${item.id})"
-                    style="width:100%; padding:10px; border:2px solid #c0392b; background:transparent;
-                           color:#c0392b; font-weight:bold; cursor:pointer; border-radius:4px;
-                           font-size:0.8rem; text-transform:uppercase;"
-                    onmouseover="this.style.background='#c0392b'; this.style.color='white';"
-                    onmouseout="this.style.background='transparent'; this.style.color='#c0392b';">
-                    🔨 END AUCTION EARLY
-                </button>
+                <a href="/item-detail.html?id=${item.id}" class="btn-primary" style="display:block; text-align:center; padding:10px; font-size:0.85rem; margin-bottom:10px; width:100%;">Monitor Market</a>
+                <button onclick="endAuction('${item.id}')" class="btn-withdraw">Early Close Market</button>
                 ${item.bidCount === 0 ? `
-                <button onclick="withdrawItem(${item.id})"
-                    style="width:100%; margin-top:8px; padding:10px; border:none; background:#888;
-                           color:white; font-weight:bold; cursor:pointer; border-radius:4px;
-                           font-size:0.8rem; text-transform:uppercase;">
-                    WITHDRAW (NO BIDS)
+                <button onclick="withdrawItem('${item.id}')"
+                    style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--border-color); background:transparent;
+                           color:var(--text-secondary); font-weight:600; cursor:pointer; border-radius:8px; font-size:0.85rem; transition: background 0.2s;">
+                    Withdraw Listing
                 </button>` : ''}`;
         } else {
-            // Closed lot — show view + chat button (only if there's a winner)
             actionsHtml = `
-                <a href="/item-detail.html?id=${item.id}" class="btn-primary"
-                   style="display:block; text-align:center; font-size:0.85rem; margin-bottom:8px;">
-                    VIEW AUCTION
-                </a>
                 ${item.winnerName ? `
-                <a href="/chat.html?auction=${item.id}"
-                   style="display:block; text-align:center; padding:12px; border-radius:4px;
-                          background: linear-gradient(135deg, var(--deep-oak), var(--polished-walnut));
-                          color: var(--brass-gold); font-weight:bold; font-size:0.85rem;
-                          text-decoration:none; text-transform:uppercase; letter-spacing:1px;
-                          border: 1px solid var(--brass-gold);">
-                    💬 Chat with Winner
-                </a>` : ''}`;
+                <a href="/chat.html?auction=${item.id}" class="btn-primary" style="display:block; text-align:center; padding:10px; font-size:0.85rem; width:100%;">Open Encrypted Channel</a>` : ''}
+            `;
         }
 
         div.innerHTML = `
-            <div style="position:relative; overflow:hidden; border-radius:4px;">
+            <div style="position:relative; height:180px;">
                 ${statusBadge}
-                <img src="${item.image}" alt="${item.title}" style="width:100%; height:200px; object-fit:cover;">
+                <img src="${item.image}" alt="${item.title}" style="width:100%; height:100%; object-fit:cover; border-bottom:1px solid var(--border-color);">
             </div>
-            <div style="padding:15px;">
-                <h3 style="margin-bottom:5px;">${item.title}</h3>
-                <p style="margin-bottom:5px; color:#8b6f5b; font-size:0.85rem;">
-                    ${item.bidCount || 0} bid${item.bidCount !== 1 ? 's' : ''}
+            <div class="my-product-info">
+                <h3>${item.title}</h3>
+                <p style="margin-bottom:16px; color:var(--text-secondary); font-size:0.85rem;">
+                    Volume: ${item.bidCount || 0} trade${item.bidCount !== 1 ? 's' : ''}
                 </p>
-                <p style="margin-bottom:10px; font-weight:bold; color:var(--polished-walnut);">
-                    ${isClosed ? 'Final Bid' : 'Current Bid'}: ₹${item.currentBid.toLocaleString('en-IN')}
-                </p>
-                ${endTimeHtml}
+                ${timeHtml}
                 ${winnerHtml}
-                <div style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
                     ${actionsHtml}
                 </div>
             </div>`;
         listContainer.appendChild(div);
     }
 
+    let timerInterval;
+    function startTimerLoop() {
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            const now = Date.now();
+            window.activeTimers.forEach(t => {
+                const el = document.getElementById(t.el);
+                if (!el) return;
+                const diff = t.end - now;
+                if (diff <= 0) {
+                    el.textContent = "Ended";
+                    el.style.color = "var(--neon-red)";
+                } else {
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+                    
+                    let timeStr = '';
+                    if (days > 0) timeStr += `${days}d `;
+                    timeStr += `${hours.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+                    el.textContent = timeStr;
+                }
+            });
+        }, 1000);
+    }
+
     window.endAuction = async (id) => {
-        if (!confirm("End this auction now? The current highest bidder will win.")) return;
+        if (!confirm("End this market now? The current highest bidder will win.")) return;
         try {
             const res  = await fetch('/api/end-auction', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -208,12 +227,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
             const data = await res.json();
             if (res.ok) loadMyProducts();
-            else alert(data.message || "Failed to end auction.");
+            else alert(data.message || "Failed to close market.");
         } catch(e) { alert("Server error."); }
     };
 
     window.withdrawItem = async (id) => {
-        if (!confirm("Withdraw this lot? It will be permanently removed.")) return;
+        if (!confirm("Withdraw this listing? It will be permanently removed.")) return;
         try {
             const res  = await fetch('/api/remove-item', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -232,9 +251,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             const res  = await fetch(`/api/auction/${auctionId}/winner`);
             const data = await res.json();
             if (data.noBids) {
-                el.textContent = 'No bids were placed.';
+                el.textContent = 'No trades were placed.';
             } else {
-                el.innerHTML = `<strong>Email:</strong> <a href="mailto:${data.email}" style="color:var(--brass-gold);">${data.email}</a>`;
+                el.innerHTML = `<strong>Email:</strong> <a href="mailto:${data.email}" style="color:var(--accent-blue); text-decoration:none;">${data.email}</a>`;
             }
             el.style.display = 'block';
         } catch(e) {

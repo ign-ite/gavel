@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics | Gavel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .analytics-container { max-width: 1200px; margin: 50px auto; padding: 0 50px; }
+        .hero-title { font-size: 3rem; font-weight: 800; letter-spacing: -1px; margin-bottom: 20px; }
+        .hero-subtitle { font-size: 1.25rem; color: var(--text-secondary); margin-bottom: 50px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 50px; }
+        .stat-card { background: var(--bg-card); padding: 30px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .stat-card h4 { margin: 0 0 10px 0; color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card p { margin: 0; font-size: 2.5rem; font-weight: 800; color: var(--text-primary); }
+        .stat-card .highlight { color: var(--neon-green); text-shadow: 0 0 10px rgba(0,255,136,0.3); }
+        
+        .market-health { background: var(--bg-card); padding: 40px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; }
+        .pulse { display: inline-block; width: 12px; height: 12px; background: var(--neon-green); border-radius: 50%; box-shadow: 0 0 10px var(--neon-green); margin-right: 10px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
+        
+        @media (max-width: 900px) {
+            .analytics-container { padding: 0 20px; }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="logo">
+                <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Gavel</span>
+                </a>
+            </div>
+            <ul class="nav-links"><!-- Populated by nav.js --></ul>
+        </nav>
+    </header>
+
+    <div class="analytics-container">
+        <h1 class="hero-title">Platform <span style="color:var(--accent-blue)">Analytics</span></h1>
+        <p class="hero-subtitle">Real-time macro insights into the Gavel ecosystem.</p>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h4>Total Volume Settled</h4>
+                <p class="highlight" id="stat-volume">₹0</p>
+            </div>
+            <div class="stat-card">
+                <h4>Active Markets</h4>
+                <p id="stat-active">0</p>
+            </div>
+            <div class="stat-card">
+                <h4>Total Executed Trades</h4>
+                <p id="stat-trades">0</p>
+            </div>
+            <div class="stat-card">
+                <h4>Verified Traders</h4>
+                <p id="stat-users">0</p>
+            </div>
+            <div class="stat-card">
+                <h4>Closed Markets</h4>
+                <p id="stat-closed">0</p>
+            </div>
+        </div>
+
+        <div class="market-health">
+            <h3 style="font-size: 1.5rem; margin-bottom: 10px;"><span class="pulse"></span> Protocol Status: Online</h3>
+            <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto;">WebSocket settlement layer is fully operational. All markets are clearing correctly and database replication lag is < 5ms.</p>
+        </div>
+    </div>
+
+    <footer><p>&copy; 2026 Gavel Protocol. All rights reserved.</p></footer>
+
+    <script src="js/nav.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/analytics');
+                const data = await res.json();
+                document.getElementById('stat-volume').textContent = '₹' + (data.totalVolume || 0).toLocaleString('en-IN');
+                document.getElementById('stat-active').textContent = (data.activeAuctions || 0).toLocaleString('en-IN');
+                document.getElementById('stat-trades').textContent = (data.totalBids || 0).toLocaleString('en-IN');
+                document.getElementById('stat-users').textContent = (data.totalUsers || 0).toLocaleString('en-IN');
+                document.getElementById('stat-closed').textContent = (data.closedAuctions || 0).toLocaleString('en-IN');
+            } catch(e) {
+                console.error("Failed to load analytics");
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explore | Gavel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="logo">
+                <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Gavel</span>
+                </a>
+            </div>
+            <ul class="nav-links"><!-- Populated by nav.js --></ul>
+        </nav>
+    </header>
+
+    <section style="text-align:center; padding: 30px 20px 10px;">
+        <h1 style="font-size: 2rem; margin: 0 0 8px;">Explore</h1>
+        <p style="color: var(--text-secondary); margin: 0 0 20px; font-size: 0.95rem;">Discover live auctions like scrolling Reels</p>
+
+        <div style="max-width: 500px; margin: 0 auto 10px;">
+            <input type="text" id="explore-search" placeholder="Search auctions..." style="width:100%; padding:12px 20px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background:var(--glass-bg); color:var(--text-primary); font-size:0.95rem; outline:none; box-sizing:border-box;">
+        </div>
+
+        <div class="explore-tabs" id="explore-tabs">
+            <button class="explore-tab active" data-filter="all">All Shorts</button>
+            <button class="explore-tab" data-filter="live">Live Now</button>
+            <button class="explore-tab" data-filter="ending">Ending Soon</button>
+            <button class="explore-tab" data-filter="highbids">High Bids</button>
+        </div>
+    </section>
+
+    <div class="explore-grid" id="explore-grid">
+        <!-- Cards rendered by JS -->
+    </div>
+
+    <div style="text-align:center; padding: 20px;" id="load-more-area">
+        <button id="load-more-btn" class="btn-primary" style="border-radius:20px; padding: 12px 36px; background:transparent; border:1px solid rgba(255,255,255,0.1); color: var(--text-secondary);">
+            Load More
+        </button>
+    </div>
+
+    <footer><p>&copy; 2026 Gavel Protocol. All rights reserved.</p></footer>
+
+    <script src="js/nav.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
+    <script>
+    let allAuctions = [];
+    let displayedCount = 0;
+    const PAGE_SIZE = 12;
+    let currentFilter = 'all';
+    let currentSearch = '';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const res = await fetch('/api/auctions');
+            allAuctions = await res.json();
+            renderExplore();
+        } catch(e) { console.error(e); }
+
+        // Tab switching
+        document.querySelectorAll('.explore-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.explore-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentFilter = tab.dataset.filter;
+                displayedCount = 0;
+                document.getElementById('explore-grid').innerHTML = '';
+                renderExplore();
+            });
+        });
+
+        // Search
+        let searchTimeout;
+        document.getElementById('explore-search').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentSearch = e.target.value.toLowerCase();
+                displayedCount = 0;
+                document.getElementById('explore-grid').innerHTML = '';
+                renderExplore();
+            }, 300);
+        });
+
+        // Load more
+        document.getElementById('load-more-btn').addEventListener('click', renderExplore);
+    });
+
+    function getFilteredAuctions() {
+        let items = allAuctions.filter(a => a.status === 'active');
+
+        if (currentSearch) {
+            items = items.filter(a => a.title.toLowerCase().includes(currentSearch) || (a.category || '').toLowerCase().includes(currentSearch));
+        }
+
+        switch(currentFilter) {
+            case 'live':
+                items = items.filter(a => a.endTime && new Date(a.endTime) > new Date());
+                break;
+            case 'ending':
+                items = items
+                    .filter(a => a.endTime && new Date(a.endTime) > new Date())
+                    .sort((a,b) => new Date(a.endTime) - new Date(b.endTime));
+                break;
+            case 'highbids':
+                items = items.sort((a,b) => b.currentBid - a.currentBid);
+                break;
+        }
+
+        return items;
+    }
+
+    function renderExplore() {
+        const grid = document.getElementById('explore-grid');
+        const items = getFilteredAuctions();
+        const batch = items.slice(displayedCount, displayedCount + PAGE_SIZE);
+
+        batch.forEach(item => {
+            const sellerName = (item.sellerEmail || 'seller').split('@')[0];
+            const sellerInitial = sellerName.charAt(0).toUpperCase();
+            const hasVideo = !!item.videoUrl;
+
+            const card = document.createElement('div');
+            card.className = 'short-card';
+            card.onclick = () => window.location.href = `/short-view.html?id=${item.id}`;
+            card.innerHTML = `
+                <div class="short-seller">
+                    <div class="short-seller-avatar">${sellerInitial}</div>
+                    <span class="short-seller-name">${sellerName}</span>
+                </div>
+                <div class="short-live-badge"><span class="short-live-dot"></span>LIVE</div>
+                ${hasVideo
+                    ? `<video class="short-video" src="${item.videoUrl}" muted loop playsinline preload="metadata"></video>`
+                    : `<img class="short-media" src="${item.image}" alt="${item.title}" loading="lazy">`
+                }
+                <div class="short-overlay">
+                    <span class="short-timer live-timer" data-endtime="${item.endTime}">Loading...</span>
+                    <p class="short-title">${item.title}</p>
+                    <p class="short-price">₹${item.currentBid.toLocaleString('en-IN')}</p>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+
+        displayedCount += batch.length;
+
+        // Hide load more if no more items
+        document.getElementById('load-more-btn').style.display =
+            displayedCount >= items.length ? 'none' : 'inline-block';
+
+        // Setup video autoplay for new cards
+        setupVideoAutoplay();
+        startTimers();
+    }
+
+    function setupVideoAutoplay() {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const video = entry.target;
+                if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+                    video.play().catch(() => {});
+                } else {
+                    video.pause();
+                }
+            });
+        }, { threshold: 0.6 });
+
+        document.querySelectorAll('.short-video:not([data-observed])').forEach(v => {
+            v.setAttribute('data-observed', '1');
+            observer.observe(v);
+        });
+    }
+
+    function startTimers() {
+        setInterval(() => {
+            document.querySelectorAll('.live-timer').forEach(el => {
+                const end = new Date(el.dataset.endtime).getTime();
+                const now = Date.now();
+                const diff = end - now;
+                if (diff <= 0) {
+                    el.textContent = 'Ended';
+                    el.style.color = 'var(--neon-red)';
+                    return;
+                }
+                const h = Math.floor(diff / 3600000);
+                const m = Math.floor((diff % 3600000) / 60000);
+                const s = Math.floor((diff % 60000) / 1000);
+                el.textContent = h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+
+                if (diff < 600000) {
+                    el.style.color = 'var(--neon-red)';
+                    el.style.fontWeight = 'bold';
+                }
+            });
+        }, 1000);
+    }
+    </script>
+</body>
+</html>

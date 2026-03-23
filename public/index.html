@@ -3,16 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gavel - Online Auction Platform</title>
+    <title>Gavel | Predict the value of high-end assets</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .ticker-wrap { width: 100%; overflow: hidden; background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 8px 0; box-sizing: border-box; position: relative; }
+        .ticker { display: inline-block; white-space: nowrap; padding-left: 100%; animation: ticker 25s linear infinite; }
+        .ticker:hover { animation-play-state: paused; }
+        .ticker-item { display: inline-block; padding: 0 2rem; font-size: 0.85rem; color: var(--text-secondary); font-family: inherit; }
+        .ticker-item strong { color: var(--neon-green); }
+        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
+    </style>
 </head>
 <body>
     <header>
         <nav class="navbar">
             <div class="logo">
                 <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
-                    <img src="images/logo.png" alt="Gavel Logo" class="logo-icon">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                     <span>Gavel</span>
                 </a>
             </div>
@@ -22,53 +34,101 @@
         </nav>
     </header>
 
+    <div class="ticker-wrap">
+        <div class="ticker" id="global-ticker">
+            <div class="ticker-item">LIVE MARKET ACTIVITY <span style="display:inline-block; width:6px; height:6px; background:var(--neon-green); border-radius:50%; margin-left:8px; box-shadow: 0 0 6px var(--neon-green);"></span></div>
+            <div class="ticker-item">Waiting for trades...</div>
+        </div>
+    </div>
+
+    <!-- Instagram Explore-style Shorts Teaser -->
+    <section class="shorts-section" style="padding-top: 30px;">
+        <h2 style="text-align:center; display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom: 20px;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+            Trending Discovery
+        </h2>
+        <div class="shorts-feed" id="home-shorts-container">
+            <!-- Populated via main.js (6 compact cards) -->
+        </div>
+        <div id="auth-wall-sentinel" style="height:1px;"></div>
+        <div class="explore-cta">
+            <a href="/explore.html" class="btn-explore">Explore All Auction Shorts →</a>
+        </div>
+    </section>
+
     <section class="hero">
-        <div class="hero-overlay"></div>
         <div class="hero-content">
-            <h1>Welcome to Gavel</h1>
-            <p>Step into the auction house online. Bid, win, and trade with confidence.</p>
-            <div class="hero-buttons">
-                <a href="signup.html" class="btn-primary">Get Started</a>
+            <h1>Trade High-End Assets.</h1>
+            <p>Access the world's most exclusive auctions. Bid in real-time on verified luxury goods, art, and collectibles with real-time settlement.</p>
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                <a href="signup.html" class="btn-primary">Sign Up Now</a>
+                <a href="auction.html" class="btn-primary" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-primary);">Explore Markets</a>
             </div>
         </div>
     </section>
 
     <section id="auctions" class="auctions-section">
-        <h2>Ongoing Auctions</h2>
-        <div class="auction-cards" id="auction-list"></div>
-    </section>
-
-    <section class="sell-cta">
-        <div class="cta-content">
-            <h2>Have an Item Worthy of the Gavel?</h2>
-            <p>Join our elite circle of auctioneers and reach collectors worldwide.</p>
-            <a href="sell-product.html" class="btn-primary">Sell a Product</a>
+        <h2>Live Markets</h2>
+        <div class="auction-cards" id="auction-list">
+            <!-- Populated by main.js -->
         </div>
     </section>
 
     <section class="how-it-works">
-        <h2>How Gavel Works</h2>
+        <h2>How It Works</h2>
         <div class="steps">
             <div class="step">
-                <h3>Create an Auction</h3>
-                <p>List your items, set starting bids, and let the gavel do its work.</p>
+                <h3>1. Discover Markets</h3>
+                <p>Browse live auctions. Every asset is strictly vetted and verified before being listed on the platform.</p>
             </div>
             <div class="step">
-                <h3>Place Your Bids</h3>
-                <p>Monitor auctions and bid with confidence knowing the seller's trust score.</p>
+                <h3>2. Place Trades</h3>
+                <p>Place direct bids or set proxy auto-bidding. Watch prices update in real-time via WebSockets.</p>
             </div>
             <div class="step">
-                <h3>Secure Transactions</h3>
-                <p>Payments are handled safely, and trust scores keep everyone accountable.</p>
+                <h3>3. Settle Instantly</h3>
+                <p>Win the auction, chat with the seller, and checkout securely with integrated escrow.</p>
             </div>
         </div>
     </section>
 
+    <section class="sell-cta">
+        <div class="cta-content">
+            <h2>List an Asset</h2>
+            <p>Monetize your luxury assets. Access a global pool of active traders.</p>
+            <a href="sell-product.html" class="btn-primary">Create Listing</a>
+        </div>
+    </section>
+
     <footer>
-        <p>&copy; 2026 Gavel. All rights reserved.</p>
+        <p>&copy; 2026 Gavel Protocol. All rights reserved.</p>
     </footer>
 
     <script src="js/nav.js"></script>
     <script src="js/main.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${proto}//${window.location.host}`);
+            ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'watch_global' })));
+            ws.addEventListener('message', (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'global_activity') {
+                        const ticker = document.getElementById('global-ticker');
+                        const item = document.createElement('div');
+                        item.className = 'ticker-item';
+                        item.innerHTML = `<a href="/item-detail.html?id=${msg.itemId}" style="color:inherit; text-decoration:none;"><strong>NEW TRADE:</strong> ${msg.message}</a> <span style="color:var(--border-color); margin-left:15px;">|</span>`;
+                        ticker.appendChild(item);
+                        if (ticker.children.length > 20) ticker.removeChild(ticker.children[1]);
+                    }
+                } catch(e) {}
+            });
+        });
+    </script>
 </body>
 </html>

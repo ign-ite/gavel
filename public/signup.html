@@ -1,50 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Join the House | Gavel</title>
+    <title>Sign Up | Gavel Protocol</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto&display=swap" rel="stylesheet">
-    <style>
-        .auth-container {
-            display: flex; justify-content: center; align-items: center;
-            min-height: 90vh; padding: 60px 20px;
-        }
-        .auth-card {
-            background: #fdf5e6; padding: 40px; border-radius: 4px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4), inset 0 0 50px rgba(139,111,91,0.1);
-            border: 2px solid #d4af37;
-            width: 100%; max-width: 450px; text-align: center;
-        }
-        .auth-card h2 {
-            font-family: 'Montserrat', sans-serif; color: #3d2b1f;
-            margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px;
-        }
-        .auth-card p.subtitle { color: #8b6f5b; margin-bottom: 30px; font-style: italic; }
-        .form-group { margin-bottom: 15px; text-align: left; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #5c4033; font-size: 0.9rem; }
-        .form-group input, .form-group select {
-            width: 100%; padding: 10px; border: 1px solid #c4b4a5; border-radius: 4px;
-            background: rgba(255,255,255,0.7); box-sizing: border-box; font-family: 'Roboto', sans-serif;
-        }
-        .form-group input:focus { outline: none; border-color: #d4af37; background: #fff; }
-        .signup-btn { width: 100%; margin-top: 20px; cursor: pointer; border: none; }
-        .auth-footer { margin-top: 25px; font-size: 0.9rem; color: #5c4033; }
-        .auth-footer a { color: #b8860b; text-decoration: none; font-weight: bold; }
-        .error-msg {
-            background: #ffeaea; border: 1px solid #e74c3c; color: #c0392b;
-            padding: 10px 15px; border-radius: 4px; margin-bottom: 20px;
-            font-size: 0.9rem; display: none;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <header>
         <nav class="navbar">
             <div class="logo">
                 <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
-                    <img src="images/logo.png" alt="Gavel Logo" class="logo-icon">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
                     <span>Gavel</span>
                 </a>
             </div>
@@ -55,66 +28,56 @@
     <main class="auth-container">
         <div class="auth-card">
             <h2>Create Account</h2>
-            <p class="subtitle">Join the world's most trusted auction house.</p>
-            <div class="error-msg" id="error-msg"></div>
+            <p class="subtitle">Join the world's premier asset market</p>
+
+            <button class="btn-google" id="google-auth-btn" type="button">
+                <img src="images/google-logo.png" alt="Google Logo">
+                Sign up with Google
+            </button>
+            <div class="auth-divider">or</div>
+
+            <div class="error-msg" id="error-msg"
+                style="display:none; color:var(--neon-red); margin-bottom:15px; text-align:center;"></div>
+
             <form id="signup-form">
                 <div class="form-group">
                     <label for="fullname">Full Name</label>
-                    <input type="text" id="fullname" name="fullname" required placeholder="John Doe">
+                    <input type="text" id="fullname" name="fullname" class="form-control" required
+                        placeholder="John Doe">
                 </div>
                 <div class="form-group">
-                    <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email" required placeholder="john@example.com">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" class="form-control" required
+                        placeholder="john@example.com">
                 </div>
                 <div class="form-group">
                     <label for="role">Register As</label>
-                    <select id="role" name="role">
-                        <option value="bidder">Bidder (Buyer)</option>
-                        <option value="auctioneer">Auctioneer (Seller)</option>
+                    <select id="role" name="role" class="form-control"
+                        style="appearance: none; background: url('data:image/svg+xml;utf8,<svg fill=%22%238b949e%22 viewBox=%220 0 24 24%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>') no-repeat right 10px center; background-size: 20px;">
+                        <option value="bidder">Trader (Buyer)</option>
+                        <option value="auctioneer">Creator (Seller)</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required placeholder="Min. 8 characters" minlength="8">
+                    <input type="password" id="password" name="password" class="form-control" required
+                        placeholder="Min. 8 characters" minlength="8">
                 </div>
-                <button type="submit" class="btn-primary signup-btn">Register Membership</button>
+                <button type="submit" class="btn-primary btn-block">Sign Up</button>
             </form>
-            <div class="auth-footer">
-                <p>Already a member? <a href="login.html">Sign In here</a></p>
+            <div class="auth-links">
+                <p>Already a member? <a href="login.html">Log In</a></p>
             </div>
         </div>
     </main>
 
-    <footer><p>&copy; 2026 Gavel. All rights reserved.</p></footer>
+    <footer>
+        <p>&copy; 2026 Gavel Protocol. All rights reserved.</p>
+    </footer>
 
     <script src="js/nav.js"></script>
-    <script>
-    document.getElementById('signup-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const errorEl = document.getElementById('error-msg');
-        errorEl.style.display = 'none';
-
-        const body = new URLSearchParams({
-            fullname: document.getElementById('fullname').value,
-            email:    document.getElementById('email').value,
-            role:     document.getElementById('role').value,
-            password: document.getElementById('password').value
-        });
-
-        try {
-            const res = await fetch('/api/signup', { method: 'POST', body, redirect: 'follow' });
-            if (res.ok || res.redirected) {
-                window.location.href = res.url || '/index.html';
-            } else {
-                const text = await res.text();
-                errorEl.textContent = text || 'Signup failed. Please try again.';
-                errorEl.style.display = 'block';
-            }
-        } catch(e) {
-            errorEl.textContent = 'Could not connect to server.';
-            errorEl.style.display = 'block';
-        }
-    });
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
 </body>
+
 </html>

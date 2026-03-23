@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Gavel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 40px;
+        }
+
+        .admin-sidebar {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            height: fit-content;
+        }
+
+        .admin-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .admin-nav-item {
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .admin-nav-item:hover {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-primary);
+        }
+
+        .admin-nav-item.active {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .admin-content {
+            background: var(--bg-main);
+        }
+
+        .tab-pane {
+            display: none;
+        }
+        
+        .tab-pane.active {
+            display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .val {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--brass-gold);
+            margin: 0;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .admin-table th, .admin-table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .admin-table th {
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .admin-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .admin-table tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+        .btn-danger {
+            background: rgba(255, 59, 48, 0.1);
+            color: var(--neon-red);
+            border: 1px solid rgba(255, 59, 48, 0.3);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-danger:hover {
+            background: rgba(255, 59, 48, 0.2);
+        }
+        
+        /* Mobile */
+        @media (max-width: 900px) {
+            .admin-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="logo">
+                <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Gavel Admin</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <!-- Populated by nav.js -->
+            </ul>
+        </nav>
+    </header>
+
+    <div class="admin-container" id="admin-auth-wrapper" style="display:none;">
+        <aside class="admin-sidebar">
+            <ul class="admin-nav">
+                <li class="admin-nav-item active" onclick="switchTab('dashboard', this)">Dashboard</li>
+                <li class="admin-nav-item" onclick="switchTab('users', this)">Manage Users</li>
+                <li class="admin-nav-item" onclick="switchTab('auctions', this)">Manage Auctions</li>
+                <li class="admin-nav-item" onclick="switchTab('logs', this)">Audit Logs</li>
+            </ul>
+        </aside>
+
+        <main class="admin-content">
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-pane active">
+                <h1 style="margin-top:0;">Platform Overview</h1>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Users</h3>
+                        <p class="val" id="stat-users">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Active Markets</h3>
+                        <p class="val" id="stat-active">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Closed Markets</h3>
+                        <p class="val" id="stat-closed">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Volume (₹)</h3>
+                        <p class="val" id="stat-volume" style="color:var(--accent-blue);">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Tab -->
+            <div id="tab-users" class="tab-pane">
+                <h1 style="margin-top:0;">Manage Users</h1>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Joined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-tbody">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Auctions Tab -->
+            <div id="tab-auctions" class="tab-pane">
+                <h1 style="margin-top:0;">Manage Auctions</h1>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Seller</th>
+                                <th>Current Bid</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auctions-tbody">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div id="tab-logs" class="tab-pane">
+                <h1 style="margin-top:0;">System Audit Logs</h1>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                                <th>User</th>
+                                <th>Details</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-tbody">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Error state -->
+    <div id="admin-error" style="display:none; text-align:center; padding: 100px 20px;">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--neon-red)" stroke-width="2" style="margin-bottom:20px;">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <h2 style="color:var(--neon-red);">Access Denied</h2>
+        <p style="color:var(--text-secondary);">You must be logged in with an administrator account to view this page.</p>
+        <a href="index.html" class="btn-primary" style="display:inline-block; margin-top:20px;">Return Home</a>
+    </div>
+
+    <script src="js/nav.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
