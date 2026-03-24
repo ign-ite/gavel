@@ -1,6 +1,16 @@
 /**
  * Gavel Auction Platform — Full Server (Mongoose + Supabase)
  *
+ * Owner: Varunkumar (Backend & API Features)
+ * 
+ * Routes Included:
+ *   - /api/auth/*     (Local JWT & Login Hooks)
+ *   - /api/user/*     (Sync endpoints)
+ *   - /api/bids/*     (Bid placement, history, auto-bid, snipe logs, war detectors)
+ *   - /api/auctions/* (Listing retrievals, velocity scores)
+ *   - /api/admin/*    (Admin moderation & stats)
+ *   - /api/chat/*     (Post-auction buyer/seller comms)
+ *
  * Features:
  *   - MongoDB Atlas persistence (via Mongoose)
  *   - Supabase Authentication (Access Token cookie verified securely)
@@ -26,6 +36,10 @@ const http       = require('http');
 const { WebSocketServer } = require('ws');
 const mongoose   = require('mongoose');
 const { createClient } = require('@supabase/supabase-js');
+const bcrypt     = require('bcryptjs');
+const jwt        = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'gavel-super-secret-key-2024';
 
 // Mongoose Models
 const User = require('./models/User');
@@ -34,6 +48,7 @@ const Bid = require('./models/Bid');
 const Message = require('./models/Message');
 const AutoBid = require('./models/AutoBid');
 const AuditLog = require('./models/AuditLog');
+const SnipeLog = require('./models/SnipeLog');
 
 const app    = express();
 const server = http.createServer(app);
@@ -60,6 +75,82 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ─────────────────────────────────────────────
+// 2.5 LOCAL AUTHENTICATION (Varunkumar)
+// ─────────────────────────────────────────────
+
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { fullname, email, password, college } = req.body;
+        if (!fullname || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+
+        const existing = await User.findOne({ email: email.toLowerCase() });
+        if (existing) return res.status(400).json({ error: 'Email already registered' });
+
+        // Campus domain verification — Enhanced for Indian Institutes per User Request
+        const isEdu = email.endsWith('.edu');
+        const isAcIn = email.endsWith('.ac.in');
+        const indianInstitutes = ['.ernet.in', '.nit.ac.in', '.iit.ac.in', '.iiit.ac.in'];
+        const isIndianInst = indianInstitutes.some(domain => email.endsWith(domain));
+        
+        const campusVerified = isEdu || isAcIn || isIndianInst;
+
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
+        const newUser = await User.create({
+            fullname,
+            email: email.toLowerCase(),
+            passwordHash,
+            college: college || null,
+            campusVerified
+        });
+
+        const token = jwt.sign({ id: newUser._id, email: newUser.email }, JWT_SECRET, { expiresIn: '7d' });
+        
+        res.cookie('jwt_token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+        res.json({ success: true, user: { email: newUser.email, name: newUser.fullname, campusVerified } });
+    } catch (err) {
+        console.error('Registration error:', err);
+        res.status(500).json({ error: 'Server error during registration' });
+    }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email: email.toLowerCase() });
+        if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
+
+        const isValid = await bcrypt.compare(password, user.passwordHash);
+        if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
+
+        const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+        
+        res.cookie('jwt_token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
+        res.json({ success: true, user: { email: user.email, name: user.fullname, role: user.role } });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error during login' });
+    }
+});
+
+app.get('/api/auth/me', requireLogin, async (req, res) => {
+    try {
+        const dbUser = await User.findOne({ email: req.user.email });
+        res.json({
+            id: dbUser._id,
+            email: dbUser.email,
+            name: dbUser.fullname,
+            role: dbUser.role,
+            college: dbUser.college,
+            campusVerified: dbUser.campusVerified,
+            walletBalance: dbUser.walletBalance
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+});
+
 // Fetch Supabase configuration for the frontend
 app.get('/api/config', (req, res) => {
     res.json({
@@ -68,26 +159,39 @@ app.get('/api/config', (req, res) => {
     });
 });
 
-// Authentication Middleware
+// Authentication Middleware (Supports Supabase Auth & Local JWT)
 async function requireLogin(req, res, next) {
-    const token = req.cookies.sb_access_token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+    const token = req.cookies.sb_access_token || req.cookies.jwt_token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
     if (!token) return res.status(401).json({ success: false, message: 'Login required.', redirect: '/login.html' });
     
-    // Verify the JWT with Supabase Admin
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ success: false, message: 'Invalid session.', redirect: '/login.html' });
+    try {
+        // 1. Try Local JWT verification first
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const dbUser = await User.findById(decoded.id);
+        if (!dbUser) throw new Error('User not found in DB');
 
-    // Fetch the Mongoose DB User record to get roles, etc.
-    const dbUser = await User.findOne({ email: user.email.toLowerCase() });
-    
-    // Attach to request
-    req.user = {
-        id: dbUser ? dbUser._id.toString() : user.id,
-        email: user.email,
-        name: dbUser ? dbUser.fullname : user.user_metadata?.fullname || 'User',
-        role: dbUser ? dbUser.role : (user.user_metadata?.role || 'bidder')
-    };
-    next();
+        req.user = {
+            id: dbUser._id.toString(),
+            email: dbUser.email,
+            name: dbUser.fullname,
+            role: dbUser.role
+        };
+        return next();
+    } catch (jwtError) {
+        // 2. JWT failed, try Supabase verification as fallback
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (error || !user) return res.status(401).json({ success: false, message: 'Invalid session.', redirect: '/login.html' });
+
+        const dbUser = await User.findOne({ email: user.email.toLowerCase() });
+        
+        req.user = {
+            id: dbUser ? dbUser._id.toString() : user.id,
+            email: user.email,
+            name: dbUser ? dbUser.fullname : (user.user_metadata?.fullname || 'User'),
+            role: dbUser ? dbUser.role : (user.user_metadata?.role || 'bidder')
+        };
+        return next();
+    }
 }
 
 
@@ -95,25 +199,26 @@ async function requireLogin(req, res, next) {
 // Map Mongoose docs to the legacy API format expected by frontend
 async function mapAuction(doc) {
     const obj = doc.toObject();
-    const bidCount = await Bid.countDocuments({ auction_id: doc._id });
+    const bidCount = await Bid.countDocuments({ auctionId: doc._id });
     return {
         id: obj._id.toString(),
         title: obj.title,
         description: obj.description,
-        currentBid: obj.current_bid,
+        currentBid: obj.currentBid,
         image: obj.image,
         verificationVideo: obj.video,
-        videoUrl: obj.video_url || null,
+        videoUrl: obj.videoUrl || null,
         verified: obj.verified,
-        sellerEmail: obj.seller_email,
-        endTime: obj.end_time,
+        sellerEmail: obj.sellerEmail,
+        endTime: obj.endTime,
         status: obj.status || 'active',
-        winnerEmail: obj.winner_email,
-        winnerName: obj.winner_name,
-        winningBid: obj.winning_bid,
+        winnerEmail: obj.winnerEmail,
+        winnerName: obj.winnerName,
+        winningBid: obj.winningBid,
         category: obj.category,
-        reserve_met: obj.current_bid >= (obj.reserve_price || 0),
-        bidCount
+        reserve_met: obj.currentBid >= (obj.reservePrice || 0),
+        bidCount,
+        velocityScore: obj.velocityScore || 0
     };
 }
 
@@ -146,6 +251,10 @@ const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 const watchers  = new Map(); // itemId  → Set<ws>  (bid watchers)
 const chatRooms = new Map(); // auctionId → Set<{ws, email, name}> (chat participants)
 const globalWatchers = new Set(); // Set<ws> for homepage global feed
+
+// ── Bid War Detector — in-memory tracker (Varunkumar) ──
+// Stores the last 5 bids per listing: Map<auctionId, Array<{email, timestamp}>>
+const bidActivityTracker = new Map();
 
 wss.on('connection', (ws, req) => {
     let watchingId  = null;
@@ -194,13 +303,13 @@ wss.on('connection', (ws, req) => {
                 // Verify the sender is the seller or winner of this auction
                 const auction = await Auction.findById(aid);
                 if (!auction) return;
-                if (auction.seller_email !== userEmail && auction.winner_email !== userEmail) return;
+                if (auction.sellerEmail !== userEmail && auction.winnerEmail !== userEmail) return;
 
                 // Persist to DB
                 await Message.create({
-                    auction_id: aid,
-                    sender_email: userEmail,
-                    sender_name: userName,
+                    auctionId: aid,
+                    senderEmail: userEmail,
+                    senderName: userName,
                     message: text
                 });
 
@@ -264,29 +373,29 @@ async function closeAuction(auctionId) {
         const item = await Auction.findById(auctionId);
         if (!item || item.status === 'closed') return;
 
-        const topBid = await Bid.findOne({ auction_id: auctionId }).sort({ amount: -1 });
+        const topBid = await Bid.findOne({ auctionId: auctionId }).sort({ amount: -1 });
 
-        const reservePrice = item.reserve_price || 0;
+        const reservePrice = item.reservePrice || 0;
         const winnerObj = topBid && topBid.amount >= reservePrice ? topBid : null;
 
         item.status = 'closed';
-        item.winner_email = winnerObj ? winnerObj.bidder_email : null;
-        item.winner_name = winnerObj ? winnerObj.bidder_name : null;
-        item.winning_bid = winnerObj ? winnerObj.amount : null;
+        item.winnerEmail = winnerObj ? winnerObj.bidderEmail : null;
+        item.winnerName = winnerObj ? winnerObj.bidderName : null;
+        item.winningBid = winnerObj ? winnerObj.amount : null;
         await item.save();
 
         if (winnerObj) {
             // Phase 9: Trust Score Mechanic - successful transaction boosts both parties
-            const sellerUser = await User.findOne({ email: item.seller_email });
+            const sellerUser = await User.findOne({ email: item.sellerEmail });
             if (sellerUser) {
-                sellerUser.trust_score = (sellerUser.trust_score || 100) + 5;
-                sellerUser.ratings_count = (sellerUser.ratings_count || 0) + 1;
+                sellerUser.trustScore = (sellerUser.trustScore || 100) + 5;
+                sellerUser.ratingsCount = (sellerUser.ratingsCount || 0) + 1;
                 await sellerUser.save();
             }
-            const buyerUser = await User.findOne({ email: winnerObj.bidder_email });
+            const buyerUser = await User.findOne({ email: winnerObj.bidderEmail });
             if (buyerUser) {
-                buyerUser.trust_score = (buyerUser.trust_score || 100) + 5;
-                buyerUser.ratings_count = (buyerUser.ratings_count || 0) + 1;
+                buyerUser.trustScore = (buyerUser.trustScore || 100) + 5;
+                buyerUser.ratingsCount = (buyerUser.ratingsCount || 0) + 1;
                 await buyerUser.save();
             }
         }
@@ -294,74 +403,41 @@ async function closeAuction(auctionId) {
         broadcastAuction(auctionId.toString(), {
             type:       'auction_closed',
             itemId:     auctionId.toString(),
-            winnerName: winnerObj ? winnerObj.bidder_name : null,
+            winnerName: winnerObj ? winnerObj.bidderName : null,
             winningBid: winnerObj ? winnerObj.amount      : null,
             noBids:     !topBid,
             reserveMet: !!winnerObj
         });
 
-        console.log(`🔨 Auction #${auctionId} "${item.title}" closed. Winner: ${winnerObj ? winnerObj.bidder_name + ' @ ₹' + winnerObj.amount : (topBid ? 'Reserve Not Met' : 'No bids')}`);
+        console.log(`🔨 Auction #${auctionId} "${item.title}" closed. Winner: ${winnerObj ? winnerObj.bidderName + ' @ ₹' + winnerObj.amount : (topBid ? 'Reserve Not Met' : 'No bids')}`);
     } catch (e) {
         console.error("Error closing auction", e);
     }
 }
 
-// Auto-close check every 30 seconds
-async function checkExpiredAuctions() {
-    try {
-        if(mongoose.connection.readyState !== 1) return;
-        const expired = await Auction.find({
-            status: 'active',
-            end_time: { $exists: true, $ne: null, $lte: new Date() }
-        });
-        for (const row of expired) {
-            await closeAuction(row._id);
-        }
-    } catch(e) {}
-}
-setInterval(checkExpiredAuctions, 30 * 1000);
-
-// ─────────────────────────────────────────────
-// 7. AUTH & USER SYNC ROUTES
-// ─────────────────────────────────────────────
-
-// Called by frontend to sync user data into our Mongoose DB after Supabase signup
-app.post('/api/user/sync', requireLogin, async (req, res) => {
-    const { email, fullname, role } = req.body;
-    try {
-        let user = await User.findOne({ email: email.toLowerCase().trim() });
-        if (!user) {
-            user = await User.create({
-                fullname,
-                email: email.toLowerCase().trim(),
-                role: role || 'bidder'
-            });
-        }
-        res.json({ success: true, user });
-    } catch(e) {
-        res.status(500).json({ error: 'Failed to sync user' });
-    }
-});
-
 // Since we use Supabase for Auth on the client, /api/me just parses the cookie
 app.get('/api/me', async (req, res) => {
-    const token = req.cookies.sb_access_token;
-    if (!token) return res.json({ loggedIn: false });
+    try {
+        const token = req.cookies.sb_access_token;
+        if (!token) return res.json({ loggedIn: false });
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.json({ loggedIn: false });
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (error || !user) return res.json({ loggedIn: false });
 
-    const dbUser = await User.findOne({ email: user.email.toLowerCase() });
-    res.json({ 
-        loggedIn: true, 
-        user: {
-            id: dbUser ? dbUser._id.toString() : user.id,
-            email: user.email,
-            name: dbUser ? dbUser.fullname : user.user_metadata?.fullname || 'User',
-            role: dbUser ? dbUser.role : (user.user_metadata?.role || 'bidder'),
-            walletBalance: dbUser ? dbUser.wallet_balance : 0
-        }
-    });
+        const dbUser = await User.findOne({ email: user.email.toLowerCase() });
+        res.json({ 
+            loggedIn: true, 
+            user: {
+                id: dbUser ? dbUser._id.toString() : user.id,
+                email: user.email,
+                name: dbUser ? dbUser.fullname : user.user_metadata?.fullname || 'User',
+                role: dbUser ? dbUser.role : (user.user_metadata?.role || 'bidder'),
+                walletBalance: dbUser ? dbUser.walletBalance : 0
+            }
+        });
+    } catch (e) {
+        res.json({ loggedIn: false });
+    }
 });
 
 // Mock Deposit Flow
@@ -374,17 +450,17 @@ app.post('/api/deposit', requireLogin, async (req, res) => {
         const dbUser = await User.findOne({ email: req.user.email });
         if(!dbUser) return res.status(404).json({ error: 'User not found' });
 
-        dbUser.wallet_balance += depositAmount;
+        dbUser.walletBalance += depositAmount;
         await dbUser.save();
 
         await AuditLog.create({
             action: 'FUNDS_DEPOSITED',
-            user_email: dbUser.email,
+            userEmail: dbUser.email,
             details: `Deposited ₹${depositAmount.toLocaleString('en-IN')} (Mock Payment)`,
-            ip_address: req.ip
+            ipAddress: req.ip
         });
 
-        res.json({ success: true, newBalance: dbUser.wallet_balance });
+        res.json({ success: true, newBalance: dbUser.walletBalance });
     } catch(e) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -440,15 +516,15 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
         if (!targetUser) return res.status(404).json({ error: 'User not found' });
         
         // Delete all their auctions and bids
-        await Auction.deleteMany({ seller_email: targetUser.email });
-        await Bid.deleteMany({ bidder_email: targetUser.email });
+        await Auction.deleteMany({ sellerEmail: targetUser.email });
+        await Bid.deleteMany({ bidderEmail: targetUser.email });
         await User.findByIdAndDelete(req.params.id);
 
         await AuditLog.create({
             action: 'USER_DELETED',
-            user_email: req.adminUser.email,
+            userEmail: req.adminUser.email,
             details: `Admin deleted user ${targetUser.email}`,
-            ip_address: req.ip
+            ipAddress: req.ip
         });
 
         res.json({ success: true });
@@ -460,14 +536,14 @@ app.delete('/api/admin/auctions/:id', requireAdmin, async (req, res) => {
         const target = await Auction.findById(req.params.id);
         if (!target) return res.status(404).json({ error: 'Auction not found' });
         
-        await Bid.deleteMany({ auction_id: req.params.id });
+        await Bid.deleteMany({ auctionId: req.params.id });
         await Auction.findByIdAndDelete(req.params.id);
 
         await AuditLog.create({
             action: 'AUCTION_DELETED',
-            user_email: req.adminUser.email,
+            userEmail: req.adminUser.email,
             details: `Admin deleted auction: ${target.title} (${req.params.id})`,
-            ip_address: req.ip
+            ipAddress: req.ip
         });
 
         res.json({ success: true });
@@ -478,9 +554,13 @@ app.delete('/api/admin/auctions/:id', requireAdmin, async (req, res) => {
 // 8. AUCTION ROUTES
 // ─────────────────────────────────────────────
 app.get('/api/auctions', async (req, res) => {
-    const rows = await Auction.find({ status: 'active' }).sort({ end_time: 1 });
-    const mapped = await Promise.all(rows.map(mapAuction));
-    res.json(mapped);
+    try {
+        const rows = await Auction.find({ status: 'active' }).sort({ endTime: 1 });
+        const mapped = await Promise.all(rows.map(mapAuction));
+        res.json(mapped);
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 app.get('/api/analytics', async (req, res) => {
@@ -490,8 +570,8 @@ app.get('/api/analytics', async (req, res) => {
         const closedAuctions = await Auction.countDocuments({ status: 'closed' });
         
         // Sum of all winning bids (Total Volume)
-        const closed = await Auction.find({ status: 'closed', winning_bid: { $gt: 0 } });
-        const totalVolume = closed.reduce((acc, curr) => acc + (curr.winning_bid || 0), 0);
+        const closed = await Auction.find({ status: 'closed', winningBid: { $gt: 0 } });
+        const totalVolume = closed.reduce((acc, curr) => acc + (curr.winningBid || 0), 0);
         
         const totalBids = await Bid.countDocuments();
 
@@ -502,9 +582,13 @@ app.get('/api/analytics', async (req, res) => {
 });
 
 app.get('/api/auctions/closed', async (req, res) => {
-    const rows = await Auction.find({ status: 'closed' }).sort({ createdAt: -1 });
-    const mapped = await Promise.all(rows.map(mapAuction));
-    res.json(mapped);
+    try {
+        const rows = await Auction.find({ status: 'closed' }).sort({ createdAt: -1 });
+        const mapped = await Promise.all(rows.map(mapAuction));
+        res.json(mapped);
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 app.get('/api/auction/:id', async (req, res) => {
@@ -519,13 +603,13 @@ app.post('/api/sell', requireLogin, upload.fields([
     { name: 'image', maxCount: 1 }, { name: 'video', maxCount: 1 }
 ]), async (req, res) => {
     try {
-        const { title, price, reserve_price, description, end_time, category } = req.body;
+        const { title, price, reservePrice, description, endTime, category } = req.body;
         const imageFile  = req.files && req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : '/images/logo.png';
         const videoFile  = req.files && req.files['video'] ? `/uploads/${req.files['video'][0].filename}` : null;
         
         let endTimeObj = null;
-        if (end_time) {
-            endTimeObj = new Date(end_time);
+        if (endTime) {
+            endTimeObj = new Date(endTime);
             if (endTimeObj <= new Date()) return res.status(400).send('Auction end time must be in the future.');
         } else {
             // Default: 7 days from now
@@ -535,22 +619,22 @@ app.post('/api/sell', requireLogin, upload.fields([
         const newAuction = await Auction.create({
             title,
             description,
-            current_bid: parseInt(price) || 0,
-            reserve_price: parseInt(reserve_price) || 0,
+            currentBid: parseInt(price) || 0,
+            reservePrice: parseInt(reservePrice) || 0,
             category,
             image: imageFile,
             video: videoFile,
             verified: false,
-            seller_email: req.user.email,
-            end_time: endTimeObj,
+            sellerEmail: req.user.email,
+            endTime: endTimeObj,
             status: 'active'
         });
 
         await AuditLog.create({
             action: 'AUCTION_CREATED',
-            user_email: req.user.email,
+            userEmail: req.user.email,
             details: `Created auction: ${title} (${newAuction._id})`,
-            ip_address: req.ip
+            ipAddress: req.ip
         });
 
         res.redirect('/my-products.html');
@@ -573,65 +657,65 @@ async function resolveAutoBids(auctionId) {
     while (keepResolving) {
         keepResolving = false;
         
-        const topBid = await Bid.findOne({ auction_id: auctionId }).sort({ amount: -1 });
+        const topBid = await Bid.findOne({ auctionId: auctionId }).sort({ amount: -1 });
         if (!topBid) break;
 
         const opponentAutoBids = await AutoBid.find({
-            auction_id: auctionId,
+            auctionId: auctionId,
             active: true,
-            bidder_email: { $ne: topBid.bidder_email },
-            max_amount: { $gt: auction.current_bid }
-        }).sort({ max_amount: -1 });
+            bidderEmail: { $ne: topBid.bidderEmail },
+            maxAmount: { $gt: auction.currentBid }
+        }).sort({ maxAmount: -1 });
 
         if (opponentAutoBids.length > 0) {
             const opponent = opponentAutoBids[0];
             
             const leaderAutoBid = await AutoBid.findOne({
-                auction_id: auctionId,
+                auctionId: auctionId,
                 active: true,
-                bidder_email: topBid.bidder_email
+                bidderEmail: topBid.bidderEmail
             });
 
-            const leaderMax = leaderAutoBid ? leaderAutoBid.max_amount : topBid.amount;
+            const leaderMax = leaderAutoBid ? leaderAutoBid.maxAmount : topBid.amount;
 
-            if (opponent.max_amount > leaderMax) {
-                const newBidAmount = Math.min(leaderMax + 1, opponent.max_amount);
-                if (newBidAmount <= auction.current_bid) break; // safety
+            if (opponent.maxAmount > leaderMax) {
+                const newBidAmount = Math.min(leaderMax + 1, opponent.maxAmount);
+                if (newBidAmount <= auction.currentBid) break; // safety
                 
-                auction.current_bid = newBidAmount;
+                auction.currentBid = newBidAmount;
                 await auction.save();
 
                 await Bid.create({
-                    auction_id: auctionId,
-                    bidder_email: opponent.bidder_email,
-                    bidder_name: opponent.bidder_name,
+                    auctionId: auctionId,
+                    bidderEmail: opponent.bidderEmail,
+                    bidderName: opponent.bidderName,
                     amount: newBidAmount
                 });
                 changesMade = true;
                 keepResolving = true;
-            } else if (opponent.max_amount === leaderMax) {
-                if (leaderMax > auction.current_bid) {
-                    auction.current_bid = leaderMax;
+            } else if (opponent.maxAmount === leaderMax) {
+                if (leaderMax > auction.currentBid) {
+                    auction.currentBid = leaderMax;
                     await auction.save();
                     await Bid.create({
-                        auction_id: auctionId,
-                        bidder_email: topBid.bidder_email,
-                        bidder_name: topBid.bidder_name,
+                        auctionId: auctionId,
+                        bidderEmail: topBid.bidderEmail,
+                        bidderName: topBid.bidderName,
                         amount: leaderMax
                     });
                     changesMade = true;
                 }
                 opponent.active = false;
                 await opponent.save();
-            } else { // opponent.max_amount < leaderMax
-                const newBidAmount = opponent.max_amount + 1;
-                auction.current_bid = newBidAmount;
+            } else { // opponent.maxAmount < leaderMax
+                const newBidAmount = opponent.maxAmount + 1;
+                auction.currentBid = newBidAmount;
                 await auction.save();
 
                 await Bid.create({
-                    auction_id: auctionId,
-                    bidder_email: topBid.bidder_email,
-                    bidder_name: topBid.bidder_name,
+                    auctionId: auctionId,
+                    bidderEmail: topBid.bidderEmail,
+                    bidderName: topBid.bidderName,
                     amount: newBidAmount
                 });
                 
@@ -646,82 +730,191 @@ async function resolveAutoBids(auctionId) {
     return changesMade;
 }
 
-app.post('/api/place-bid', requireLogin, async (req, res) => {
-    const { id, bidAmount, isAuto } = req.body;
+app.post('/api/bids/auto-bid', requireLogin, async (req, res) => {
+    const { listingId, maxAmount } = req.body;
+    try {
+        const item = await Auction.findById(listingId);
+        if (!item || item.status === 'closed') return res.status(400).json({ success: false, message: 'Invalid or closed auction.' });
+
+        await AutoBid.findOneAndUpdate(
+            { auctionId: item._id, bidderEmail: req.user.email },
+            { bidderName: req.user.name, maxAmount: Number(maxAmount), active: true },
+            { upsert: true }
+        );
+
+        // Instantly trigger engine to act on this
+        await resolveAutoBids(item._id);
+        res.json({ success: true, message: 'Auto-bid ceiling set.' });
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'Error setting auto bid' });
+    }
+});
+
+app.post('/api/bids/:listingId', requireLogin, async (req, res) => {
+    const { bidAmount } = req.body;
+    const id = req.params.listingId;
     const amount = Number(bidAmount);
     try {
         const item = await Auction.findById(id);
         if (!item) return res.status(404).json({ success: false, message: 'Item not found.' });
         if (item.status === 'closed') return res.status(400).json({ success: false, message: 'This auction has closed.' });
-        if (item.end_time && item.end_time <= new Date()) return res.status(400).json({ success: false, message: 'This auction has expired.' });
-        if (item.seller_email === req.user.email) return res.status(403).json({ success: false, message: 'You cannot bid on your own listing.' });
-        if (amount <= item.current_bid) return res.status(400).json({ success: false, message: `Bid must exceed ₹${item.current_bid.toLocaleString('en-IN')}.` });
+        if (item.endTime && item.endTime <= new Date()) return res.status(400).json({ success: false, message: 'This auction has expired.' });
+        if (item.sellerEmail === req.user.email) return res.status(403).json({ success: false, message: 'You cannot bid on your own listing.' });
+        if (amount <= item.currentBid) return res.status(400).json({ success: false, message: `Bid must exceed ₹${item.currentBid.toLocaleString('en-IN')}.` });
 
-        // Enforce Wallet Balance (Mock Payment System)
+        // Enforce Wallet Balance
         const dbUser = await User.findOne({ email: req.user.email });
-        if (!dbUser) return res.status(404).json({ success: false, message: 'User record not found.' });
-        
-        if (dbUser.wallet_balance < amount) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Insufficient funds. Your wallet balance is ₹${dbUser.wallet_balance.toLocaleString('en-IN')}. Please deposit more funds first.` 
-            });
+        if (!dbUser || dbUser.walletBalance < amount) {
+            return res.status(400).json({ success: false, message: 'Insufficient funds.' });
         }
 
-        // If it's an auto-bid, the amount is their MAX proxy bid, and their immediate bid is current_bid + 1 (unless 0 then amount).
-        let immediateBidAmount = amount;
-        if (isAuto && item.current_bid > 0) {
-            immediateBidAmount = item.current_bid + 1;
-        }
-
-        item.current_bid = immediateBidAmount;
+        item.currentBid = amount;
         await item.save();
 
-        await Bid.create({
-            auction_id: item._id,
-            bidder_email: req.user.email,
-            bidder_name: req.user.name,
-            amount: immediateBidAmount
+        const newBid = await Bid.create({
+            auctionId: item._id,
+            bidderEmail: req.user.email,
+            bidderName: req.user.name,
+            amount: amount
         });
 
-        // Register the auto-bid if requested
-        if (isAuto) {
-            await AutoBid.findOneAndUpdate(
-                { auction_id: item._id, bidder_email: req.user.email },
-                { bidder_name: req.user.name, max_amount: amount, active: true },
-                { upsert: true }
-            );
-        } else {
-            // Cancel any old auto-bids for this user if they placed a manual bid
-            await AutoBid.findOneAndUpdate(
-                { auction_id: item._id, bidder_email: req.user.email },
-                { active: false }
-            );
+        // ── Anti-Snipe Engine (Varunkumar) ──
+        // Evaluates if bid is within 3 minutes of end. If max extensions (5) are not reached, adds 3 minutes.
+        let extensionTriggered = false;
+        let maxSnipeReached = false;
+
+        if (item.endTime) {
+            const timeLeft = item.endTime.getTime() - Date.now();
+            const THREE_MINUTES = 3 * 60 * 1000;
+            const currentSnipeCount = item.snipeCount || 0;
+
+            if (timeLeft > 0 && timeLeft <= THREE_MINUTES) {
+                if (currentSnipeCount < 5) {
+                    const newEndTime = new Date(Date.now() + THREE_MINUTES);
+                    item.endTime = newEndTime;
+                    item.snipeCount = currentSnipeCount + 1;
+                    await item.save();
+
+                    newBid.triggeredSnipe = true;
+                    await newBid.save();
+
+                    await SnipeLog.create({
+                        listingId: item._id,
+                        bidId: newBid._id,
+                        extensionNum: item.snipeCount,
+                        newEndTime: newEndTime,
+                        triggeredAt: new Date()
+                    });
+
+                    broadcastAuction(id, {
+                        type: 'snipe:extended',
+                        listingId: id,
+                        newEndTime: newEndTime.toISOString(),
+                        extensionNum: item.snipeCount
+                    });
+
+                    extensionTriggered = true;
+                } else {
+                    maxSnipeReached = true;
+                }
+            }
         }
 
-        // Trigger the Auto Bid Resolution Engine
+        // Cancel any old auto-bids for this user if they placed a manual bid
+        await AutoBid.findOneAndUpdate(
+            { auctionId: item._id, bidderEmail: req.user.email },
+            { active: false }
+        );
+
+        // Trigger the Auto Bid Resolution Engine (this may add another bid)
         await resolveAutoBids(item._id);
 
-        // Fetch the fresh state after all auto-bids
         const finalItem = await Auction.findById(item._id);
-        const bidCount = await Bid.countDocuments({ auction_id: item._id });
+        const bidCount = await Bid.countDocuments({ auctionId: item._id });
         
-        broadcastAuction(id, { type: 'bid_update', itemId: id, newBid: finalItem.current_bid, bidCount });
-        
+        broadcastAuction(id, { type: 'bid_update', itemId: id, newBid: finalItem.currentBid, bidCount });
         broadcastGlobalActivity({
-            message: `${req.user.name} placed a trade of ₹${finalItem.current_bid.toLocaleString('en-IN')} on "${item.title}"`,
+            message: `${req.user.name} placed a trade of ₹${finalItem.currentBid.toLocaleString('en-IN')} on "${item.title}"`,
             itemId: id,
             timestamp: new Date().toISOString()
         });
 
-        await AuditLog.create({
-            action: 'BID_PLACED',
-            user_email: req.user.email,
-            details: `Placed ${isAuto ? 'maximum proxy ' : ''}bid of ₹${amount} on auction ${item._id}`,
-            ip_address: req.ip
+        // ── Bid War Detector (Varunkumar) ──
+        const auctionKey = id.toString();
+        if (!bidActivityTracker.has(auctionKey)) bidActivityTracker.set(auctionKey, []);
+        const tracker = bidActivityTracker.get(auctionKey);
+        tracker.push({ email: req.user.email, timestamp: Date.now() });
+        if (tracker.length > 5) tracker.splice(0, tracker.length - 5);
+
+        const NINETY_SECONDS = 90 * 1000;
+        const recentBids = tracker.filter(b => b.timestamp >= Date.now() - NINETY_SECONDS);
+        const uniqueBidders = new Set(recentBids.map(b => b.email));
+
+        if (uniqueBidders.size >= 2) {
+            if (!finalItem.isWar) {
+                finalItem.isWar = true;
+                await finalItem.save();
+            }
+            broadcastGlobalActivity({
+                type: 'war:declared',
+                listingId: id,
+                title: item.title,
+                isWar: true
+            });
+            broadcastAuction(id, {
+                type: 'war:declared',
+                listingId: id,
+                title: item.title,
+                isWar: true
+            });
+        }
+
+        // ── Bid Velocity Calculator (Varunkumar) ──
+        const TEN_MINUTES = 10 * 60 * 1000;
+        const recentBidCountCalc = await Bid.countDocuments({
+            auctionId: item._id,
+            placedAt: { $gte: new Date(Date.now() - TEN_MINUTES) }
+        });
+        const velocityScore = Math.min(100, Math.max(0, Math.round((recentBidCountCalc / 20) * 100)));
+        finalItem.velocityScore = velocityScore;
+        finalItem.velocityUpdatedAt = new Date();
+        await finalItem.save();
+
+        broadcastAuction(id, {
+            type: 'velocity:updated',
+            listingId: id,
+            velocityScore
         });
 
-        res.json({ success: true, newBid: finalItem.current_bid, bidCount });
+        // ── Campus Rivalry Detection (Varunkumar) ──
+        const topRows = await Bid.find({ auctionId: item._id }).sort({ amount: -1 }).limit(10);
+        const enrichedBids = await Promise.all(topRows.map(async r => {
+            const u = await User.findOne({ email: r.bidderEmail }).select('college campusVerified');
+            return { email: r.bidderEmail, college: u?.college, campusVerified: u?.campusVerified };
+        }));
+
+        const distinctUsers = [];
+        for (const b of enrichedBids) {
+            if (!distinctUsers.find(db => db.email === b.email)) distinctUsers.push(b);
+            if (distinctUsers.length >= 2) break;
+        }
+
+        if (distinctUsers.length >= 2) {
+            const b1 = distinctUsers[0], b2 = distinctUsers[1];
+            if (b1.campusVerified && b2.campusVerified && b1.college && b2.college && b1.college !== b2.college) {
+                broadcastAuction(id, {
+                    type: 'rivalry:updated',
+                    listingId: id,
+                    rivalryLabel: `Campus Rivalry: ${b1.college} vs ${b2.college}`
+                });
+            }
+        }
+
+        const messageObj = maxSnipeReached ? 
+            'Bid placed successfully, but maximum time extensions (5) have been reached.' : 
+            'Bid placed successfully!';
+
+        res.json({ success: true, newBid: finalItem.currentBid, bidCount, message: messageObj, maxSnipeReached, extensionTriggered });
     } catch(e) {
         res.status(500).json({ success: false, message: 'Error placing bid' });
     }
@@ -733,7 +926,7 @@ app.post('/api/end-auction', requireLogin, async (req, res) => {
         const item = await Auction.findById(id);
         if (!item) return res.status(404).json({ success: false, message: 'Item not found.' });
         if (item.status === 'closed') return res.status(400).json({ success: false, message: 'Already closed.' });
-        if (item.seller_email !== req.user.email && req.user.role !== 'admin')
+        if (item.sellerEmail !== req.user.email && req.user.role !== 'admin')
             return res.status(403).json({ success: false, message: 'Only the seller can end this auction.' });
         await closeAuction(id);
         res.json({ success: true });
@@ -745,10 +938,10 @@ app.post('/api/remove-item', requireLogin, async (req, res) => {
     try {
         const item = await Auction.findById(id);
         if (!item) return res.status(404).json({ success: false, message: 'Item not found.' });
-        if (item.seller_email !== req.user.email && req.user.role !== 'admin')
+        if (item.sellerEmail !== req.user.email && req.user.role !== 'admin')
             return res.status(403).json({ success: false, message: 'You can only remove your own listings.' });
         
-        const bidCount = await Bid.countDocuments({ auction_id: item._id });
+        const bidCount = await Bid.countDocuments({ auctionId: item._id });
         if (bidCount > 0 && req.user.role !== 'admin')
             return res.status(400).json({ success: false, message: 'Cannot withdraw a lot that already has bids. Use "End Auction" instead.' });
         
@@ -757,13 +950,81 @@ app.post('/api/remove-item', requireLogin, async (req, res) => {
     } catch(e) { res.status(500).json({ success: false, message: 'Error' }); }
 });
 
-app.get('/api/bid-history/:id', async (req, res) => {
+app.get('/api/bids/:listingId', async (req, res) => {
     try {
-        const rows = await Bid.find({ auction_id: req.params.id }).sort({ amount: -1 }).select('bidder_name amount placed_at');
-        res.json(rows.map(r => ({
-            bidderName: r.bidder_name,
-            amount: r.amount,
-            placed_at: r.placed_at
+        const rows = await Bid.find({ auctionId: req.params.listingId }).sort({ amount: -1 });
+
+        // Fetch user data to populate college info for rivalry check
+        const enrichedBids = await Promise.all(rows.map(async r => {
+            const user = await User.findOne({ email: r.bidderEmail }).select('college campusVerified');
+            return {
+                bidderName: r.bidderName,
+                bidderEmail: r.bidderEmail, // Keep internally for rivalry logic
+                amount: r.amount,
+                placedAt: r.placedAt,
+                triggeredSnipe: r.triggeredSnipe || false,
+                college: user?.college,
+                campusVerified: user?.campusVerified
+            };
+        }));
+
+        // ── Campus Rivalry Detection (Varunkumar) ──
+        let isRivalry = false;
+        let rivalryDetails = null;
+
+        const distinctBidders = [];
+        for (const b of enrichedBids) {
+            if (!distinctBidders.find(db => db.bidderEmail === b.bidderEmail)) {
+                distinctBidders.push(b);
+            }
+            if (distinctBidders.length >= 2) break;
+        }
+
+        if (distinctBidders.length >= 2) {
+            const b1 = distinctBidders[0];
+            const b2 = distinctBidders[1];
+            if (b1.campusVerified && b2.campusVerified && b1.college && b2.college && b1.college !== b2.college) {
+                isRivalry = true;
+                rivalryDetails = {
+                    college1: b1.college,
+                    college2: b2.college,
+                    message: `Campus Rivalry: ${b1.college} vs ${b2.college}`
+                };
+            }
+        }
+
+        const finalBids = enrichedBids.map(b => {
+            const { bidderEmail, ...rest } = b;
+            return rest;
+        });
+
+        res.json({ bids: finalBids, isRivalry, rivalryDetails });
+    } catch(e) { res.json({ bids: [], isRivalry: false, rivalryDetails: null }); }
+});
+
+// ── Snipe Log API (Varunkumar) ──
+app.get('/api/bids/:listingId/snipe-log', async (req, res) => {
+    try {
+        const logs = await SnipeLog.find({ listingId: req.params.listingId }).sort({ triggeredAt: 1 });
+        res.json(logs.map(l => ({
+            extensionNum: l.extensionNum,
+            newEndTime: l.newEndTime,
+            triggeredAt: l.triggeredAt,
+            bidId: l.bidId
+        })));
+    } catch(e) { res.json([]); }
+});
+
+// ── Active Bid Wars API (Varunkumar) ──
+app.get('/api/bids/wars/active', async (req, res) => {
+    try {
+        const wars = await Auction.find({ isWar: true, status: 'active' }).select('title currentBid endTime image');
+        res.json(wars.map(w => ({
+            id: w._id.toString(),
+            title: w.title,
+            currentBid: w.currentBid,
+            endTime: w.endTime,
+            image: w.image
         })));
     } catch(e) { res.json([]); }
 });
@@ -772,11 +1033,11 @@ app.get('/api/auction/:id/winner', requireLogin, async (req, res) => {
     try {
         const item = await Auction.findById(req.params.id);
         if (!item) return res.status(404).json({ message: 'Not found.' });
-        if (item.seller_email !== req.user.email && req.user.role !== 'admin')
+        if (item.sellerEmail !== req.user.email && req.user.role !== 'admin')
             return res.status(403).json({ message: 'Only the seller can view winner details.' });
         if (item.status !== 'closed') return res.status(400).json({ message: 'Auction is still active.' });
-        if (!item.winner_email) return res.json({ noBids: true });
-        res.json({ noBids: false, name: item.winner_name, email: item.winner_email, winningBid: item.winning_bid });
+        if (!item.winnerEmail) return res.json({ noBids: true });
+        res.json({ noBids: false, name: item.winnerName, email: item.winnerEmail, winningBid: item.winningBid });
     } catch(e) { res.status(500).json({ message: 'Error' }); }
 });
 
@@ -792,16 +1053,16 @@ app.get('/api/chat/:auctionId', requireLogin, async (req, res) => {
         if (auction.status !== 'closed') return res.status(400).json({ message: 'Chat is only available after the auction closes.' });
 
         const userEmail = req.user.email;
-        if (auction.seller_email !== userEmail && auction.winner_email !== userEmail)
+        if (auction.sellerEmail !== userEmail && auction.winnerEmail !== userEmail)
             return res.status(403).json({ message: 'Only the seller and winner can access this chat.' });
 
-        const messages = await Message.find({ auction_id: auctionId }).sort({ sent_at: 1 });
+        const messages = await Message.find({ auctionId: auctionId }).sort({ sentAt: 1 });
         
-        const otherEmail = userEmail === auction.seller_email ? auction.winner_email : auction.seller_email;
+        const otherEmail = userEmail === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail;
         const otherUser  = await User.findOne({ email: otherEmail });
 
         res.json({
-            messages: messages.map(m => ({ senderEmail: m.sender_email, senderName: m.sender_name, message: m.message, sentAt: m.sent_at })),
+            messages: messages.map(m => ({ senderEmail: m.senderEmail, senderName: m.senderName, message: m.message, sentAt: m.sentAt })),
             auctionTitle: auction.title,
             myEmail:      userEmail,
             otherName:    otherUser ? otherUser.fullname : 'Other Party',
@@ -819,16 +1080,16 @@ app.post('/api/chat/:auctionId', requireLogin, async (req, res) => {
         if (auction.status !== 'closed') return res.status(400).json({ message: 'Chat unavailable — auction still active.' });
 
         const userEmail = req.user.email;
-        if (auction.seller_email !== userEmail && auction.winner_email !== userEmail)
+        if (auction.sellerEmail !== userEmail && auction.winnerEmail !== userEmail)
             return res.status(403).json({ message: 'Only the seller and winner can chat here.' });
 
         const text = String(message || '').trim().slice(0, 2000);
         if (!text) return res.status(400).json({ message: 'Message cannot be empty.' });
 
         await Message.create({
-            auction_id: auctionId,
-            sender_email: userEmail,
-            sender_name: req.user.name,
+            auctionId: auctionId,
+            senderEmail: userEmail,
+            senderName: req.user.name,
             message: text
         });
 
@@ -852,35 +1113,35 @@ app.get('/api/my-chats', requireLogin, async (req, res) => {
     try {
         const auctions = await Auction.find({
             status: 'closed',
-            $or: [{ seller_email: email }, { winner_email: email }]
+            $or: [{ sellerEmail: email }, { winnerEmail: email }]
         }).sort({ createdAt: -1 });
 
         const result = [];
         for (const a of auctions) {
-            if (!a.winner_email) continue;
-            const last = await Message.findOne({ auction_id: a._id }).sort({ sent_at: -1 });
+            if (!a.winnerEmail) continue;
+            const last = await Message.findOne({ auctionId: a._id }).sort({ sentAt: -1 });
             
-            const lastSent = await Message.findOne({ auction_id: a._id, sender_email: email }).sort({ sent_at: -1 });
+            const lastSent = await Message.findOne({ auctionId: a._id, senderEmail: email }).sort({ sentAt: -1 });
             let unread = 0;
             if (lastSent) {
-                unread = await Message.countDocuments({ auction_id: a._id, sender_email: { $ne: email }, sent_at: { $gt: lastSent.sent_at } });
+                unread = await Message.countDocuments({ auctionId: a._id, senderEmail: { $ne: email }, sentAt: { $gt: lastSent.sentAt } });
             } else {
-                unread = await Message.countDocuments({ auction_id: a._id, sender_email: { $ne: email } });
+                unread = await Message.countDocuments({ auctionId: a._id, senderEmail: { $ne: email } });
             }
 
-            const otherEmail = email === a.seller_email ? a.winner_email : a.seller_email;
+            const otherEmail = email === a.sellerEmail ? a.winnerEmail : a.sellerEmail;
             const otherUser  = await User.findOne({ email: otherEmail });
-            const myRole     = email === a.seller_email ? 'seller' : 'winner';
+            const myRole     = email === a.sellerEmail ? 'seller' : 'winner';
 
             result.push({
                 auctionId:    a._id.toString(),
                 auctionTitle: a.title,
                 auctionImage: a.image,
-                winningBid:   a.winning_bid,
+                winningBid:   a.winningBid,
                 otherName:    otherUser ? otherUser.fullname : 'Other Party',
                 otherEmail,
                 myRole,
-                lastMessage:  last ? { senderName: last.sender_name, message: last.message, sentAt: last.sent_at } : null,
+                lastMessage:  last ? { senderName: last.senderName, message: last.message, sentAt: last.sentAt } : null,
                 unread,
                 hasBuyer:     true
             });
@@ -895,15 +1156,15 @@ app.get('/api/my-chats', requireLogin, async (req, res) => {
 app.get('/api/profile', requireLogin, async (req, res) => {
     try {
         const userEmail = req.user.email;
-        const activeListings = await Auction.countDocuments({ seller_email: userEmail, status: 'active' });
-        const closedListings = await Auction.countDocuments({ seller_email: userEmail, status: 'closed' });
-        const totalBids = await Bid.countDocuments({ bidder_email: userEmail });
-        const auctionsWon = await Auction.countDocuments({ winner_email: userEmail });
+        const activeListings = await Auction.countDocuments({ sellerEmail: userEmail, status: 'active' });
+        const closedListings = await Auction.countDocuments({ sellerEmail: userEmail, status: 'closed' });
+        const totalBids = await Bid.countDocuments({ bidderEmail: userEmail });
+        const auctionsWon = await Auction.countDocuments({ winnerEmail: userEmail });
         const dbUser = await User.findOne({ email: userEmail });
         const watchlistCount = dbUser && dbUser.watchlist ? dbUser.watchlist.length : 0;
         
         // Active bids calculation
-        const activeBids = await Bid.distinct('auction_id', { bidder_email: userEmail }).exec();
+        const activeBids = await Bid.distinct('auctionId', { bidderEmail: userEmail }).exec();
         const activeAuctions = await Auction.countDocuments({ _id: { $in: activeBids }, status: 'active' });
 
         res.json({
@@ -911,12 +1172,12 @@ app.get('/api/profile', requireLogin, async (req, res) => {
             fullname: req.user.name,
             email: userEmail,
             role: req.user.role,
-            trust_score: dbUser.trust_score || 100,
-            ratings_count: dbUser.ratings_count || 0,
+            trustScore: dbUser.trustScore || 100,
+            ratingsCount: dbUser.ratingsCount || 0,
             activeListings,
             closedListings,
             totalBids,
-            walletBalance: dbUser.wallet_balance || 0,
+            walletBalance: dbUser.walletBalance || 0,
             activeBids: activeAuctions,
             auctionsWon,
             watchlistCount
@@ -957,20 +1218,47 @@ app.post('/api/watchlist/toggle', requireLogin, async (req, res) => {
     } catch(e) { res.status(500).json({ success: false, message: 'Server Error' }); }
 });
 
-app.get('/api/my-bids', requireLogin, async (req, res) => {
+app.get('/api/bids/my-bids', requireLogin, async (req, res) => {
     try {
-        const rows = await Bid.find({ bidder_email: req.user.email }).sort({ placed_at: -1 }).limit(30).populate('auction_id');
-        const resolved = rows.filter(r => r.auction_id).map(r => ({
+        const rows = await Bid.find({ bidderEmail: req.user.email }).sort({ placedAt: -1 }).limit(30).populate('auctionId');
+        const resolved = rows.filter(r => r.auctionId).map(r => ({
             amount: r.amount,
-            placed_at: r.placed_at,
-            auctionTitle: r.auction_id.title,
-            auctionStatus: r.auction_id.status,
-            currentBid: r.auction_id.current_bid,
-            winner_email: r.auction_id.winner_email,
-            auctionId: r.auction_id._id.toString()
+            placedAt: r.placedAt,
+            auctionTitle: r.auctionId.title,
+            auctionStatus: r.auctionId.status,
+            currentBid: r.auctionId.currentBid,
+            winnerEmail: r.auctionId.winnerEmail,
+            auctionId: r.auctionId._id.toString()
         }));
         res.json(resolved);
     } catch(e) { res.status(500).json([]); }
+});
+
+// ── Bid Velocity API (Varunkumar) ──
+app.get('/api/listings/:id/velocity', async (req, res) => {
+    try {
+        const item = await Auction.findById(req.params.id);
+        if (!item) return res.status(404).json({ error: 'Not found' });
+
+        const SIXTY_SECONDS = 60 * 1000;
+        const now = Date.now();
+        const lastUpdated = item.velocityUpdatedAt ? item.velocityUpdatedAt.getTime() : 0;
+
+        if (now - lastUpdated > SIXTY_SECONDS) {
+            const TEN_MINUTES = 10 * 60 * 1000;
+            const recentBidCount = await Bid.countDocuments({
+                auctionId: item._id,
+                placedAt: { $gte: new Date(now - TEN_MINUTES) }
+            });
+            const velocityScore = Math.min(100, Math.max(0, Math.round((recentBidCount / 20) * 100)));
+            
+            item.velocityScore = velocityScore;
+            item.velocityUpdatedAt = new Date();
+            await item.save();
+        }
+
+        res.json({ velocityScore: item.velocityScore || 0 });
+    } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
 
 // ─────────────────────────────────────────────
@@ -986,32 +1274,76 @@ app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     });
 });
 app.get('/api/admin/pending', requireAdmin, async (req, res) => {
-    const pending = await Auction.find({ verified: false, status: 'active' }).sort({ createdAt: 1 });
-    res.json(await Promise.all(pending.map(mapAuction)));
-});
-app.post('/api/admin/verify', requireAdmin, async (req, res) => {
-    const { id, approve } = req.body;
-    if (approve) {
-        await Auction.findByIdAndUpdate(id, { verified: true });
-    } else {
-        await Auction.findByIdAndDelete(id);
+    try {
+        const pending = await Auction.find({ verified: false, status: 'active' }).sort({ createdAt: 1 });
+        res.json(await Promise.all(pending.map(mapAuction)));
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
     }
-    res.json({ success: true });
 });
+
+app.post('/api/admin/verify', requireAdmin, async (req, res) => {
+    try {
+        const { id, approve } = req.body;
+        if (approve) {
+            await Auction.findByIdAndUpdate(id, { verified: true });
+        } else {
+            await Auction.findByIdAndDelete(id);
+        }
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
-    res.json(await User.find().sort({ createdAt: -1 }));
+    try {
+        res.json(await User.find().sort({ createdAt: -1 }));
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
+
 app.post('/api/admin/promote', requireAdmin, async (req, res) => {
-    await User.findByIdAndUpdate(req.body.id, { role: 'admin' });
-    res.json({ success: true });
+    try {
+        await User.findByIdAndUpdate(req.body.id, { role: 'admin' });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
+
 app.post('/api/admin/close-auction', requireAdmin, async (req, res) => {
-    await closeAuction(req.body.id);
-    res.json({ success: true });
+    try {
+        await closeAuction(req.body.id);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 // ─────────────────────────────────────────────
-// 12. START
+// 12. BACKGROUND SCHEDULER
+// ─────────────────────────────────────────────
+// Runs every 1 minute to close expired auctions
+setInterval(async () => {
+    try {
+        const expiredAuctions = await Auction.find({
+            status: 'active',
+            endTime: { $lte: new Date() }
+        });
+        
+        for (const auction of expiredAuctions) {
+            console.log(`⏰ Scheduler: Closing expired auction "${auction.title}"...`);
+            await closeAuction(auction._id);
+        }
+    } catch (err) {
+        console.error('Scheduler Error:', err);
+    }
+}, 60 * 1000);
+
+// ─────────────────────────────────────────────
+// 13. START
 // ─────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
