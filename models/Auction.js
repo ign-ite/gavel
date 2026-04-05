@@ -4,15 +4,26 @@ const AuctionSchema = new mongoose.Schema({
     title: { type: String, required: true },
     description: { type: String },
     currentBid: { type: Number, required: true },
-    image: { type: String },
+    bidCount: { type: Number, default: 0 },
+    increment: { type: Number, default: 500 }, // Minimum next bid increment
+    images: [{ type: String }], // Multi-image support
+    image: { type: String }, // Legacy support (first image)
     video: { type: String },
     videoUrl: { type: String },
     verified: { type: Boolean, default: false },
+    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     sellerEmail: { type: String, required: true },
+    startTime: { type: Date, default: Date.now },
     endTime: { type: Date },
-    status: { type: String, default: 'active', enum: ['active', 'closed'] },
+    status: { type: String, default: 'active', enum: ['draft', 'active', 'closed', 'cancelled'] },
     category: { type: String },
+    startingPrice: { type: Number, default: 0 },
     reservePrice: { type: Number, default: 0 },
+    shippingDetails: {
+        weight: { type: Number },
+        dimensions: { type: String },
+        cost: { type: Number, default: 0 }
+    },
     winnerEmail: { type: String },
     winnerName: { type: String },
     winningBid: { type: Number },

@@ -76,12 +76,12 @@ var isAuthPage = (window.location.pathname.indexOf('login') !== -1 || window.loc
                 }).then(function() {
                     // Only redirect if we are on an auth page
                     if (isAuthPage) {
-                        window.location.href = '/index.html';
+                        window.location.href = '/';
                     }
                 }).catch(function(e) { 
                     console.error("Sync error", e);
                     if (isAuthPage) {
-                        window.location.href = '/index.html';
+                        window.location.href = '/';
                     }
                 });
             }
@@ -95,7 +95,7 @@ var isAuthPage = (window.location.pathname.indexOf('login') !== -1 || window.loc
 
             // If user lands on login/signup but is already logged in, redirect them away
             if (isAuthPage && !hashHasToken) {
-                window.location.href = '/index.html';
+                window.location.href = '/';
             }
         }
 

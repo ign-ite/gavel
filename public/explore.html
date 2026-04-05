@@ -11,7 +11,7 @@
     <header>
         <nav class="navbar">
             <div class="logo">
-                <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+                <a href="/" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
                     <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
@@ -53,6 +53,7 @@
     <script src="js/nav.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/auth.js"></script>
+    <script src="js/feed.js"></script>
     <script>
     let allAuctions = [];
     let displayedCount = 0;
@@ -65,6 +66,7 @@
             const res = await fetch('/api/auctions');
             allAuctions = await res.json();
             renderExplore();
+            GavelFeed.startTimers();
         } catch(e) { console.error(e); }
 
         // Tab switching
@@ -125,29 +127,7 @@
         const batch = items.slice(displayedCount, displayedCount + PAGE_SIZE);
 
         batch.forEach(item => {
-            const sellerName = (item.sellerEmail || 'seller').split('@')[0];
-            const sellerInitial = sellerName.charAt(0).toUpperCase();
-            const hasVideo = !!item.videoUrl;
-
-            const card = document.createElement('div');
-            card.className = 'short-card';
-            card.onclick = () => window.location.href = `/short-view.html?id=${item.id}`;
-            card.innerHTML = `
-                <div class="short-seller">
-                    <div class="short-seller-avatar">${sellerInitial}</div>
-                    <span class="short-seller-name">${sellerName}</span>
-                </div>
-                <div class="short-live-badge"><span class="short-live-dot"></span>LIVE</div>
-                ${hasVideo
-                    ? `<video class="short-video" src="${item.videoUrl}" muted loop playsinline preload="metadata"></video>`
-                    : `<img class="short-media" src="${item.image}" alt="${item.title}" loading="lazy">`
-                }
-                <div class="short-overlay">
-                    <span class="short-timer live-timer" data-endtime="${item.endTime}">Loading...</span>
-                    <p class="short-title">${item.title}</p>
-                    <p class="short-price">₹${item.currentBid.toLocaleString('en-IN')}</p>
-                </div>
-            `;
+            const card = GavelFeed.buildShortCard(item);
             grid.appendChild(card);
         });
 
@@ -157,52 +137,9 @@
         document.getElementById('load-more-btn').style.display =
             displayedCount >= items.length ? 'none' : 'inline-block';
 
-        // Setup video autoplay for new cards
-        setupVideoAutoplay();
-        startTimers();
+        GavelFeed.setupAutoplay();
     }
-
-    function setupVideoAutoplay() {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                const video = entry.target;
-                if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-                    video.play().catch(() => {});
-                } else {
-                    video.pause();
-                }
-            });
-        }, { threshold: 0.6 });
-
-        document.querySelectorAll('.short-video:not([data-observed])').forEach(v => {
-            v.setAttribute('data-observed', '1');
-            observer.observe(v);
-        });
-    }
-
-    function startTimers() {
-        setInterval(() => {
-            document.querySelectorAll('.live-timer').forEach(el => {
-                const end = new Date(el.dataset.endtime).getTime();
-                const now = Date.now();
-                const diff = end - now;
-                if (diff <= 0) {
-                    el.textContent = 'Ended';
-                    el.style.color = 'var(--neon-red)';
-                    return;
-                }
-                const h = Math.floor(diff / 3600000);
-                const m = Math.floor((diff % 3600000) / 60000);
-                const s = Math.floor((diff % 60000) / 1000);
-                el.textContent = h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
-
-                if (diff < 600000) {
-                    el.style.color = 'var(--neon-red)';
-                    el.style.fontWeight = 'bold';
-                }
-            });
-        }, 1000);
-    }
+    </script>
     </script>
 </body>
 </html>

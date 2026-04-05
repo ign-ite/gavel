@@ -352,7 +352,7 @@ function renderDetailPanel(item, container) {
 
     // WebSocket for live price update in panel
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    window.detailWs = new WebSocket(`${protocol}://${location.host}`);
+    window.detailWs = new WebSocket(`${protocol}://${location.host}/ws`);
     window.detailWs.onopen = () => window.detailWs.send(JSON.stringify({ type: 'watch', itemId: item.id }));
     window.detailWs.onmessage = (e) => {
         const msg = JSON.parse(e.data);

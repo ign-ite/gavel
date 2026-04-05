@@ -94,7 +94,7 @@
 <header>
     <nav class="navbar">
         <div class="logo">
-            <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+            <a href="/" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
                 <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -316,13 +316,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 5. WebSocket
         const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-        const ws = new WebSocket(`${protocol}://${location.host}`);
+        window.detailWs = new WebSocket(`${protocol}://${location.host}/ws`);
 
-        ws.addEventListener('open', () => {
-            ws.send(JSON.stringify({ type: 'watch', itemId: window.currentItemId }));
+        window.detailWs.addEventListener('open', () => {
+            window.detailWs.send(JSON.stringify({ type: 'watch', itemId: window.currentItemId }));
         });
 
-        ws.addEventListener('message', (event) => {
+        window.detailWs.addEventListener('message', (event) => {
             const msg = JSON.parse(event.data);
             if (msg.type === 'bid_update' && msg.itemId === window.currentItemId) {
                 const priceEl = document.getElementById('display-price');

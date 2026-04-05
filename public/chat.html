@@ -238,7 +238,7 @@
 <header>
     <nav class="navbar">
         <div class="logo">
-            <a href="index.html" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
+            <a href="/" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
                 <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // WebSocket logic
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${protocol}://${location.host}`);
+    const ws = new WebSocket(`${protocol}://${location.host}/ws`);
     const connDot   = document.getElementById('conn-dot');
     const connLabel = document.getElementById('conn-label');
 

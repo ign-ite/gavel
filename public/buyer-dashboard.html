@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buyer Dashboard | Gavel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Slab:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #1A3263;
+            --teal: #8CC7C4;
+            --green: #79AE6F;
+            --olive: #4C5C2D;
+            --red: #AE2448;
+            --bg-dark: #0F1D33;
+            --bg-card: #1E3A5F;
+            --text-light: #FFFFFF;
+            --text-muted: #8CC7C4;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            min-height: 100vh;
+        }
+        
+        h1, h2, h3, h4 {
+            font-family: 'Roboto Slab', serif;
+            font-weight: 600;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 260px;
+            height: 100vh;
+            background: var(--navy);
+            border-right: 1px solid rgba(140, 199, 196, 0.2);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 40px;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--teal), var(--green));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .logo-text {
+            font-family: 'Roboto Slab', serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--teal);
+        }
+        
+        .nav-menu {
+            list-style: none;
+            flex: 1;
+        }
+        
+        .nav-item {
+            margin-bottom: 8px;
+        }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            background: rgba(140, 199, 196, 0.15);
+            color: var(--teal);
+        }
+        
+        .nav-link svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        /* Main Content */
+        .main {
+            margin-left: 260px;
+            padding: 32px;
+            min-height: 100vh;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .user-avatar {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--teal), var(--green));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: var(--navy);
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid rgba(140, 199, 196, 0.15);
+        }
+        
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            font-family: 'Roboto Slab', serif;
+        }
+        
+        .stat-value.teal { color: var(--teal); }
+        .stat-value.green { color: var(--green); }
+        .stat-value.red { color: var(--red); }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(140, 199, 196, 0.2);
+            padding-bottom: 12px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .tab:hover, .tab.active {
+            background: rgba(140, 199, 196, 0.15);
+            color: var(--teal);
+        }
+        
+        /* Table */
+        .table-container {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid rgba(140, 199, 196, 0.15);
+            overflow: hidden;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            text-align: left;
+            padding: 16px 20px;
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        td {
+            padding: 16px 20px;
+            border-top: 1px solid rgba(140, 199, 196, 0.1);
+        }
+        
+        .item-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .item-image {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: var(--navy);
+        }
+        
+        .item-name {
+            font-weight: 500;
+        }
+        
+        .item-id {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-badge.active {
+            background: rgba(121, 174, 111, 0.2);
+            color: var(--green);
+        }
+        
+        .status-badge.won {
+            background: rgba(140, 199, 196, 0.2);
+            color: var(--teal);
+        }
+        
+        .status-badge.outbid {
+            background: rgba(174, 36, 72, 0.2);
+            color: var(--red);
+        }
+        
+        .status-badge.pending {
+            background: rgba(140, 199, 196, 0.15);
+            color: var(--text-muted);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--teal), var(--green));
+            color: var(--navy);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(140, 199, 196, 0.3);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--teal);
+            color: var(--teal);
+        }
+        
+        .btn-outline:hover {
+            background: rgba(140, 199, 196, 0.1);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A3263" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+            </div>
+            <span class="logo-text">Gavel</span>
+        </div>
+        
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="index.html" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    </svg>
+                    Home
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="buyer-dashboard.html" class="nav-link active">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <path d="M3 9h18M9 21V9"/>
+                    </svg>
+                    Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="auction.html" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Live Auctions
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="watchlist.html" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    Watchlist
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="chats.html" class="nav-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    Messages
+                </a>
+            </li>
+        </ul>
+        
+        <a href="login.html" class="nav-link" style="margin-top: auto;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Logout
+        </a>
+    </aside>
+    
+    <main class="main">
+        <div class="header">
+            <div>
+                <h1>Buyer Dashboard</h1>
+                <p style="color: var(--text-muted); margin-top: 4px;">Welcome back! Here's your activity overview.</p>
+            </div>
+            <div class="user-info">
+                <div>
+                    <div style="font-weight: 500;">John Doe</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Buyer Account</div>
+                </div>
+                <div class="user-avatar">JD</div>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Active Bids</div>
+                <div class="stat-value teal">12</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Items Won</div>
+                <div class="stat-value green">8</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Spent</div>
+                <div class="stat-value">₹45.2L</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Outbid</div>
+                <div class="stat-value red">3</div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('active-bids')">Active Bids</button>
+            <button class="tab" onclick="showTab('bid-history')">Bid History</button>
+            <button class="tab" onclick="showTab('watchlist')">Watchlist</button>
+            <button class="tab" onclick="showTab('items-won')">Items Won</button>
+        </div>
+        
+        <div id="active-bids" class="tab-content active">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Current Bid</th>
+                            <th>Your Bid</th>
+                            <th>Time Left</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="item-cell">
+                                    <img src="https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?w=100" class="item-image" alt="Rolex">
+                                    <div>
+                                        <div class="item-name">1962 Rolex Daytona</div>
+                                        <div class="item-id">#AUC-042</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>₹1,25,00,000</td>
+                            <td>₹1,20,00,000</td>
+                            <td>14h 22m</td>
+                            <td><span class="status-badge active">Active</span></td>
+                            <td><button class="btn btn-primary">Bid Now</button></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="item-cell">
+                                    <img src="https://images.unsplash.com/photo-1563720223185-11003d516935?w=100" class="item-image" alt="Mercedes">
+                                    <div>
+                                        <div class="item-name">Mercedes-Benz 300 SL</div>
+                                        <div class="item-id">#AUC-057</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>₹2,45,00,000</td>
+                            <td>₹2,40,00,000</td>
+                            <td>9h 45m</td>
+                            <td><span class="status-badge active">Active</span></td>
+                            <td><button class="btn btn-primary">Bid Now</button></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="item-cell">
+                                    <img src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=100" class="item-image" alt="Hermes">
+                                    <div>
+                                        <div class="item-name">Hermes Birkin 25</div>
+                                        <div class="item-id">#AUC-031</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>₹1,80,00,000</td>
+                            <td>₹1,75,00,000</td>
+                            <td>1d 11h</td>
+                            <td><span class="status-badge outbid">Outbid</span></td>
+                            <td><button class="btn btn-primary">Bid Now</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="bid-history" class="tab-content">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Your Bid</th>
+                            <th>Final Price</th>
+                            <th>Date</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="item-cell">
+                                    <img src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100" class="item-image" alt="Patek">
+                                    <div>
+                                        <div class="item-name">Patek Philippe Nautilus</div>
+                                        <div class="item-id">#AUC-089</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>₹68,00,000</td>
+                            <td>₹72,00,000</td>
+                            <td>Mar 28, 2026</td>
+                            <td><span class="status-badge outbid">Outbid</span></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="item-cell">
+                                    <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100" class="item-image" alt="Nike">
+                                    <div>
+                                        <div class="item-name">Vintage Collection</div>
+                                        <div class="item-id">#AUC-055</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>₹2,50,000</td>
+                            <td>₹2,50,000</td>
+                            <td>Mar 25, 2026</td>
+                            <td><span class="status-badge won">Won</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="watchlist" class="tab-content">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Current Bid</th>
+                            <th>Time Left</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="item-cell">
+                                    <img src="https://images.unsplash.com/photo-1577083552431-6e5fd01988ec?w=100" class="item-image" alt="Art">
+                                    <div>
+                                        <div class="item-name">Abstract Art Piece</div>
+                                        <div class="item-id">#AUC-072</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>₹15,00,000</td>
+                            <td>2d 8h</td>
+                            <td><span class="status-badge pending">Watching</span></td>
+                            <td><button class="btn btn-outline">Place Bid</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="items-won" class="tab-content">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Winning Bid</th>
+                            <th>Date Won</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="item-cell">
+                                    <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100" class="item-image" alt="Shoe">
+                                    <div>
+                                        <div class="item-name">Vintage Collection</div>
+                                        <div class="item-id">#AUC-055</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>₹2,50,000</td>
+                            <td>Mar 25, 2026</td>
+                            <td><span class="status-badge won">Delivered</span></td>
+                            <td><button class="btn btn-outline">View Details</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

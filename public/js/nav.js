@@ -48,7 +48,7 @@
         ${isAdmin ? `<li><a href="/admin.html" style="color:var(--brass-gold)">Admin</a></li>` : ''}
         ${user ? `
             <li class="nav-profile">
-                <a href="/profile.html" class="nav-avatar-initial" id="nav-avatar"
+                <a href="/dashboard.html" class="nav-avatar-initial" id="nav-avatar"
                    title="${user.name}">${user.name.charAt(0).toUpperCase()}</a>
             </li>
             <li>

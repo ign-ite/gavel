@@ -185,7 +185,7 @@
 
         <aside class="shorts-sidebar">
             <div class="sidebar-header">
-                <a href="/index.html" style="color:var(--text-secondary); text-decoration:none; display:flex; align-items:center; gap:8px;">
+                <a href="/" style="color:var(--text-secondary); text-decoration:none; display:flex; align-items:center; gap:8px;">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                     Back
                 </a>
@@ -214,6 +214,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/feed.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const params = new URLSearchParams(window.location.search);
@@ -235,7 +237,7 @@
 
                 // Populate media
                 const videoArea = document.getElementById('video-area');
-                const mediaUrl = data.videoUrl || data.imageUrl;
+                const mediaUrl = data.videoUrl || data.image;
                 if(data.videoUrl) {
                     const vid = document.createElement('video');
                     vid.src = data.videoUrl;
@@ -244,9 +246,9 @@
                     vid.muted = true;
                     vid.playsInline = true;
                     videoArea.insertBefore(vid, document.querySelector('.shorts-overlay'));
-                } else {
+                } else if (data.image) {
                     const img = document.createElement('img');
-                    img.src = data.imageUrl;
+                    img.src = data.image;
                     videoArea.insertBefore(img, document.querySelector('.shorts-overlay'));
                 }
 
@@ -261,24 +263,27 @@
                 const bidsData = await bidsRes.json();
 
                 const feed = document.getElementById('bids-feed');
-                if(bidsData.length > 0) {
-                    feed.innerHTML = bidsData.map(b => `
-                        <div class="bid-comment">
-                            <div class="avatar">${b.bidder_name.charAt(0).toUpperCase()}</div>
-                            <div class="bid-comment-body">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                                    <span style="font-weight:600; font-size:0.9rem;">${b.bidder_name}</span>
-                                    <span style="color:var(--text-secondary); font-size:0.75rem;">${new Date(b.placed_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                const renderBids = (items) => {
+                    if(items.length > 0) {
+                        feed.innerHTML = items.map(b => `
+                            <div class="bid-comment">
+                                <div class="avatar">${b.bidderName.charAt(0).toUpperCase()}</div>
+                                <div class="bid-comment-body">
+                                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                        <span style="font-weight:600; font-size:0.9rem;">${b.bidderName}</span>
+                                        <span style="color:var(--text-secondary); font-size:0.75rem;">${new Date(b.placedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                    </div>
+                                    <div>Placed a trade of <span style="color:var(--neon-green); font-weight:700;">₹${b.amount.toLocaleString('en-IN')}</span></div>
                                 </div>
-                                <div>Placed a trade of <span style="color:var(--neon-green); font-weight:700;">₹${b.amount.toLocaleString('en-IN')}</span></div>
                             </div>
-                        </div>
-                    `).join('');
-                }
+                        `).join('');
+                    }
+                };
+                renderBids(bidsData);
 
                 // WebSocket live updates
                 const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-                const ws = new WebSocket(`${protocol}://${location.host}`);
+                const ws = new WebSocket(`${protocol}://${location.host}/ws`);
                 ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'watch', itemId: id })));
                 
                 ws.addEventListener('message', async (event) => {
@@ -289,21 +294,8 @@
                         // Refetch bids
                         const newBidsRes = await fetch(`/api/bid-history/${id}`);
                         const newBids = await newBidsRes.json();
-                        if(newBids.length > 0) {
-                            feed.innerHTML = newBids.map(b => `
-                                <div class="bid-comment">
-                                    <div class="avatar">${b.bidder_name.charAt(0).toUpperCase()}</div>
-                                    <div class="bid-comment-body">
-                                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                                            <span style="font-weight:600; font-size:0.9rem;">${b.bidder_name}</span>
-                                            <span style="color:var(--text-secondary); font-size:0.75rem;">${new Date(b.placed_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                                        </div>
-                                        <div>Placed a trade of <span style="color:var(--neon-green); font-weight:700;">₹${b.amount.toLocaleString('en-IN')}</span></div>
-                                    </div>
-                                </div>
-                            `).join('');
-                            feed.scrollTop = 0;
-                        }
+                        renderBids(newBids);
+                        feed.scrollTop = 0;
                     }
                 });
 

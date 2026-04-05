@@ -4,10 +4,27 @@ const UserSchema = new mongoose.Schema({
     fullname: { type: String, required: true },
     email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
     role:     { type: String, default: 'bidder', enum: ['bidder', 'seller', 'admin'] },
+    balance:  { type: Number, default: 0 },
+    avatar:   { type: String, default: '/images/default-avatar.png' },
+    bio:      { type: String, default: '' },
+    location: {
+        city: { type: String, default: '' },
+        country: { type: String, default: '' }
+    },
     trustScore: { type: Number, default: 100 },
-    ratingsCount: { type: Number, default: 0 },
-    walletBalance: { type: Number, default: 0 },
+    ratings: [{
+        raterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        score: { type: Number },
+        comment: { type: String }
+    }],
+    walletBalance: { type: Number, default: 0 }, // Legacy support
     watchlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Auction' }],
+    notifications: [{
+        type: { type: String },
+        message: { type: String },
+        read: { type: Boolean, default: false },
+        createdAt: { type: Date, default: Date.now }
+    }],
     // ── Campus Rivalry (Varunkumar) ──
     college: { type: String, default: null },
     campusVerified: { type: Boolean, default: false },

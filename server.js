@@ -27,22 +27,39 @@
  */
 
 require('dotenv').config();
-const express    = require('express');
-const path       = require('path');
-const multer     = require('multer');
-const fs         = require('fs');
+const express = require('express');
+const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 const cookieParser = require('cookie-parser');
-const http       = require('http');
+const http = require('http');
 const { WebSocketServer } = require('ws');
-const mongoose   = require('mongoose');
+const mongoose = require('mongoose');
 const { createClient } = require('@supabase/supabase-js');
-const bcrypt     = require('bcryptjs');
-const jwt        = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+// Next.js integration (Load from frontend's node_modules to avoid duplicate React conflicts)
+const nextPath = path.join(__dirname, 'frontend', 'node_modules', 'next');
+const next = require(nextPath);
+const dev = process.env.NODE_ENV !== 'production';
+const nextApp = next({ dev, dir: path.join(__dirname, 'frontend') });
+const handle = nextApp.getRequestHandler();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'gavel-super-secret-key-2024';
 
 // Mongoose Models
 const User = require('./models/User');
+
+// Catch Next.js 14+ Development WebSocket errors that indiscriminately crash the Node process
+process.on('uncaughtException', (err) => {
+    if (err.message && err.message.includes('Invalid WebSocket frame')) {
+        console.warn('Caught Next.js WebSocket bug, preventing server crash:', err.message);
+        return;
+    }
+    console.error('Unhandled Exception:', err);
+    process.exit(1);
+});
 const Auction = require('./models/Auction');
 const Bid = require('./models/Bid');
 const Message = require('./models/Message');
@@ -50,9 +67,19 @@ const AutoBid = require('./models/AutoBid');
 const AuditLog = require('./models/AuditLog');
 const SnipeLog = require('./models/SnipeLog');
 
-const app    = express();
+const app = express();
 const server = http.createServer(app);
-const wss    = new WebSocketServer({ server });
+// Scope WS server to /ws path only — prevents it from intercepting Next.js HMR WebSocket connections
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+    if (req.url && req.url.startsWith('/ws')) {
+        wss.handleUpgrade(req, socket, head, (ws) => {
+            wss.emit('connection', ws, req);
+        });
+    }
+    // All other upgrades (Next.js HMR /_next/*) are left alone
+});
 
 // ─────────────────────────────────────────────
 // 1. SUPABASE ADMIN & DATABASE
@@ -75,6 +102,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Middleware to redirect logged-in users away from login/signup
+const redirectIfLoggedIn = (req, res, next) => {
+    if (req.cookies.sb_access_token) {
+        return res.redirect('/');
+    }
+    next();
+};
+
+app.get('/login.html', redirectIfLoggedIn, (req, res, next) => next());
+app.get('/signup.html', (req, res) => res.redirect('/login.html')); // User requested to "remove signup"
+
 // ─────────────────────────────────────────────
 // 2.5 LOCAL AUTHENTICATION (Varunkumar)
 // ─────────────────────────────────────────────
@@ -92,7 +130,7 @@ app.post('/api/auth/register', async (req, res) => {
         const isAcIn = email.endsWith('.ac.in');
         const indianInstitutes = ['.ernet.in', '.nit.ac.in', '.iit.ac.in', '.iiit.ac.in'];
         const isIndianInst = indianInstitutes.some(domain => email.endsWith(domain));
-        
+
         const campusVerified = isEdu || isAcIn || isIndianInst;
 
         const salt = await bcrypt.genSalt(10);
@@ -107,7 +145,7 @@ app.post('/api/auth/register', async (req, res) => {
         });
 
         const token = jwt.sign({ id: newUser._id, email: newUser.email }, JWT_SECRET, { expiresIn: '7d' });
-        
+
         res.cookie('jwt_token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
         res.json({ success: true, user: { email: newUser.email, name: newUser.fullname, campusVerified } });
     } catch (err) {
@@ -126,7 +164,7 @@ app.post('/api/auth/login', async (req, res) => {
         if (!isValid) return res.status(401).json({ error: 'Invalid credentials' });
 
         const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-        
+
         res.cookie('jwt_token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production' });
         res.json({ success: true, user: { email: user.email, name: user.fullname, role: user.role } });
     } catch (err) {
@@ -163,7 +201,7 @@ app.get('/api/config', (req, res) => {
 async function requireLogin(req, res, next) {
     const token = req.cookies.sb_access_token || req.cookies.jwt_token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
     if (!token) return res.status(401).json({ success: false, message: 'Login required.', redirect: '/login.html' });
-    
+
     try {
         // 1. Try Local JWT verification first
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -183,7 +221,7 @@ async function requireLogin(req, res, next) {
         if (error || !user) return res.status(401).json({ success: false, message: 'Invalid session.', redirect: '/login.html' });
 
         const dbUser = await User.findOne({ email: user.email.toLowerCase() });
-        
+
         req.user = {
             id: dbUser ? dbUser._id.toString() : user.id,
             email: user.email,
@@ -235,12 +273,12 @@ if (process.env.CLOUDINARY_URL) {
     // storage = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: 'gavel_assets' } });
     storage = multer.diskStorage({
         destination: (req, file, cb) => cb(null, uploadDir),
-        filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s/g, '_'))
+        filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s/g, '_'))
     });
 } else {
     storage = multer.diskStorage({
         destination: (req, file, cb) => cb(null, uploadDir),
-        filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s/g, '_'))
+        filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s/g, '_'))
     });
 }
 const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
@@ -248,7 +286,7 @@ const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 // ─────────────────────────────────────────────
 // 4. WEBSOCKETS
 // ─────────────────────────────────────────────
-const watchers  = new Map(); // itemId  → Set<ws>  (bid watchers)
+const watchers = new Map(); // itemId  → Set<ws>  (bid watchers)
 const chatRooms = new Map(); // auctionId → Set<{ws, email, name}> (chat participants)
 const globalWatchers = new Set(); // Set<ws> for homepage global feed
 
@@ -257,11 +295,11 @@ const globalWatchers = new Set(); // Set<ws> for homepage global feed
 const bidActivityTracker = new Map();
 
 wss.on('connection', (ws, req) => {
-    let watchingId  = null;
-    let chatId      = null;
-    let userEmail   = null;
-    let userName    = null;
-    let isGlobal    = false;
+    let watchingId = null;
+    let chatId = null;
+    let userEmail = null;
+    let userName = null;
+    let isGlobal = false;
 
     ws.on('message', async (raw) => {
         try {
@@ -277,7 +315,7 @@ wss.on('connection', (ws, req) => {
                 watchingId = String(msg.itemId);
                 if (!watchers.has(watchingId)) watchers.set(watchingId, new Set());
                 watchers.get(watchingId).add(ws);
-                
+
                 const count = watchers.get(watchingId).size;
                 watchers.get(watchingId).forEach(client => {
                     if (client.readyState === 1) client.send(JSON.stringify({ type: 'spectator_count', count }));
@@ -286,9 +324,9 @@ wss.on('connection', (ws, req) => {
 
             // ── Join a chat room ──
             if (msg.type === 'join_chat' && msg.auctionId && msg.email && msg.name) {
-                chatId    = String(msg.auctionId);
+                chatId = String(msg.auctionId);
                 userEmail = msg.email;
-                userName  = msg.name;
+                userName = msg.name;
 
                 if (!chatRooms.has(chatId)) chatRooms.set(chatId, new Set());
                 chatRooms.get(chatId).add({ ws, email: userEmail, name: userName });
@@ -315,12 +353,12 @@ wss.on('connection', (ws, req) => {
 
                 // Broadcast to everyone in this chat room
                 const payload = JSON.stringify({
-                    type:        'chat_msg',
-                    auctionId:   aid,
+                    type: 'chat_msg',
+                    auctionId: aid,
                     senderEmail: userEmail,
-                    senderName:  userName,
-                    message:     text,
-                    sentAt:      new Date().toISOString()
+                    senderName: userName,
+                    message: text,
+                    sentAt: new Date().toISOString()
                 });
 
                 const room = chatRooms.get(String(aid));
@@ -331,13 +369,13 @@ wss.on('connection', (ws, req) => {
                     });
                 }
             }
-        } catch(e) {}
+        } catch (e) { }
     });
 
     ws.on('close', () => {
         if (watchingId && watchers.has(watchingId)) {
             watchers.get(watchingId).delete(ws);
-            
+
             const count = watchers.get(watchingId).size;
             watchers.get(watchingId).forEach(client => {
                 if (client.readyState === 1) client.send(JSON.stringify({ type: 'spectator_count', count }));
@@ -401,11 +439,11 @@ async function closeAuction(auctionId) {
         }
 
         broadcastAuction(auctionId.toString(), {
-            type:       'auction_closed',
-            itemId:     auctionId.toString(),
+            type: 'auction_closed',
+            itemId: auctionId.toString(),
             winnerName: winnerObj ? winnerObj.bidderName : null,
-            winningBid: winnerObj ? winnerObj.amount      : null,
-            noBids:     !topBid,
+            winningBid: winnerObj ? winnerObj.amount : null,
+            noBids: !topBid,
             reserveMet: !!winnerObj
         });
 
@@ -421,12 +459,20 @@ app.get('/api/me', async (req, res) => {
         const token = req.cookies.sb_access_token;
         if (!token) return res.json({ loggedIn: false });
 
-        const { data: { user }, error } = await supabase.auth.getUser(token);
+        // Wrap Supabase call in a timeout/try-catch to prevent DNS-related socket hang-ups
+        const { data: { user }, error } = await Promise.race([
+            supabase.auth.getUser(token),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase Timeout')), 5000))
+        ]).catch(err => {
+            console.error("Supabase unreachable:", err.message);
+            return { data: { user: null }, error: err };
+        });
+
         if (error || !user) return res.json({ loggedIn: false });
 
         const dbUser = await User.findOne({ email: user.email.toLowerCase() });
-        res.json({ 
-            loggedIn: true, 
+        res.json({
+            loggedIn: true,
             user: {
                 id: dbUser ? dbUser._id.toString() : user.id,
                 email: user.email,
@@ -445,10 +491,10 @@ app.post('/api/deposit', requireLogin, async (req, res) => {
     try {
         const { amount } = req.body;
         const depositAmount = Number(amount);
-        if(!depositAmount || depositAmount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+        if (!depositAmount || depositAmount <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
         const dbUser = await User.findOne({ email: req.user.email });
-        if(!dbUser) return res.status(404).json({ error: 'User not found' });
+        if (!dbUser) return res.status(404).json({ error: 'User not found' });
 
         dbUser.walletBalance += depositAmount;
         await dbUser.save();
@@ -461,8 +507,44 @@ app.post('/api/deposit', requireLogin, async (req, res) => {
         });
 
         res.json({ success: true, newBalance: dbUser.walletBalance });
-    } catch(e) {
+    } catch (e) {
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Sync Supabase user to MongoDB
+app.post('/api/user/sync', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'No token' });
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (error || !user) return res.status(401).json({ error: 'Invalid token' });
+
+        const { email, fullname, role } = req.body;
+        
+        // Upsert the user in MongoDB
+        let dbUser = await User.findOne({ email: email.toLowerCase() });
+        if (!dbUser) {
+            dbUser = await User.create({
+                email: email.toLowerCase(),
+                fullname: fullname || 'New User',
+                role: role || 'bidder',
+                trustScore: 100,
+                walletBalance: 0
+            });
+            console.log(`👤 New user synced: ${email}`);
+        } else {
+            // Update fields if they changed
+            dbUser.fullname = fullname || dbUser.fullname;
+            await dbUser.save();
+        }
+
+        res.json({ success: true, userId: dbUser._id });
+    } catch (e) {
+        console.error("Sync error:", e.message);
+        res.status(500).json({ error: 'Sync failed' });
     }
 });
 
@@ -491,30 +573,66 @@ const requireAdmin = async (req, res, next) => {
         }
         req.adminUser = dbUser;
         next();
-    } catch(e) {
+    } catch (e) {
         res.status(500).json({ error: 'Server error' });
     }
 };
+
+// ── Dashboard: Combined Profile & Stats ──
+app.get('/api/profile', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // Build Dashboard Context
+        const context = {
+            user,
+            stats: {}
+        };
+
+        if (user.role === 'seller' || user.role === 'admin') {
+            const myAuctions = await Auction.find({ sellerEmail: user.email });
+            const soldAuctions = myAuctions.filter(a => a.status === 'closed' && a.winnerEmail);
+            context.stats.totalEarnings = soldAuctions.reduce((sum, a) => sum + (a.currentBid || 0), 0);
+            context.stats.activeListings = myAuctions.filter(a => a.status === 'active').length;
+            context.stats.soldCount = soldAuctions.length;
+        }
+
+        if (user.role === 'bidder' || user.role === 'admin') {
+            const myBids = await Bid.find({ bidderEmail: user.email });
+            const distinctAuctionIds = [...new Set(myBids.map(b => b.auctionId.toString()))];
+            const auctionsIBidOn = await Auction.find({ _id: { $in: distinctAuctionIds } });
+            
+            context.stats.activeBids = auctionsIBidOn.filter(a => a.status === 'active').length;
+            context.stats.wins = await Auction.countDocuments({ winnerEmail: user.email });
+            context.stats.watchlistCount = user.watchlist ? user.watchlist.length : 0;
+        }
+
+        res.json(context);
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
         const users = await User.find().sort({ createdAt: -1 });
         res.json(users);
-    } catch(e) { res.status(500).json({ error: 'Server error fetching users' }); }
+    } catch (e) { res.status(500).json({ error: 'Server error fetching users' }); }
 });
 
 app.get('/api/admin/logs', requireAdmin, async (req, res) => {
     try {
         const logs = await AuditLog.find().sort({ createdAt: -1 }).limit(100);
         res.json(logs);
-    } catch(e) { res.status(500).json({ error: 'Server error fetching logs' }); }
+    } catch (e) { res.status(500).json({ error: 'Server error fetching logs' }); }
 });
 
 app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
     try {
         const targetUser = await User.findById(req.params.id);
         if (!targetUser) return res.status(404).json({ error: 'User not found' });
-        
+
         // Delete all their auctions and bids
         await Auction.deleteMany({ sellerEmail: targetUser.email });
         await Bid.deleteMany({ bidderEmail: targetUser.email });
@@ -528,14 +646,14 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
         });
 
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: 'Server error deleting user' }); }
+    } catch (e) { res.status(500).json({ error: 'Server error deleting user' }); }
 });
 
 app.delete('/api/admin/auctions/:id', requireAdmin, async (req, res) => {
     try {
         const target = await Auction.findById(req.params.id);
         if (!target) return res.status(404).json({ error: 'Auction not found' });
-        
+
         await Bid.deleteMany({ auctionId: req.params.id });
         await Auction.findByIdAndDelete(req.params.id);
 
@@ -547,7 +665,7 @@ app.delete('/api/admin/auctions/:id', requireAdmin, async (req, res) => {
         });
 
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: 'Server error deleting auction' }); }
+    } catch (e) { res.status(500).json({ error: 'Server error deleting auction' }); }
 });
 
 // ─────────────────────────────────────────────
@@ -568,17 +686,17 @@ app.get('/api/analytics', async (req, res) => {
         const totalUsers = await User.countDocuments();
         const activeAuctions = await Auction.countDocuments({ status: 'active' });
         const closedAuctions = await Auction.countDocuments({ status: 'closed' });
-        
+
         // Sum of all winning bids (Total Volume)
         const closed = await Auction.find({ status: 'closed', winningBid: { $gt: 0 } });
         const totalVolume = closed.reduce((acc, curr) => acc + (curr.winningBid || 0), 0);
-        
+
         const totalBids = await Bid.countDocuments();
 
         res.json({
             totalUsers, activeAuctions, closedAuctions, totalVolume, totalBids
         });
-    } catch(e) { res.status(500).json({ error: 'Failed to fetch analytics' }); }
+    } catch (e) { res.status(500).json({ error: 'Failed to fetch analytics' }); }
 });
 
 app.get('/api/auctions/closed', async (req, res) => {
@@ -596,7 +714,7 @@ app.get('/api/auction/:id', async (req, res) => {
         const row = await Auction.findById(req.params.id);
         if (!row) return res.status(404).json({ message: 'Not found' });
         res.json(await mapAuction(row));
-    } catch(e) { res.status(404).json({ message: 'Not found' }); }
+    } catch (e) { res.status(404).json({ message: 'Not found' }); }
 });
 
 app.post('/api/sell', requireLogin, upload.fields([
@@ -604,9 +722,9 @@ app.post('/api/sell', requireLogin, upload.fields([
 ]), async (req, res) => {
     try {
         const { title, price, reservePrice, description, endTime, category } = req.body;
-        const imageFile  = req.files && req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : '/images/logo.png';
-        const videoFile  = req.files && req.files['video'] ? `/uploads/${req.files['video'][0].filename}` : null;
-        
+        const imageFile = req.files && req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : '/images/logo.png';
+        const videoFile = req.files && req.files['video'] ? `/uploads/${req.files['video'][0].filename}` : null;
+
         let endTimeObj = null;
         if (endTime) {
             endTimeObj = new Date(endTime);
@@ -651,83 +769,51 @@ async function resolveAutoBids(auctionId) {
     let auction = await Auction.findById(auctionId);
     if (!auction || auction.status === 'closed') return false;
 
-    let changesMade = false;
-    let keepResolving = true;
+    // Get all active auto-bids for this auction
+    const autoBids = await AutoBid.find({ auctionId, active: true }).sort({ maxAmount: -1 });
+    if (autoBids.length < 2) return false; // Need at least 2 for a battle
 
-    while (keepResolving) {
-        keepResolving = false;
-        
-        const topBid = await Bid.findOne({ auctionId: auctionId }).sort({ amount: -1 });
-        if (!topBid) break;
+    const highest = autoBids[0];
+    const secondHighest = autoBids[1];
 
-        const opponentAutoBids = await AutoBid.find({
-            auctionId: auctionId,
-            active: true,
-            bidderEmail: { $ne: topBid.bidderEmail },
-            maxAmount: { $gt: auction.currentBid }
-        }).sort({ maxAmount: -1 });
+    let finalAmount = 0;
+    let winner = null;
 
-        if (opponentAutoBids.length > 0) {
-            const opponent = opponentAutoBids[0];
-            
-            const leaderAutoBid = await AutoBid.findOne({
-                auctionId: auctionId,
-                active: true,
-                bidderEmail: topBid.bidderEmail
-            });
-
-            const leaderMax = leaderAutoBid ? leaderAutoBid.maxAmount : topBid.amount;
-
-            if (opponent.maxAmount > leaderMax) {
-                const newBidAmount = Math.min(leaderMax + 1, opponent.maxAmount);
-                if (newBidAmount <= auction.currentBid) break; // safety
-                
-                auction.currentBid = newBidAmount;
-                await auction.save();
-
-                await Bid.create({
-                    auctionId: auctionId,
-                    bidderEmail: opponent.bidderEmail,
-                    bidderName: opponent.bidderName,
-                    amount: newBidAmount
-                });
-                changesMade = true;
-                keepResolving = true;
-            } else if (opponent.maxAmount === leaderMax) {
-                if (leaderMax > auction.currentBid) {
-                    auction.currentBid = leaderMax;
-                    await auction.save();
-                    await Bid.create({
-                        auctionId: auctionId,
-                        bidderEmail: topBid.bidderEmail,
-                        bidderName: topBid.bidderName,
-                        amount: leaderMax
-                    });
-                    changesMade = true;
-                }
-                opponent.active = false;
-                await opponent.save();
-            } else { // opponent.maxAmount < leaderMax
-                const newBidAmount = opponent.maxAmount + 1;
-                auction.currentBid = newBidAmount;
-                await auction.save();
-
-                await Bid.create({
-                    auctionId: auctionId,
-                    bidderEmail: topBid.bidderEmail,
-                    bidderName: topBid.bidderName,
-                    amount: newBidAmount
-                });
-                
-                opponent.active = false;
-                await opponent.save();
-                
-                changesMade = true;
-                keepResolving = true;
-            }
-        }
+    if (highest.maxAmount > secondHighest.maxAmount) {
+        // Winner is highest, price is secondHighest + increment
+        finalAmount = Math.min(secondHighest.maxAmount + (auction.increment || 100), highest.maxAmount);
+        winner = highest;
+        // The second highest is now outbid and inactive
+        secondHighest.active = false;
+        await secondHighest.save();
+    } else {
+        // It's a tie. The earlier bidder usually wins, but for simplicity we'll take the first in DB
+        finalAmount = highest.maxAmount;
+        winner = highest;
+        secondHighest.active = false;
+        await secondHighest.save();
     }
-    return changesMade;
+
+    if (finalAmount > auction.currentBid) {
+        auction.currentBid = finalAmount;
+        await auction.save();
+
+        await Bid.create({
+            auctionId: auctionId,
+            bidderEmail: winner.bidderEmail,
+            bidderName: winner.bidderName,
+            amount: finalAmount
+        });
+
+        broadcastAuction(auctionId, { 
+            type: 'bid_update', 
+            itemId: auctionId, 
+            newBid: finalAmount, 
+            bidCount: await Bid.countDocuments({ auctionId }) 
+        });
+        return true;
+    }
+    return false;
 }
 
 app.post('/api/bids/auto-bid', requireLogin, async (req, res) => {
@@ -745,13 +831,27 @@ app.post('/api/bids/auto-bid', requireLogin, async (req, res) => {
         // Instantly trigger engine to act on this
         await resolveAutoBids(item._id);
         res.json({ success: true, message: 'Auto-bid ceiling set.' });
-    } catch(e) {
+    } catch (e) {
         res.status(500).json({ success: false, message: 'Error setting auto bid' });
     }
 });
 
-app.post('/api/bids/:listingId', requireLogin, async (req, res) => {
-    const { bidAmount } = req.body;
+// ── Alias: /api/place-bid ──
+app.post('/api/place-bid', requireLogin, async (req, res) => {
+    // Standardize body: frontend sends { id: '...', bidAmount: 123 }
+    const { id, bidAmount, isAuto } = req.body;
+    if (!id) return res.status(400).json({ success: false, message: 'Missing auction ID.' });
+    
+    // Redirect internal logic to the primary handler logic (which expects params.listingId)
+    req.params.listingId = id;
+    
+    // Call the primary bidding logic handler (implemented as a reusable function)
+    return handlePlaceBid(req, res);
+});
+
+// Primary Bidding Logic (Refactored for reuse)
+async function handlePlaceBid(req, res) {
+    const { bidAmount, isAuto } = req.body;
     const id = req.params.listingId;
     const amount = Number(bidAmount);
     try {
@@ -762,10 +862,9 @@ app.post('/api/bids/:listingId', requireLogin, async (req, res) => {
         if (item.sellerEmail === req.user.email) return res.status(403).json({ success: false, message: 'You cannot bid on your own listing.' });
         if (amount <= item.currentBid) return res.status(400).json({ success: false, message: `Bid must exceed ₹${item.currentBid.toLocaleString('en-IN')}.` });
 
-        // Enforce Wallet Balance
         const dbUser = await User.findOne({ email: req.user.email });
         if (!dbUser || dbUser.walletBalance < amount) {
-            return res.status(400).json({ success: false, message: 'Insufficient funds.' });
+            return res.status(400).json({ success: false, message: 'Insufficient funds. Please deposit to continue.' });
         }
 
         item.currentBid = amount;
@@ -778,147 +877,52 @@ app.post('/api/bids/:listingId', requireLogin, async (req, res) => {
             amount: amount
         });
 
-        // ── Anti-Snipe Engine (Varunkumar) ──
-        // Evaluates if bid is within 3 minutes of end. If max extensions (5) are not reached, adds 3 minutes.
+        // Anti-Snipe Engine
         let extensionTriggered = false;
         let maxSnipeReached = false;
-
         if (item.endTime) {
             const timeLeft = item.endTime.getTime() - Date.now();
             const THREE_MINUTES = 3 * 60 * 1000;
-            const currentSnipeCount = item.snipeCount || 0;
-
-            if (timeLeft > 0 && timeLeft <= THREE_MINUTES) {
-                if (currentSnipeCount < 5) {
-                    const newEndTime = new Date(Date.now() + THREE_MINUTES);
-                    item.endTime = newEndTime;
-                    item.snipeCount = currentSnipeCount + 1;
-                    await item.save();
-
-                    newBid.triggeredSnipe = true;
-                    await newBid.save();
-
-                    await SnipeLog.create({
-                        listingId: item._id,
-                        bidId: newBid._id,
-                        extensionNum: item.snipeCount,
-                        newEndTime: newEndTime,
-                        triggeredAt: new Date()
-                    });
-
-                    broadcastAuction(id, {
-                        type: 'snipe:extended',
-                        listingId: id,
-                        newEndTime: newEndTime.toISOString(),
-                        extensionNum: item.snipeCount
-                    });
-
-                    extensionTriggered = true;
-                } else {
-                    maxSnipeReached = true;
-                }
+            if (timeLeft > 0 && timeLeft <= THREE_MINUTES && (item.snipeCount || 0) < 5) {
+                const newEndTime = new Date(Date.now() + THREE_MINUTES);
+                item.endTime = newEndTime;
+                item.snipeCount = (item.snipeCount || 0) + 1;
+                await item.save();
+                extensionTriggered = true;
+                broadcastAuction(id, { type: 'snipe:extended', listingId: id, newEndTime: newEndTime.toISOString(), extensionNum: item.snipeCount });
+            } else if (timeLeft <= THREE_MINUTES && (item.snipeCount || 0) >= 5) {
+                maxSnipeReached = true;
             }
         }
 
-        // Cancel any old auto-bids for this user if they placed a manual bid
-        await AutoBid.findOneAndUpdate(
-            { auctionId: item._id, bidderEmail: req.user.email },
-            { active: false }
-        );
+        if (isAuto) {
+            await AutoBid.findOneAndUpdate(
+                { auctionId: item._id, bidderEmail: req.user.email },
+                { bidderName: req.user.name, maxAmount: Number(amount), active: true },
+                { upsert: true }
+            );
+        } else {
+            await AutoBid.findOneAndUpdate({ auctionId: item._id, bidderEmail: req.user.email }, { active: false });
+        }
 
-        // Trigger the Auto Bid Resolution Engine (this may add another bid)
         await resolveAutoBids(item._id);
-
         const finalItem = await Auction.findById(item._id);
         const bidCount = await Bid.countDocuments({ auctionId: item._id });
-        
+
         broadcastAuction(id, { type: 'bid_update', itemId: id, newBid: finalItem.currentBid, bidCount });
         broadcastGlobalActivity({
             message: `${req.user.name} placed a trade of ₹${finalItem.currentBid.toLocaleString('en-IN')} on "${item.title}"`,
-            itemId: id,
-            timestamp: new Date().toISOString()
+            itemId: id, timestamp: new Date().toISOString()
         });
 
-        // ── Bid War Detector (Varunkumar) ──
-        const auctionKey = id.toString();
-        if (!bidActivityTracker.has(auctionKey)) bidActivityTracker.set(auctionKey, []);
-        const tracker = bidActivityTracker.get(auctionKey);
-        tracker.push({ email: req.user.email, timestamp: Date.now() });
-        if (tracker.length > 5) tracker.splice(0, tracker.length - 5);
-
-        const NINETY_SECONDS = 90 * 1000;
-        const recentBids = tracker.filter(b => b.timestamp >= Date.now() - NINETY_SECONDS);
-        const uniqueBidders = new Set(recentBids.map(b => b.email));
-
-        if (uniqueBidders.size >= 2) {
-            if (!finalItem.isWar) {
-                finalItem.isWar = true;
-                await finalItem.save();
-            }
-            broadcastGlobalActivity({
-                type: 'war:declared',
-                listingId: id,
-                title: item.title,
-                isWar: true
-            });
-            broadcastAuction(id, {
-                type: 'war:declared',
-                listingId: id,
-                title: item.title,
-                isWar: true
-            });
-        }
-
-        // ── Bid Velocity Calculator (Varunkumar) ──
-        const TEN_MINUTES = 10 * 60 * 1000;
-        const recentBidCountCalc = await Bid.countDocuments({
-            auctionId: item._id,
-            placedAt: { $gte: new Date(Date.now() - TEN_MINUTES) }
-        });
-        const velocityScore = Math.min(100, Math.max(0, Math.round((recentBidCountCalc / 20) * 100)));
-        finalItem.velocityScore = velocityScore;
-        finalItem.velocityUpdatedAt = new Date();
-        await finalItem.save();
-
-        broadcastAuction(id, {
-            type: 'velocity:updated',
-            listingId: id,
-            velocityScore
-        });
-
-        // ── Campus Rivalry Detection (Varunkumar) ──
-        const topRows = await Bid.find({ auctionId: item._id }).sort({ amount: -1 }).limit(10);
-        const enrichedBids = await Promise.all(topRows.map(async r => {
-            const u = await User.findOne({ email: r.bidderEmail }).select('college campusVerified');
-            return { email: r.bidderEmail, college: u?.college, campusVerified: u?.campusVerified };
-        }));
-
-        const distinctUsers = [];
-        for (const b of enrichedBids) {
-            if (!distinctUsers.find(db => db.email === b.email)) distinctUsers.push(b);
-            if (distinctUsers.length >= 2) break;
-        }
-
-        if (distinctUsers.length >= 2) {
-            const b1 = distinctUsers[0], b2 = distinctUsers[1];
-            if (b1.campusVerified && b2.campusVerified && b1.college && b2.college && b1.college !== b2.college) {
-                broadcastAuction(id, {
-                    type: 'rivalry:updated',
-                    listingId: id,
-                    rivalryLabel: `Campus Rivalry: ${b1.college} vs ${b2.college}`
-                });
-            }
-        }
-
-        const messageObj = maxSnipeReached ? 
-            'Bid placed successfully, but maximum time extensions (5) have been reached.' : 
-            'Bid placed successfully!';
-
-        res.json({ success: true, newBid: finalItem.currentBid, bidCount, message: messageObj, maxSnipeReached, extensionTriggered });
-    } catch(e) {
-        res.status(500).json({ success: false, message: 'Error placing bid' });
+        res.json({ success: true, newBid: finalItem.currentBid, bidCount, message: maxSnipeReached ? 'Bid placed, but max extensions reached.' : 'Bid placed successfully!', extensionTriggered });
+    } catch (e) {
+        console.error('Bid Error:', e);
+        res.status(500).json({ success: false, message: 'Server error placing bid' });
     }
-});
+}
+
+app.post('/api/bids/:listingId', requireLogin, handlePlaceBid);
 
 app.post('/api/end-auction', requireLogin, async (req, res) => {
     const { id } = req.body;
@@ -930,7 +934,7 @@ app.post('/api/end-auction', requireLogin, async (req, res) => {
             return res.status(403).json({ success: false, message: 'Only the seller can end this auction.' });
         await closeAuction(id);
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ success: false, message: 'Error' }); }
+    } catch (e) { res.status(500).json({ success: false, message: 'Error' }); }
 });
 
 app.post('/api/remove-item', requireLogin, async (req, res) => {
@@ -940,14 +944,26 @@ app.post('/api/remove-item', requireLogin, async (req, res) => {
         if (!item) return res.status(404).json({ success: false, message: 'Item not found.' });
         if (item.sellerEmail !== req.user.email && req.user.role !== 'admin')
             return res.status(403).json({ success: false, message: 'You can only remove your own listings.' });
-        
+
         const bidCount = await Bid.countDocuments({ auctionId: item._id });
         if (bidCount > 0 && req.user.role !== 'admin')
             return res.status(400).json({ success: false, message: 'Cannot withdraw a lot that already has bids. Use "End Auction" instead.' });
-        
+
         await Auction.findByIdAndDelete(id);
         res.json({ success: true });
-    } catch(e) { res.status(500).json({ success: false, message: 'Error' }); }
+    } catch (e) { res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+// ── Alias: /api/bid-history/:id ──
+app.get('/api/bid-history/:listingId', async (req, res) => {
+    try {
+        const rows = await Bid.find({ auctionId: req.params.listingId }).sort({ amount: -1 });
+        res.json(rows.map(r => ({
+            bidderName: r.bidderName,
+            amount: r.amount,
+            placedAt: r.placedAt
+        })));
+    } catch (e) { res.json([]); }
 });
 
 app.get('/api/bids/:listingId', async (req, res) => {
@@ -999,7 +1015,7 @@ app.get('/api/bids/:listingId', async (req, res) => {
         });
 
         res.json({ bids: finalBids, isRivalry, rivalryDetails });
-    } catch(e) { res.json({ bids: [], isRivalry: false, rivalryDetails: null }); }
+    } catch (e) { res.json({ bids: [], isRivalry: false, rivalryDetails: null }); }
 });
 
 // ── Snipe Log API (Varunkumar) ──
@@ -1012,7 +1028,7 @@ app.get('/api/bids/:listingId/snipe-log', async (req, res) => {
             triggeredAt: l.triggeredAt,
             bidId: l.bidId
         })));
-    } catch(e) { res.json([]); }
+    } catch (e) { res.json([]); }
 });
 
 // ── Active Bid Wars API (Varunkumar) ──
@@ -1026,7 +1042,7 @@ app.get('/api/bids/wars/active', async (req, res) => {
             endTime: w.endTime,
             image: w.image
         })));
-    } catch(e) { res.json([]); }
+    } catch (e) { res.json([]); }
 });
 
 app.get('/api/auction/:id/winner', requireLogin, async (req, res) => {
@@ -1038,7 +1054,7 @@ app.get('/api/auction/:id/winner', requireLogin, async (req, res) => {
         if (item.status !== 'closed') return res.status(400).json({ message: 'Auction is still active.' });
         if (!item.winnerEmail) return res.json({ noBids: true });
         res.json({ noBids: false, name: item.winnerName, email: item.winnerEmail, winningBid: item.winningBid });
-    } catch(e) { res.status(500).json({ message: 'Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Error' }); }
 });
 
 // ─────────────────────────────────────────────
@@ -1057,18 +1073,18 @@ app.get('/api/chat/:auctionId', requireLogin, async (req, res) => {
             return res.status(403).json({ message: 'Only the seller and winner can access this chat.' });
 
         const messages = await Message.find({ auctionId: auctionId }).sort({ sentAt: 1 });
-        
+
         const otherEmail = userEmail === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail;
-        const otherUser  = await User.findOne({ email: otherEmail });
+        const otherUser = await User.findOne({ email: otherEmail });
 
         res.json({
             messages: messages.map(m => ({ senderEmail: m.senderEmail, senderName: m.senderName, message: m.message, sentAt: m.sentAt })),
             auctionTitle: auction.title,
-            myEmail:      userEmail,
-            otherName:    otherUser ? otherUser.fullname : 'Other Party',
+            myEmail: userEmail,
+            otherName: otherUser ? otherUser.fullname : 'Other Party',
             otherEmail
         });
-    } catch(e) { res.status(500).json({ message: 'Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Error' }); }
 });
 
 app.post('/api/chat/:auctionId', requireLogin, async (req, res) => {
@@ -1095,9 +1111,9 @@ app.post('/api/chat/:auctionId', requireLogin, async (req, res) => {
 
         const saved = {
             senderEmail: userEmail,
-            senderName:  req.user.name,
-            message:     text,
-            sentAt:      new Date().toISOString()
+            senderName: req.user.name,
+            message: text,
+            sentAt: new Date().toISOString()
         };
 
         const wsPayload = JSON.stringify({ type: 'chat_msg', auctionId, ...saved });
@@ -1105,7 +1121,7 @@ app.post('/api/chat/:auctionId', requireLogin, async (req, res) => {
         if (room) room.forEach(p => { if (p.ws.readyState === p.ws.OPEN) p.ws.send(wsPayload); });
 
         res.json({ success: true, message: saved });
-    } catch(e) { res.status(500).json({ message: 'Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Error' }); }
 });
 
 app.get('/api/my-chats', requireLogin, async (req, res) => {
@@ -1120,7 +1136,7 @@ app.get('/api/my-chats', requireLogin, async (req, res) => {
         for (const a of auctions) {
             if (!a.winnerEmail) continue;
             const last = await Message.findOne({ auctionId: a._id }).sort({ sentAt: -1 });
-            
+
             const lastSent = await Message.findOne({ auctionId: a._id, senderEmail: email }).sort({ sentAt: -1 });
             let unread = 0;
             if (lastSent) {
@@ -1130,24 +1146,24 @@ app.get('/api/my-chats', requireLogin, async (req, res) => {
             }
 
             const otherEmail = email === a.sellerEmail ? a.winnerEmail : a.sellerEmail;
-            const otherUser  = await User.findOne({ email: otherEmail });
-            const myRole     = email === a.sellerEmail ? 'seller' : 'winner';
+            const otherUser = await User.findOne({ email: otherEmail });
+            const myRole = email === a.sellerEmail ? 'seller' : 'winner';
 
             result.push({
-                auctionId:    a._id.toString(),
+                auctionId: a._id.toString(),
                 auctionTitle: a.title,
                 auctionImage: a.image,
-                winningBid:   a.winningBid,
-                otherName:    otherUser ? otherUser.fullname : 'Other Party',
+                winningBid: a.winningBid,
+                otherName: otherUser ? otherUser.fullname : 'Other Party',
                 otherEmail,
                 myRole,
-                lastMessage:  last ? { senderName: last.senderName, message: last.message, sentAt: last.sentAt } : null,
+                lastMessage: last ? { senderName: last.senderName, message: last.message, sentAt: last.sentAt } : null,
                 unread,
-                hasBuyer:     true
+                hasBuyer: true
             });
         }
         res.json(result);
-    } catch(e) { res.status(500).json({ message: 'Error' }); }
+    } catch (e) { res.status(500).json({ message: 'Error' }); }
 });
 
 // ─────────────────────────────────────────────
@@ -1162,7 +1178,7 @@ app.get('/api/profile', requireLogin, async (req, res) => {
         const auctionsWon = await Auction.countDocuments({ winnerEmail: userEmail });
         const dbUser = await User.findOne({ email: userEmail });
         const watchlistCount = dbUser && dbUser.watchlist ? dbUser.watchlist.length : 0;
-        
+
         // Active bids calculation
         const activeBids = await Bid.distinct('auctionId', { bidderEmail: userEmail }).exec();
         const activeAuctions = await Auction.countDocuments({ _id: { $in: activeBids }, status: 'active' });
@@ -1182,40 +1198,48 @@ app.get('/api/profile', requireLogin, async (req, res) => {
             auctionsWon,
             watchlistCount
         });
-    } catch(e) { res.status(500).json({}); }
+    } catch (e) { res.status(500).json({}); }
 });
 
 app.get('/api/watchlist', requireLogin, async (req, res) => {
     try {
         const dbUser = await User.findOne({ email: req.user.email }).populate('watchlist');
         if (!dbUser || !dbUser.watchlist) return res.json([]);
-        
+
         const mapped = await Promise.all(dbUser.watchlist.map(mapAuction));
         res.json(mapped);
-    } catch(e) { res.status(500).json([]); }
+    } catch (e) { res.status(500).json([]); }
 });
 
 app.post('/api/watchlist/toggle', requireLogin, async (req, res) => {
     try {
         const dbUser = await User.findOne({ email: req.user.email });
         if (!dbUser) return res.status(404).json({ success: false, message: 'User not found' });
-        
+
         const auctionId = req.body.id;
         if (!mongoose.Types.ObjectId.isValid(auctionId)) return res.status(400).json({ success: false, message: 'Invalid ID' });
-        
+
         const index = dbUser.watchlist.indexOf(auctionId);
         let added = false;
-        
+
         if (index === -1) {
             dbUser.watchlist.push(auctionId);
             added = true;
         } else {
             dbUser.watchlist.splice(index, 1);
         }
-        
+
         await dbUser.save();
         res.json({ success: true, added, watchlist: dbUser.watchlist });
-    } catch(e) { res.status(500).json({ success: false, message: 'Server Error' }); }
+    } catch (e) { res.status(500).json({ success: false, message: 'Server Error' }); }
+});
+
+// ── Alias: /api/my-bids ──
+app.get('/api/my-bids', requireLogin, async (req, res) => {
+    try {
+        const bids = await Bid.find({ bidderEmail: req.user.email }).populate('auctionId').sort({ placedAt: -1 });
+        res.json(bids);
+    } catch (e) { res.status(500).json([]); }
 });
 
 app.get('/api/bids/my-bids', requireLogin, async (req, res) => {
@@ -1231,7 +1255,7 @@ app.get('/api/bids/my-bids', requireLogin, async (req, res) => {
             auctionId: r.auctionId._id.toString()
         }));
         res.json(resolved);
-    } catch(e) { res.status(500).json([]); }
+    } catch (e) { res.status(500).json([]); }
 });
 
 // ── Bid Velocity API (Varunkumar) ──
@@ -1251,14 +1275,14 @@ app.get('/api/listings/:id/velocity', async (req, res) => {
                 placedAt: { $gte: new Date(now - TEN_MINUTES) }
             });
             const velocityScore = Math.min(100, Math.max(0, Math.round((recentBidCount / 20) * 100)));
-            
+
             item.velocityScore = velocityScore;
             item.velocityUpdatedAt = new Date();
             await item.save();
         }
 
         res.json({ velocityScore: item.velocityScore || 0 });
-    } catch(e) { res.status(500).json({ error: 'Server error' }); }
+    } catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
 // ─────────────────────────────────────────────
@@ -1266,11 +1290,11 @@ app.get('/api/listings/:id/velocity', async (req, res) => {
 // ─────────────────────────────────────────────
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
     res.json({
-        totalUsers:    await User.countDocuments(),
+        totalUsers: await User.countDocuments(),
         totalAuctions: await Auction.countDocuments(),
-        pendingCount:  await Auction.countDocuments({ verified: false, status: 'active' }),
-        totalBids:     await Bid.countDocuments(),
-        closedCount:   await Auction.countDocuments({ status: 'closed' })
+        pendingCount: await Auction.countDocuments({ verified: false, status: 'active' }),
+        totalBids: await Bid.countDocuments(),
+        closedCount: await Auction.countDocuments({ status: 'closed' })
     });
 });
 app.get('/api/admin/pending', requireAdmin, async (req, res) => {
@@ -1322,6 +1346,43 @@ app.post('/api/admin/close-auction', requireAdmin, async (req, res) => {
     }
 });
 
+// ── Admin Dashboard: Platform Analytics ──
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+    try {
+        const totalUsers = await User.countDocuments();
+        const activeAuctions = await Auction.countDocuments({ status: 'active' });
+        const totalBidsToday = await Bid.countDocuments({ 
+            placedAt: { $gte: new Date(new Date().setHours(0,0,0,0)) } 
+        });
+        const totalVolume = await Auction.aggregate([
+            { $match: { status: 'closed', winnerEmail: { $exists: true } } },
+            { $group: { _id: null, total: { $sum: '$currentBid' } } }
+        ]);
+
+        const flaggedItems = await Auction.countDocuments({ verified: false }); // Placeholder for "flagged"
+
+        res.json({
+            totalUsers,
+            activeAuctions,
+            totalBidsToday,
+            totalVolume: totalVolume[0]?.total || 0,
+            flaggedItems
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error fetching stats' });
+    }
+});
+
+// Catch-all for unknown /api routes to prevent infinite loop with Next.js handler
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'API route not found' });
+});
+
+// Let Next.js handle all other requests (static public/ files are handled above)
+app.use((req, res) => {
+    return handle(req, res);
+});
+
 // ─────────────────────────────────────────────
 // 12. BACKGROUND SCHEDULER
 // ─────────────────────────────────────────────
@@ -1332,7 +1393,7 @@ setInterval(async () => {
             status: 'active',
             endTime: { $lte: new Date() }
         });
-        
+
         for (const auction of expiredAuctions) {
             console.log(`⏰ Scheduler: Closing expired auction "${auction.title}"...`);
             await closeAuction(auction._id);
@@ -1346,9 +1407,18 @@ setInterval(async () => {
 // 13. START
 // ─────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`\n🔨 Gavel is open at http://localhost:${PORT}`);
-    console.log(`   Database  : MongoDB Atlas`);
-    console.log(`   Auth      : Supabase Client SDK + Cookies`);
-    console.log(`\n`);
+
+// Prepare Next.js and then start server
+nextApp.prepare().then(() => {
+    console.log('   Next.js  : Ready');
+    
+    server.listen(PORT, () => {
+        console.log(`\n🔨 Gavel is open at http://localhost:${PORT}`);
+        console.log(`   Database  : MongoDB Atlas`);
+        console.log(`   Frontend  : Next.js`);
+        console.log(`\n`);
+    });
+}).catch(err => {
+    console.error('Next.js error:', err);
+    process.exit(1);
 });
