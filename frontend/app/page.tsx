@@ -17,8 +17,6 @@ import { useAuth } from "@/contexts/AuthContext";
  * #FFC570 - Light Yellow (highlight)
  */
 
-const REELS_API_ENDPOINT = "/api/reels";
-
 interface ReelItem {
   id: string;
   title: string;
@@ -66,14 +64,14 @@ export default function Home() {
           live: true,
           image: a.image || a.images?.[0]
         }));
-        const nextReels = activeAuctions.length > 0 ? activeAuctions : demoReels;
+        const nextReels = activeAuctions;
         setReels(nextReels);
         window.localStorage.setItem(cacheKey, JSON.stringify(nextReels));
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to fetch reels:", error);
         if (!cachedReels) {
-          setReels(demoReels);
+          setReels([]);
         }
         setIsLoading(false);
       }
@@ -102,6 +100,12 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
+    if (!loading && user) {
+      window.location.replace('/explore.html');
+    }
+  }, [loading, user]);
+
+  useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       if (currentScrollY > 50) {
@@ -117,6 +121,11 @@ export default function Home() {
   const nextReel = () => setActiveReelIndex((prev) => (prev + 1) % reels.length);
   const prevReel = () => setActiveReelIndex((prev) => (prev - 1 + reels.length) % reels.length);
   const currentReel = reels[activeReelIndex];
+  const tickerItems = reels.slice(0, 8);
+
+  if (!loading && user) {
+    return null;
+  }
 
   const handleJoinNow = () => {
     window.location.assign('/signup.html');
@@ -158,76 +167,87 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden" style={{ background: "linear-gradient(180deg, #1A3263 0%, #547792 50%, #EFD2B0 100%)", fontFamily: "var(--font-montserrat)" }}>
+    <main className="min-h-screen overflow-x-hidden md:pl-[18.5rem]" style={{ background: "linear-gradient(180deg, #1A3263 0%, #547792 50%, #EFD2B0 100%)", fontFamily: "var(--font-body)" }}>
       {/* LIVE AUCTION TICKER - Disappears on scroll */}
       <div 
-        className={`fixed top-24 left-0 right-0 z-40 py-2 overflow-hidden transition-all duration-500 ease-out ${
+        className={`fixed top-24 left-0 right-0 z-40 py-2 overflow-hidden transition-all duration-500 ease-out md:left-[18.5rem] ${
           tickerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full'
         }`}
         style={{ background: "rgba(84, 119, 146, 0.15)", borderBottom: "1px solid rgba(239, 210, 176, 0.3)" }}
       >
         <div className="flex animate-marquee whitespace-nowrap">
-          {[...demoLiveBids, ...demoLiveBids].map((bid, idx) => (
+          {tickerItems.length ? [...tickerItems, ...tickerItems].map((bid, idx) => (
             <div key={idx} className="flex items-center gap-3 mx-8">
               <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#EFD2B0" }} />
               <span className="text-xs" style={{ color: "rgba(237, 247, 189, 0.9)" }}>
-                <span style={{ color: "#EFD2B0", fontWeight: 600 }}>{bid.item}</span> — Bid <span style={{ color: "#FFC570" }}>{bid.amount}</span> by <span style={{ color: "#547792" }}>{bid.bidder}</span> ({bid.timeAgo} ago)
+                <span style={{ color: "#EFD2B0", fontWeight: 600 }}>{bid.title}</span> - Current bid <span style={{ color: "#FFC570" }}>{bid.price}</span> - Live now
               </span>
             </div>
-          ))}
+          )) : (
+            <div className="mx-8 text-xs" style={{ color: "rgba(237, 247, 189, 0.9)" }}>
+              No live auctions yet. Approve a listing to populate the landing page feed.
+            </div>
+          )}
         </div>
       </div>
 
-      {/* NAVBAR */}
-      <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 px-2 py-2 rounded-full" style={{ background: "rgba(26, 50, 99, 0.9)", backdropFilter: "blur(20px)", border: "1px solid rgba(239, 210, 176, 0.3)", boxShadow: "0 8px 32px rgba(26, 50, 99, 0.5)" }}>
-        <div className="flex items-center gap-1">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: "rgba(239, 210, 176, 0.2)" }}>
-            <Gavel className="w-5 h-5" style={{ color: "#EFD2B0" }} />
-            <span className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-gravitas)", letterSpacing: "0.1em" }}>GAVEL</span>
-          </div>
-          <div className="hidden md:flex items-center gap-1 px-2">
-            <a href="/auction.html" className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }} onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 210, 176, 0.2)"; e.currentTarget.style.color = "#EFD2B0"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#FFC570"; }}>Auctions</a>
-            <a href="/explore.html" className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }} onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 210, 176, 0.2)"; e.currentTarget.style.color = "#EFD2B0"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#FFC570"; }}>Explore</a>
-            <a href="/short-view.html" className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }} onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 210, 176, 0.2)"; e.currentTarget.style.color = "#EFD2B0"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#FFC570"; }}>Shorts</a>
-            <a href="/sell-product.html" className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-300" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }} onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 210, 176, 0.2)"; e.currentTarget.style.color = "#EFD2B0"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#FFC570"; }}>Sell</a>
-          </div>
+      <nav className="fixed left-4 top-4 bottom-4 z-50 w-56 hidden md:flex flex-col p-4 rounded-[28px]" style={{ background: "rgba(26, 50, 99, 0.9)", backdropFilter: "blur(20px)", border: "1px solid rgba(239, 210, 176, 0.2)", boxShadow: "0 12px 40px rgba(26, 50, 99, 0.5)" }}>
+        <div className="flex items-center gap-2 px-3 py-3 rounded-2xl mb-6" style={{ background: "rgba(239, 210, 176, 0.12)" }}>
+          <Gavel className="w-5 h-5" style={{ color: "#EFD2B0" }} />
+          <span className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-heading)", letterSpacing: "0.1em" }}>GAVEL</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          {[
+            { href: "/auction.html", label: "Auctions" },
+            { href: "/explore.html", label: "Explore" },
+            { href: "/short-view.html", label: "Shorts" },
+            { href: "/workspace/", label: "Workspace" },
+            { href: "/sell-product.html", label: "Sell" }
+          ].map((item) => (
+            <a key={item.href} href={item.href} className="px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300" style={{ color: "#FFC570", fontFamily: "var(--font-body)", border: "1px solid rgba(239, 210, 176, 0.08)" }} onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 210, 176, 0.14)"; e.currentTarget.style.color = "#EFD2B0"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#FFC570"; }}>
+              {item.label}
+            </a>
+          ))}
+        </div>
+        <div className="mt-auto">
           {!loading && (
             user ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm px-3" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }}>
-                  {user.name}
-                </span>
-                <button onClick={logout} className="px-4 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}>Logout</button>
+              <div className="space-y-3">
+                <div className="px-3 py-3 rounded-2xl" style={{ background: "rgba(239, 210, 176, 0.08)" }}>
+                  <div className="text-xs uppercase tracking-[0.24em]" style={{ color: "#547792", fontFamily: "var(--font-body)" }}>Logged in</div>
+                  <div className="text-sm mt-1" style={{ color: "#FFC570", fontFamily: "var(--font-body)" }}>{user.name}</div>
+                </div>
+                <button onClick={logout} className="w-full px-4 py-3 rounded-2xl font-semibold text-sm transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-body)" }}>Logout</button>
               </div>
             ) : (
-              <button onClick={handleJoinNow} className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}>Join Now</button>
+              <button onClick={handleJoinNow} className="w-full px-5 py-3 rounded-2xl font-semibold text-sm transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-body)" }}>Join Now</button>
             )
           )}
         </div>
       </nav>
 
       {/* HERO - HIGHER POSITION */}
-      <section className="pt-16 pb-8 relative">
+      <section className="pt-24 pb-8 relative md:pt-16">
         <div className="relative z-10">
           <ContainerScroll
             titleComponent={
               <div className="space-y-3 px-4 -mt-12">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mx-auto" style={{ background: "rgba(239, 210, 176, 0.15)", border: "1px solid rgba(239, 210, 176, 0.3)" }}>
                   <Sparkles className="w-3.5 h-3.5" style={{ color: "#EFD2B0" }} />
-                  <span className="text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: "#EFD2B0", fontFamily: "var(--font-montserrat)" }}>Established 2026</span>
+                  <span className="text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: "#EFD2B0", fontFamily: "var(--font-body)" }}>Established 2026</span>
                 </div>
                 <div className="space-y-1">
-                  <h1 className="text-4xl md:text-6xl lg:text-7xl text-white leading-[0.95] tracking-[0.08em]" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>WHERE</h1>
-                  <h1 className="text-4xl md:text-6xl lg:text-7xl leading-[0.95] tracking-[0.08em]" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400, color: "#EFD2B0" }}>LEGACY</h1>
-                  <h1 className="text-4xl md:text-6xl lg:text-7xl text-white leading-[0.95] tracking-[0.08em]" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>MEETS LUXURY</h1>
+                  <h1 className="text-4xl md:text-6xl lg:text-7xl text-white leading-[0.95] tracking-[0.08em]" style={{ fontFamily: "var(--font-heading)", fontWeight: 500 }}>WHERE</h1>
+                  <h1 className="text-4xl md:text-6xl lg:text-7xl leading-[0.95] tracking-[0.08em]" style={{ fontFamily: "var(--font-heading)", fontWeight: 500, color: "#EFD2B0" }}>LEGACY</h1>
+                  <h1 className="text-4xl md:text-6xl lg:text-7xl text-white leading-[0.95] tracking-[0.08em]" style={{ fontFamily: "var(--font-heading)", fontWeight: 500 }}>MEETS LUXURY</h1>
                 </div>
-                <p className="text-lg md:text-xl max-w-lg mx-auto pt-2" style={{ color: "#547792", fontFamily: "var(--font-gravitas)", fontWeight: 400, letterSpacing: "0.05em" }}>Curated auctions for the discerning collector</p>
-                <p className="text-sm max-w-md mx-auto" style={{ color: "rgba(237, 247, 189, 0.9)", fontFamily: "var(--font-montserrat)", fontSize: "1.05rem" }}>Experience the worlds most prestigious marketplace for fine art, timepieces, and rare collectibles. Every piece authenticated. Every bid matters.</p>
+                <p className="text-lg md:text-xl max-w-lg mx-auto pt-2" style={{ color: "#547792", fontFamily: "var(--font-heading)", fontWeight: 500, letterSpacing: "0.05em" }}>Curated auctions for the discerning collector</p>
+                <p className="text-sm max-w-md mx-auto" style={{ color: "rgba(237, 247, 189, 0.9)", fontFamily: "var(--font-body)", fontSize: "1.05rem" }}>Experience the worlds most prestigious marketplace for fine art, timepieces, and rare collectibles. Every piece authenticated. Every bid matters.</p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-                  <button onClick={() => window.location.href = '/auction.html'} className="group px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105 flex items-center justify-center gap-2" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)", boxShadow: "0 4px 20px rgba(239, 210, 176, 0.4)" }}>Explore Collection<ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></button>
-                  <button onClick={() => window.location.href = '/auction.html'} className="px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "transparent", border: "1px solid rgba(239, 210, 176, 0.5)", color: "#EFD2B0", fontFamily: "var(--font-montserrat)" }}>View Live Auctions</button>
+                  <button onClick={() => window.location.href = '/auction.html'} className="group px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105 flex items-center justify-center gap-2" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-body)", boxShadow: "0 4px 20px rgba(239, 210, 176, 0.4)" }}>Explore Collection<ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></button>
+                  <button onClick={() => window.location.href = '/auction.html'} className="px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "transparent", border: "1px solid rgba(239, 210, 176, 0.5)", color: "#EFD2B0", fontFamily: "var(--font-body)" }}>View Live Auctions</button>
                 </div>
-                <div className="flex items-center justify-center gap-6 pt-2 text-xs" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }}>
+                <div className="flex items-center justify-center gap-6 pt-2 text-xs" style={{ color: "#FFC570", fontFamily: "var(--font-body)" }}>
                   <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" style={{ color: "#EFD2B0" }} />Verified Authentic</span>
                   <span className="w-1 h-1 rounded-full bg-[#547792]" />
                   <span className="flex items-center gap-1.5"><Crown className="w-3.5 h-3.5" style={{ color: "#EFD2B0" }} />White Glove Service</span>
@@ -244,20 +264,20 @@ export default function Home() {
                 <div className="relative w-full h-full">
                   <Image src={currentReel.image} alt={currentReel.title} fill className="object-cover" priority />
                   <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(26, 50, 99, 0.95) 0%, rgba(84, 119, 146, 0.4) 50%, transparent 100%)" }} />
-                  {currentReel.live && <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.95)" }}><span className="w-2 h-2 bg-white rounded-full animate-pulse" /><span className="text-white text-xs font-bold tracking-wider" style={{ fontFamily: "var(--font-montserrat)" }}>LIVE</span></div>}
+                  {currentReel.live && <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.95)" }}><span className="w-2 h-2 bg-white rounded-full animate-pulse" /><span className="text-white text-xs font-bold tracking-wider" style={{ fontFamily: "var(--font-body)" }}>LIVE</span></div>}
                   <div className="absolute bottom-0 left-0 p-6 w-full">
                     <div className="flex items-end justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "rgba(239, 210, 176, 0.25)", color: "#EFD2B0", fontFamily: "var(--font-montserrat)" }}>LOT {currentReel.id}</span>
-                          {currentReel.verified && <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}><Shield className="w-3 h-3" /> VERIFIED</span>}
+                          <span className="text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "rgba(239, 210, 176, 0.25)", color: "#EFD2B0", fontFamily: "var(--font-body)" }}>LOT {currentReel.id}</span>
+                          {currentReel.verified && <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-body)" }}><Shield className="w-3 h-3" /> VERIFIED</span>}
                         </div>
-                        <h3 className="text-lg md:text-xl text-white mb-1 tracking-wide" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>{currentReel.title}</h3>
-                        <p className="text-xl md:text-2xl tracking-wider" style={{ color: "#EFD2B0", fontFamily: "var(--font-gravitas)", fontWeight: 500 }}>{currentReel.price}</p>
-                        <p className="text-xs mt-2 tracking-wider" style={{ color: "#547792", fontFamily: "var(--font-montserrat)" }}>ENDS IN {currentReel.timeLeft}</p>
+                        <h3 className="text-lg md:text-xl text-white mb-1 tracking-wide" style={{ fontFamily: "var(--font-heading)", fontWeight: 500 }}>{currentReel.title}</h3>
+                        <p className="text-xl md:text-2xl tracking-wider" style={{ color: "#EFD2B0", fontFamily: "var(--font-heading)", fontWeight: 500 }}>{currentReel.price}</p>
+                        <p className="text-xs mt-2 tracking-wider" style={{ color: "#547792", fontFamily: "var(--font-body)" }}>ENDS IN {currentReel.timeLeft}</p>
                       </div>
                       <div className="flex flex-col items-center gap-3 ml-4">
-                        <button className="flex flex-col items-center gap-1" style={{ color: "white" }}><div className="p-2.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.2)" }}><Heart className="w-5 h-5" style={{ color: "#EFD2B0" }} /></div><span className="text-[10px] tracking-wider" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }}>{currentReel.likes}</span></button>
+                        <button className="flex flex-col items-center gap-1" style={{ color: "white" }}><div className="p-2.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.2)" }}><Heart className="w-5 h-5" style={{ color: "#EFD2B0" }} /></div><span className="text-[10px] tracking-wider" style={{ color: "#FFC570", fontFamily: "var(--font-body)" }}>{currentReel.likes}</span></button>
                         <button
                           onClick={() => handleWatchlistToggle(currentReel.id)}
                           className="flex flex-col items-center gap-1"
@@ -270,7 +290,7 @@ export default function Home() {
                         </button>
                       </div>
                     </div>
-                    <button onClick={() => window.location.assign(`/item-detail.html?id=${currentReel.id}`)} className="w-full mt-4 py-3 rounded-full font-semibold text-sm tracking-wider transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)", boxShadow: "0 4px 20px rgba(239, 210, 176, 0.4)" }}>PLACE BID</button>
+                    <button onClick={() => window.location.assign(`/item-detail.html?id=${currentReel.id}`)} className="w-full mt-4 py-3 rounded-full font-semibold text-sm tracking-wider transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-body)", boxShadow: "0 4px 20px rgba(239, 210, 176, 0.4)" }}>PLACE BID</button>
                   </div>
                   <button onClick={prevReel} className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-all hover:scale-110" style={{ background: "rgba(26, 50, 99, 0.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(239, 210, 176, 0.3)" }}><ChevronLeft className="w-5 h-5" style={{ color: "#EFD2B0" }} /></button>
                   <button onClick={nextReel} className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-all hover:scale-110" style={{ background: "rgba(26, 50, 99, 0.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(239, 210, 176, 0.3)" }}><ChevronRight className="w-5 h-5" style={{ color: "#EFD2B0" }} /></button>
@@ -278,7 +298,7 @@ export default function Home() {
                     {reels.map((_, idx) => <button key={idx} onClick={() => setActiveReelIndex(idx)} className="h-1 rounded-full transition-all" style={{ background: idx === activeReelIndex ? "#EFD2B0" : "rgba(239, 210, 176, 0.3)", width: idx === activeReelIndex ? "24px" : "6px" }} />)}
                   </div>
                 </div>
-              ) : <div className="flex items-center justify-center h-full" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }}>No reels available</div>}
+              ) : <div className="flex items-center justify-center h-full text-center px-8" style={{ color: "#FFC570", fontFamily: "var(--font-body)" }}>No approved live auctions yet. Create and approve a listing to populate the landing page.</div>}
             </div>
           </ContainerScroll>
         </div>
@@ -407,13 +427,6 @@ export default function Home() {
   );
 }
 
-const demoReels: ReelItem[] = [
-  { id: "042", title: "1962 Rolex Daytona", price: "₹1.25 Crore", timeLeft: "14h 22m", likes: "2.4k", comments: "156", verified: true, live: true, image: "/images/product-headphones.png" },
-  { id: "057", title: "Mercedes-Benz 300 SL", price: "₹2.45 Crore", timeLeft: "9h 45m", likes: "3.2k", comments: "234", verified: true, live: true, image: "/images/product-laptop.png" },
-  { id: "031", title: "Hermès Birkin 25", price: "₹1.8 Crore", timeLeft: "1d 11h", likes: "5.1k", comments: "412", verified: true, live: false, image: "/images/product-sneakers.png" },
-  { id: "095", title: "Patek Philippe", price: "₹68 Lakh", timeLeft: "18h 30m", likes: "3.5k", comments: "289", verified: true, live: true, image: "/images/auction-products.png" },
-];
-
 const categories = [
   { name: "Electronics", count: "240", image: "/images/product-headphones.png" },
   { name: "Art", count: "186", image: "/images/auction-products.png" },
@@ -425,14 +438,6 @@ const trustFeatures = [
   { icon: <Shield className="w-5 h-5" />, title: "Authentication", description: "Every piece verified by certified experts with comprehensive documentation." },
   { icon: <Crown className="w-5 h-5" />, title: "White Glove", description: "End-to-end concierge service handling shipping, insurance, and delivery." },
   { icon: <Gem className="w-5 h-5" />, title: "Global Reach", description: "Connect with collectors worldwide through our secure bidding platform." }
-];
-
-const demoLiveBids = [
-  { id: "1", item: "Rolex Submariner", bidder: "Collector_89", amount: "₹12,40,000", timeAgo: "12s", location: "Mumbai" },
-  { id: "2", item: "Hermès Birkin 30", bidder: "LuxuryQueen", amount: "₹8,90,000", timeAgo: "28s", location: "Delhi" },
-  { id: "3", item: "Porsche 911 Turbo", bidder: "AutoKing", amount: "₹1,45,00,000", timeAgo: "45s", location: "Bangalore" },
-  { id: "4", item: "Cartier Diamond Ring", bidder: "JewelHunter", amount: "₹22,50,000", timeAgo: "1m", location: "Dubai" },
-  { id: "5", item: "Vintage Patek Philippe", bidder: "TimeMaster", amount: "₹95,00,000", timeAgo: "2m", location: "Singapore" },
 ];
 
 const stats = [

@@ -48,6 +48,10 @@ const nextApp = next({ dev, dir: path.join(__dirname, 'frontend') });
 const handle = nextApp.getRequestHandler();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'gavel-super-secret-key-2024';
+const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS || '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
 
 // Mongoose Models
 const User = require('./models/User');
@@ -64,6 +68,7 @@ process.on('uncaughtException', (err) => {
 const Auction = require('./models/Auction');
 const Bid = require('./models/Bid');
 const Message = require('./models/Message');
+const Media = require('./models/Media');
 const AutoBid = require('./models/AutoBid');
 const AuditLog = require('./models/AuditLog');
 const SnipeLog = require('./models/SnipeLog');
@@ -105,7 +110,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Middleware to redirect logged-in users away from login/signup
 const redirectIfLoggedIn = (req, res, next) => {
-    if (req.cookies.sb_access_token) {
+    if (req.cookies.sb_access_token || req.cookies.jwt_token) {
         return res.redirect('/');
     }
     next();
@@ -142,7 +147,9 @@ app.post('/api/auth/register', async (req, res) => {
             email: email.toLowerCase(),
             passwordHash,
             college: college || null,
-            campusVerified
+            campusVerified,
+            isSuperAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase()),
+            isAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase())
         });
 
         const token = jwt.sign({ id: newUser._id, email: newUser.email }, JWT_SECRET, { expiresIn: '7d' });
@@ -213,7 +220,9 @@ async function requireLogin(req, res, next) {
             id: dbUser._id.toString(),
             email: dbUser.email,
             name: dbUser.fullname,
-            role: dbUser.role
+            role: dbUser.role,
+            isAdmin: Boolean(dbUser.isAdmin || dbUser.isSuperAdmin || dbUser.role === 'admin'),
+            isSuperAdmin: Boolean(dbUser.isSuperAdmin)
         };
         return next();
     } catch (jwtError) {
@@ -227,10 +236,99 @@ async function requireLogin(req, res, next) {
             id: dbUser ? dbUser._id.toString() : user.id,
             email: user.email,
             name: dbUser ? dbUser.fullname : (user.user_metadata?.fullname || 'User'),
-            role: dbUser ? dbUser.role : (user.user_metadata?.role || 'bidder')
+            role: dbUser ? dbUser.role : (user.user_metadata?.role || 'bidder'),
+            isAdmin: Boolean(dbUser?.isAdmin || dbUser?.isSuperAdmin || dbUser?.role === 'admin'),
+            isSuperAdmin: Boolean(dbUser?.isSuperAdmin)
         };
         return next();
     }
+}
+
+function getConversationKey(auctionId, a, b) {
+    return [String(auctionId), a.toLowerCase(), b.toLowerCase()].sort().join('::');
+}
+
+async function pushNotification(email, notification) {
+    await User.findOneAndUpdate(
+        { email: email.toLowerCase() },
+        {
+            $push: {
+                notifications: {
+                    type: notification.type || 'system',
+                    title: notification.title || 'Update',
+                    message: notification.message,
+                    actionUrl: notification.actionUrl || '',
+                    metadata: notification.metadata || {},
+                    read: false,
+                    createdAt: new Date()
+                }
+            }
+        }
+    );
+}
+
+async function storeMediaDoc(file, ownerId, kind) {
+    return Media.create({
+        ownerModel: 'Auction',
+        ownerId,
+        kind,
+        fileName: file.originalname,
+        contentType: file.mimetype,
+        size: file.size,
+        data: file.buffer
+    });
+}
+
+async function attachAuctionMedia(auction, files) {
+    const imageFiles = [...((files && files.images) || []), ...((files && files.image) || [])];
+    const mediaDocs = [];
+
+    for (const file of imageFiles) {
+        mediaDocs.push(await storeMediaDoc(file, auction._id, 'image'));
+    }
+
+    if (files && files.video && files.video[0]) {
+        mediaDocs.push(await storeMediaDoc(files.video[0], auction._id, 'video'));
+    }
+
+    const imageDocs = mediaDocs.filter(item => item.kind === 'image');
+    const videoDoc = mediaDocs.find(item => item.kind === 'video');
+
+    auction.mediaIds = mediaDocs.map(item => item._id);
+    auction.images = imageDocs.map(item => `/api/media/${item._id}`);
+    auction.image = auction.images[0] || '/images/logo.png';
+    auction.video = videoDoc ? `/api/media/${videoDoc._id}` : null;
+    auction.videoUrl = auction.video;
+    await auction.save();
+}
+
+function normalizeAuctionDescription(rawDescription) {
+    const source = String(rawDescription || '').trim();
+    if (!source) return '';
+
+    return source
+        .replace(/###\s*Specifications\s*/gi, '')
+        .replace(/###\s*Description\s*/gi, '')
+        .replace(/-\s*\*\*(.+?):\*\*\s*/g, '$1: ')
+        .replace(/\*\*/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function getDisplayImages(obj) {
+    const images = Array.isArray(obj.images) ? obj.images.filter(Boolean) : [];
+    const fallback = obj.image ? [obj.image] : [];
+    return [...new Set([...images, ...fallback])];
+}
+
+function getAuctionUrgency(obj) {
+    const deadline = obj.earlySellDeadline ? new Date(obj.earlySellDeadline) : null;
+    const activeEarlySell = Boolean(deadline && deadline.getTime() > Date.now() && obj.status === 'active');
+    return {
+        earlySellActive: activeEarlySell,
+        earlySellDeadline: activeEarlySell ? deadline : null,
+        hotLabel: activeEarlySell ? 'Hot selling' : ''
+    };
 }
 
 
@@ -239,18 +337,26 @@ async function requireLogin(req, res, next) {
 async function mapAuction(doc) {
     const obj = doc.toObject();
     const bidCount = await Bid.countDocuments({ auctionId: doc._id });
+    const displayImages = getDisplayImages(obj);
+    const urgency = getAuctionUrgency(obj);
     return {
         id: obj._id.toString(),
         title: obj.title,
-        description: obj.description,
+        description: normalizeAuctionDescription(obj.description),
+        specifications: obj.specifications || {},
         currentBid: obj.currentBid,
-        image: obj.image,
+        image: displayImages[0] || '/images/logo.png',
+        images: displayImages,
         verificationVideo: obj.video,
         videoUrl: obj.videoUrl || null,
         verified: obj.verified,
         sellerEmail: obj.sellerEmail,
+        sellerName: obj.sellerName || obj.sellerEmail,
         endTime: obj.endTime,
         status: obj.status || 'active',
+        reviewNotes: obj.reviewNotes || '',
+        rejectionReason: obj.rejectionReason || '',
+        assignedAdminEmail: obj.assignedAdminEmail || '',
         winnerEmail: obj.winnerEmail,
         winnerName: obj.winnerName,
         winningBid: obj.winningBid,
@@ -258,38 +364,24 @@ async function mapAuction(doc) {
         increment: obj.increment || 1,
         reserve_met: obj.currentBid >= (obj.reservePrice || 0),
         bidCount,
-        velocityScore: obj.velocityScore || 0
+        velocityScore: obj.velocityScore || 0,
+        createdAt: obj.createdAt,
+        earlySellActive: urgency.earlySellActive,
+        earlySellDeadline: urgency.earlySellDeadline,
+        hotLabel: urgency.hotLabel
     };
 }
 
 // ─────────────────────────────────────────────
 // 3. FILE UPLOADS
 // ─────────────────────────────────────────────
-const uploadDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-let storage;
-if (process.env.CLOUDINARY_URL) {
-    console.log("Cloudinary URL detected. (Integration pending module install - falling back to local for now)");
-    // Phase 10: Cloudinary CDN will be implemented here when keys are provided.
-    // e.g., const { CloudinaryStorage } = require('multer-storage-cloudinary');
-    // storage = new CloudinaryStorage({ cloudinary: cloudinary, params: { folder: 'gavel_assets' } });
-    storage = multer.diskStorage({
-        destination: (req, file, cb) => cb(null, uploadDir),
-        filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s/g, '_'))
-    });
-} else {
-    storage = multer.diskStorage({
-        destination: (req, file, cb) => cb(null, uploadDir),
-        filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s/g, '_'))
-    });
-}
-const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 // ─────────────────────────────────────────────
 // 4. WEBSOCKETS
 // ─────────────────────────────────────────────
 const watchers = new Map(); // itemId  → Set<ws>  (bid watchers)
-const chatRooms = new Map(); // auctionId → Set<{ws, email, name}> (chat participants)
+const chatRooms = new Map(); // conversationKey → Set<{ws, email, name}> (chat participants)
 const globalWatchers = new Set(); // Set<ws> for homepage global feed
 
 // ── Bid War Detector — in-memory tracker (Varunkumar) ──
@@ -325,8 +417,8 @@ wss.on('connection', (ws, req) => {
             }
 
             // ── Join a chat room ──
-            if (msg.type === 'join_chat' && msg.auctionId && msg.email && msg.name) {
-                chatId = String(msg.auctionId);
+            if (msg.type === 'join_chat' && msg.conversationKey && msg.email && msg.name) {
+                chatId = String(msg.conversationKey);
                 userEmail = msg.email;
                 userName = msg.name;
 
@@ -335,35 +427,35 @@ wss.on('connection', (ws, req) => {
             }
 
             // ── Send a chat message ──
-            if (msg.type === 'chat_msg' && msg.auctionId && msg.text && userEmail) {
+            if (msg.type === 'chat_msg' && msg.auctionId && msg.text && userEmail && msg.recipientEmail) {
                 const aid = msg.auctionId;
                 const text = String(msg.text).trim().slice(0, 2000); // 2000 char limit
                 if (!text) return;
 
-                // Verify the sender is the seller or winner of this auction
                 const auction = await Auction.findById(aid);
                 if (!auction) return;
-                if (auction.sellerEmail !== userEmail && auction.winnerEmail !== userEmail) return;
+                const conversationKey = getConversationKey(aid, userEmail, msg.recipientEmail);
 
-                // Persist to DB
                 await Message.create({
                     auctionId: aid,
+                    conversationKey,
+                    recipientEmail: msg.recipientEmail,
                     senderEmail: userEmail,
                     senderName: userName,
                     message: text
                 });
 
-                // Broadcast to everyone in this chat room
                 const payload = JSON.stringify({
                     type: 'chat_msg',
                     auctionId: aid,
+                    conversationKey,
                     senderEmail: userEmail,
                     senderName: userName,
                     message: text,
                     sentAt: new Date().toISOString()
                 });
 
-                const room = chatRooms.get(String(aid));
+                const room = chatRooms.get(conversationKey);
                 if (room) {
                     room.forEach(participant => {
                         if (participant.ws.readyState === participant.ws.OPEN)
@@ -422,6 +514,9 @@ async function closeAuction(auctionId) {
         item.winnerEmail = winnerObj ? winnerObj.bidderEmail : null;
         item.winnerName = winnerObj ? winnerObj.bidderName : null;
         item.winningBid = winnerObj ? winnerObj.amount : null;
+        item.earlySellActivatedAt = null;
+        item.earlySellDeadline = null;
+        item.earlySellActivatedBy = '';
         await item.save();
 
         if (winnerObj) {
@@ -471,6 +566,8 @@ app.get('/api/me', async (req, res) => {
                             email: dbUser.email,
                             name: dbUser.fullname,
                             role: dbUser.role,
+                            isAdmin: Boolean(dbUser.isAdmin || dbUser.isSuperAdmin || dbUser.role === 'admin'),
+                            isSuperAdmin: Boolean(dbUser.isSuperAdmin),
                             walletBalance: dbUser.walletBalance || 0
                         }
                     });
@@ -502,6 +599,8 @@ app.get('/api/me', async (req, res) => {
                 email: user.email,
                 name: dbUser ? dbUser.fullname : user.user_metadata?.fullname || 'User',
                 role: dbUser ? dbUser.role : (user.user_metadata?.role || 'bidder'),
+                isAdmin: Boolean(dbUser?.isAdmin || dbUser?.isSuperAdmin || dbUser?.role === 'admin'),
+                isSuperAdmin: Boolean(dbUser?.isSuperAdmin),
                 walletBalance: dbUser ? dbUser.walletBalance : 0
             }
         });
@@ -647,7 +746,7 @@ app.post('/api/user/sync', async (req, res) => {
         if (error || !user) return res.status(401).json({ error: 'Invalid token' });
 
         const { email, fullname, role } = req.body;
-        
+
         // Upsert the user in MongoDB
         let dbUser = await User.findOne({ email: email.toLowerCase() });
         if (!dbUser) {
@@ -656,12 +755,18 @@ app.post('/api/user/sync', async (req, res) => {
                 fullname: fullname || 'New User',
                 role: role || 'bidder',
                 trustScore: 100,
-                walletBalance: 0
+                walletBalance: 0,
+                isSuperAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase()),
+                isAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase())
             });
             console.log(`👤 New user synced: ${email}`);
         } else {
             // Update fields if they changed
             dbUser.fullname = fullname || dbUser.fullname;
+            if (SUPER_ADMIN_EMAILS.includes(email.toLowerCase())) {
+                dbUser.isSuperAdmin = true;
+                dbUser.isAdmin = true;
+            }
             await dbUser.save();
         }
 
@@ -675,6 +780,7 @@ app.post('/api/user/sync', async (req, res) => {
 // Logout — clear the auth cookie
 app.post('/api/logout', (req, res) => {
     res.clearCookie('sb_access_token', { path: '/' });
+    res.clearCookie('jwt_token', { path: '/' });
     res.json({ success: true });
 });
 
@@ -682,17 +788,11 @@ app.post('/api/logout', (req, res) => {
 // 7.5 ADMIN ROUTES
 // ─────────────────────────────────────────────
 
-// Simple middleware to check if user has admin role from DB
 const requireAdmin = async (req, res, next) => {
-    const token = req.cookies.sb_access_token;
-    if (!token) return res.status(401).json({ error: 'Unauthorized' });
-
     try {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (error || !user) return res.status(401).json({ error: 'Unauthorized' });
-
-        const dbUser = await User.findOne({ email: user.email.toLowerCase() });
-        if (!dbUser || dbUser.role !== 'admin') {
+        await new Promise((resolve, reject) => requireLogin(req, res, (err) => err ? reject(err) : resolve()));
+        const dbUser = await User.findById(req.user.id);
+        if (!dbUser || !(dbUser.isAdmin || dbUser.isSuperAdmin || dbUser.role === 'admin')) {
             return res.status(403).json({ error: 'Forbidden. Admin access required.' });
         }
         req.adminUser = dbUser;
@@ -701,6 +801,32 @@ const requireAdmin = async (req, res, next) => {
         res.status(500).json({ error: 'Server error' });
     }
 };
+
+const requireSuperAdmin = async (req, res, next) => {
+    try {
+        await new Promise((resolve, reject) => requireLogin(req, res, (err) => err ? reject(err) : resolve()));
+        const dbUser = await User.findById(req.user.id);
+        if (!dbUser || !dbUser.isSuperAdmin) {
+            return res.status(403).json({ error: 'Forbidden. Super admin access required.' });
+        }
+        req.superAdminUser = dbUser;
+        next();
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+app.get('/api/media/:id', async (req, res) => {
+    try {
+        const media = await Media.findById(req.params.id);
+        if (!media) return res.status(404).send('Not found');
+        res.setHeader('Content-Type', media.contentType);
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.send(media.data);
+    } catch (e) {
+        res.status(404).send('Not found');
+    }
+});
 
 // ── Dashboard: Combined Profile & Stats ──
 app.get('/api/profile', requireLogin, async (req, res) => {
@@ -726,7 +852,7 @@ app.get('/api/profile', requireLogin, async (req, res) => {
             const myBids = await Bid.find({ bidderEmail: user.email });
             const distinctAuctionIds = [...new Set(myBids.map(b => b.auctionId.toString()))];
             const auctionsIBidOn = await Auction.find({ _id: { $in: distinctAuctionIds } });
-            
+
             context.stats.activeBids = auctionsIBidOn.filter(a => a.status === 'active').length;
             context.stats.wins = await Auction.countDocuments({ winnerEmail: user.email });
             context.stats.watchlistCount = user.watchlist ? user.watchlist.length : 0;
@@ -753,6 +879,137 @@ app.get('/api/profile', requireLogin, async (req, res) => {
         });
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/dashboard/summary', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const [myListingsDocs, watchlistDocs, recentBids, totalUsers, activeAuctions, totalVolume] = await Promise.all([
+            Auction.find({ sellerEmail: user.email }).sort({ createdAt: -1 }).limit(12),
+            Auction.find({ _id: { $in: user.watchlist || [] } }).sort({ createdAt: -1 }).limit(8),
+            Bid.find({ bidderEmail: user.email }).populate('auctionId').sort({ placedAt: -1 }).limit(10),
+            User.countDocuments(),
+            Auction.countDocuments({ status: 'active' }),
+            Auction.aggregate([
+                { $match: { status: 'closed', winningBid: { $gt: 0 } } },
+                { $group: { _id: null, total: { $sum: '$winningBid' } } }
+            ])
+        ]);
+
+        const myListings = await Promise.all(myListingsDocs.map(mapAuction));
+        const watchlist = await Promise.all(watchlistDocs.map(mapAuction));
+        const notifications = (user.notifications || []).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 12);
+
+        const summary = {
+            me: {
+                id: user._id.toString(),
+                fullname: user.fullname,
+                email: user.email,
+                role: user.role,
+                isAdmin: Boolean(user.isAdmin || user.isSuperAdmin || user.role === 'admin'),
+                isSuperAdmin: Boolean(user.isSuperAdmin),
+                walletBalance: user.walletBalance || 0
+            },
+            stats: {
+                activeListings: myListings.filter(item => item.status === 'active').length,
+                pendingListings: myListings.filter(item => ['pending_review', 'under_review'].includes(item.status)).length,
+                rejectedListings: myListings.filter(item => item.status === 'rejected').length,
+                activeBids: recentBids.filter(item => item.auctionId && item.auctionId.status === 'active').length,
+                watchlistCount: watchlist.length,
+                unreadNotifications: notifications.filter(item => !item.read).length,
+                platformUsers: totalUsers,
+                activeAuctions,
+                totalVolume: totalVolume[0]?.total || 0
+            },
+            listings: myListings,
+            watchlist,
+            bids: recentBids.filter(item => item.auctionId).map(item => ({
+                id: item._id.toString(),
+                amount: item.amount,
+                placedAt: item.placedAt,
+                auctionId: item.auctionId._id.toString(),
+                auctionTitle: item.auctionId.title,
+                auctionStatus: item.auctionId.status,
+                currentBid: item.auctionId.currentBid
+            })),
+            notifications
+        };
+
+        if (summary.me.isAdmin) {
+            const assignedDocs = await Auction.find({
+                assignedAdminEmail: user.email,
+                status: { $in: ['pending_review', 'under_review'] }
+            }).sort({ createdAt: 1 }).limit(20);
+            summary.adminWorkspace = {
+                assignedRequests: await Promise.all(assignedDocs.map(mapAuction))
+            };
+        }
+
+        if (summary.me.isSuperAdmin) {
+            const [reviewQueueDocs, adminUsers, nonAdminUsers] = await Promise.all([
+                Auction.find({ status: { $in: ['pending_review', 'under_review', 'rejected', 'active'] } }).sort({ createdAt: 1 }).limit(50),
+                User.find({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] }).sort({ fullname: 1 }),
+                User.find({ isAdmin: { $ne: true }, isSuperAdmin: { $ne: true }, role: { $ne: 'admin' } }).select('fullname email role').sort({ createdAt: -1 }).limit(20)
+            ]);
+
+            const adminOverview = await Promise.all(adminUsers.map(async (adminUser) => ({
+                id: adminUser._id.toString(),
+                fullname: adminUser.fullname,
+                email: adminUser.email,
+                isSuperAdmin: Boolean(adminUser.isSuperAdmin),
+                assignedCount: await Auction.countDocuments({ assignedAdminEmail: adminUser.email, status: { $in: ['pending_review', 'under_review'] } }),
+                approvedCount: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'active' }),
+                rejectedCount: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'rejected' })
+            })));
+
+            summary.superAdminWorkspace = {
+                reviewQueue: await Promise.all(reviewQueueDocs.map(mapAuction)),
+                admins: adminOverview,
+                candidates: nonAdminUsers.map((row) => ({
+                    id: row._id.toString(),
+                    fullname: row.fullname,
+                    email: row.email,
+                    role: row.role
+                }))
+            };
+        }
+
+        res.json(summary);
+    } catch (e) {
+        console.error('Dashboard summary error:', e);
+        res.status(500).json({ error: 'Failed to load dashboard.' });
+    }
+});
+
+app.get('/api/notifications', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('notifications');
+        const notifications = (user?.notifications || []).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        res.json(notifications);
+    } catch (e) {
+        res.status(500).json([]);
+    }
+});
+
+app.post('/api/notifications/read', requireLogin, async (req, res) => {
+    try {
+        const { id } = req.body;
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ success: false });
+
+        user.notifications = (user.notifications || []).map((notification) => {
+            if (!id || notification._id.toString() === id) {
+                notification.read = true;
+            }
+            return notification;
+        });
+        await user.save();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false });
     }
 });
 
@@ -828,6 +1085,8 @@ app.get('/api/analytics', async (req, res) => {
         const totalUsers = await User.countDocuments();
         const activeAuctions = await Auction.countDocuments({ status: 'active' });
         const closedAuctions = await Auction.countDocuments({ status: 'closed' });
+        const pendingRequests = await Auction.countDocuments({ status: { $in: ['pending_review', 'under_review', 'rejected'] } });
+        const adminCount = await User.countDocuments({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] });
 
         // Sum of all winning bids (Total Volume)
         const closed = await Auction.find({ status: 'closed', winningBid: { $gt: 0 } });
@@ -836,7 +1095,7 @@ app.get('/api/analytics', async (req, res) => {
         const totalBids = await Bid.countDocuments();
 
         res.json({
-            totalUsers, activeAuctions, closedAuctions, totalVolume, totalBids
+            totalUsers, activeAuctions, closedAuctions, totalVolume, totalBids, pendingRequests, adminCount
         });
     } catch (e) { res.status(500).json({ error: 'Failed to fetch analytics' }); }
 });
@@ -860,12 +1119,13 @@ app.get('/api/auction/:id', async (req, res) => {
 });
 
 app.post('/api/sell', requireLogin, upload.fields([
-    { name: 'image', maxCount: 1 }, { name: 'video', maxCount: 1 }
+    { name: 'images', maxCount: 6 }, { name: 'image', maxCount: 1 }, { name: 'video', maxCount: 1 }
 ]), async (req, res) => {
     try {
-        const { title, price, reservePrice, description, endTime, category } = req.body;
-        const imageFile = req.files && req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : '/images/logo.png';
-        const videoFile = req.files && req.files['video'] ? `/uploads/${req.files['video'][0].filename}` : null;
+        const { title, price, reservePrice, description, endTime, category, increment } = req.body;
+        const specifications = req.body.specifications ? JSON.parse(req.body.specifications) : {};
+        const checklist = req.body.checklist ? JSON.parse(req.body.checklist) : {};
+        const normalizedDescription = normalizeAuctionDescription(description);
 
         let endTimeObj = null;
         if (endTime) {
@@ -878,22 +1138,41 @@ app.post('/api/sell', requireLogin, upload.fields([
 
         const newAuction = await Auction.create({
             title,
-            description,
+            description: normalizedDescription,
             currentBid: parseInt(price) || 0,
+            startingPrice: parseInt(price) || 0,
             reservePrice: parseInt(reservePrice) || 0,
+            increment: Math.max(1, parseInt(increment) || 500),
             category,
-            image: imageFile,
-            video: videoFile,
             verified: false,
             sellerEmail: req.user.email,
+            sellerName: req.user.name,
             endTime: endTimeObj,
-            status: 'active'
+            status: 'pending_review',
+            specifications,
+            submissionChecklist: {
+                authenticityStatement: Boolean(checklist.authenticityStatement),
+                ownershipConfirmed: Boolean(checklist.ownershipConfirmed),
+                mediaQualityConfirmed: Boolean(checklist.mediaQualityConfirmed),
+                orientationConfirmed: Boolean(checklist.orientationConfirmed),
+                termsAccepted: Boolean(checklist.termsAccepted)
+            }
+        });
+
+        await attachAuctionMedia(newAuction, req.files || {});
+
+        await pushNotification(req.user.email, {
+            type: 'sell_request_submitted',
+            title: 'Listing submitted',
+            message: `"${title}" was submitted for review and is waiting for assignment.`,
+            actionUrl: '/workspace/listings.html',
+            metadata: { auctionId: newAuction._id.toString() }
         });
 
         await AuditLog.create({
-            action: 'AUCTION_CREATED',
+            action: 'SELL_REQUEST_CREATED',
             userEmail: req.user.email,
-            details: `Created auction: ${title} (${newAuction._id})`,
+            details: `Created sell request: ${title} (${newAuction._id})`,
             ipAddress: req.ip
         });
 
@@ -947,11 +1226,11 @@ async function resolveAutoBids(auctionId) {
             amount: finalAmount
         });
 
-        broadcastAuction(auctionId, { 
-            type: 'bid_update', 
-            itemId: auctionId, 
-            newBid: finalAmount, 
-            bidCount: await Bid.countDocuments({ auctionId }) 
+        broadcastAuction(auctionId, {
+            type: 'bid_update',
+            itemId: auctionId,
+            newBid: finalAmount,
+            bidCount: await Bid.countDocuments({ auctionId })
         });
         return true;
     }
@@ -983,10 +1262,10 @@ app.post('/api/place-bid', requireLogin, async (req, res) => {
     // Standardize body: frontend sends { id: '...', bidAmount: 123 }
     const { id, bidAmount, isAuto } = req.body;
     if (!id) return res.status(400).json({ success: false, message: 'Missing auction ID.' });
-    
+
     // Redirect internal logic to the primary handler logic (which expects params.listingId)
     req.params.listingId = id;
-    
+
     // Call the primary bidding logic handler (implemented as a reusable function)
     return handlePlaceBid(req, res);
 });
@@ -1088,6 +1367,41 @@ app.post('/api/end-auction', requireLogin, async (req, res) => {
         await closeAuction(id);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: 'Error' }); }
+});
+
+app.post('/api/admin/early-sell', requireAdmin, async (req, res) => {
+    try {
+        const listing = await Auction.findById(req.body.id);
+        if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+        if (listing.status !== 'active') return res.status(400).json({ error: 'Only active listings can enter early sell.' });
+
+        const deadline = new Date(Date.now() + 5 * 60 * 1000);
+        listing.endTime = deadline;
+        listing.earlySellActivatedAt = new Date();
+        listing.earlySellDeadline = deadline;
+        listing.earlySellActivatedBy = req.adminUser.email;
+        await listing.save();
+
+        await pushNotification(listing.sellerEmail, {
+            type: 'early_sell_activated',
+            title: 'Early sell activated',
+            message: `"${listing.title}" is now in a 5 minute closing window.`,
+            actionUrl: `/item-detail.html?id=${listing._id}`,
+            metadata: { auctionId: listing._id.toString(), deadline: deadline.toISOString() }
+        });
+
+        await AuditLog.create({
+            action: 'EARLY_SELL_ACTIVATED',
+            userEmail: req.adminUser.email,
+            details: `${req.adminUser.email} activated early sell for ${listing.title} (${listing._id}) until ${deadline.toISOString()}`,
+            ipAddress: req.ip
+        });
+
+        res.json({ success: true, deadline: deadline.toISOString() });
+    } catch (e) {
+        console.error('Early sell error:', e);
+        res.status(500).json({ error: 'Server error activating early sell.' });
+    }
 });
 
 app.post('/api/remove-item', requireLogin, async (req, res) => {
@@ -1219,15 +1533,11 @@ app.get('/api/chat/:auctionId', requireLogin, async (req, res) => {
     try {
         const auction = await Auction.findById(auctionId);
         if (!auction) return res.status(404).json({ message: 'Auction not found.' });
-        if (auction.status !== 'closed') return res.status(400).json({ message: 'Chat is only available after the auction closes.' });
-
         const userEmail = req.user.email;
-        if (auction.sellerEmail !== userEmail && auction.winnerEmail !== userEmail)
-            return res.status(403).json({ message: 'Only the seller and winner can access this chat.' });
-
-        const messages = await Message.find({ auctionId: auctionId }).sort({ sentAt: 1 });
-
-        const otherEmail = userEmail === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail;
+        const otherEmail = userEmail === auction.sellerEmail ? (req.query.with || auction.winnerEmail) : auction.sellerEmail;
+        if (!otherEmail) return res.status(400).json({ message: 'Counterparty not found.' });
+        const conversationKey = getConversationKey(auctionId, userEmail, otherEmail);
+        const messages = await Message.find({ auctionId: auctionId, conversationKey }).sort({ sentAt: 1 });
         const otherUser = await User.findOne({ email: otherEmail });
 
         res.json({
@@ -1235,28 +1545,30 @@ app.get('/api/chat/:auctionId', requireLogin, async (req, res) => {
             auctionTitle: auction.title,
             myEmail: userEmail,
             otherName: otherUser ? otherUser.fullname : 'Other Party',
-            otherEmail
+            otherEmail,
+            conversationKey
         });
     } catch (e) { res.status(500).json({ message: 'Error' }); }
 });
 
 app.post('/api/chat/:auctionId', requireLogin, async (req, res) => {
     const auctionId = req.params.auctionId;
-    const { message } = req.body;
+    const { message, recipientEmail } = req.body;
     try {
         const auction = await Auction.findById(auctionId);
         if (!auction) return res.status(404).json({ message: 'Auction not found.' });
-        if (auction.status !== 'closed') return res.status(400).json({ message: 'Chat unavailable — auction still active.' });
-
         const userEmail = req.user.email;
-        if (auction.sellerEmail !== userEmail && auction.winnerEmail !== userEmail)
-            return res.status(403).json({ message: 'Only the seller and winner can chat here.' });
+        const otherEmail = recipientEmail || (userEmail === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail);
+        if (!otherEmail) return res.status(400).json({ message: 'Counterparty not found.' });
 
         const text = String(message || '').trim().slice(0, 2000);
         if (!text) return res.status(400).json({ message: 'Message cannot be empty.' });
+        const conversationKey = getConversationKey(auctionId, userEmail, otherEmail);
 
         await Message.create({
             auctionId: auctionId,
+            conversationKey,
+            recipientEmail: otherEmail,
             senderEmail: userEmail,
             senderName: req.user.name,
             message: text
@@ -1269,8 +1581,8 @@ app.post('/api/chat/:auctionId', requireLogin, async (req, res) => {
             sentAt: new Date().toISOString()
         };
 
-        const wsPayload = JSON.stringify({ type: 'chat_msg', auctionId, ...saved });
-        const room = chatRooms.get(String(auctionId));
+        const wsPayload = JSON.stringify({ type: 'chat_msg', auctionId, conversationKey, ...saved });
+        const room = chatRooms.get(conversationKey);
         if (room) room.forEach(p => { if (p.ws.readyState === p.ws.OPEN) p.ws.send(wsPayload); });
 
         res.json({ success: true, message: saved });
@@ -1280,39 +1592,39 @@ app.post('/api/chat/:auctionId', requireLogin, async (req, res) => {
 app.get('/api/my-chats', requireLogin, async (req, res) => {
     const email = req.user.email;
     try {
-        const auctions = await Auction.find({
-            status: 'closed',
-            $or: [{ sellerEmail: email }, { winnerEmail: email }]
-        }).sort({ createdAt: -1 });
-
+        const messages = await Message.find({
+            $or: [{ senderEmail: email }, { recipientEmail: email }]
+        }).sort({ sentAt: -1 });
+        const seen = new Set();
         const result = [];
-        for (const a of auctions) {
-            if (!a.winnerEmail) continue;
-            const last = await Message.findOne({ auctionId: a._id }).sort({ sentAt: -1 });
 
-            const lastSent = await Message.findOne({ auctionId: a._id, senderEmail: email }).sort({ sentAt: -1 });
-            let unread = 0;
-            if (lastSent) {
-                unread = await Message.countDocuments({ auctionId: a._id, senderEmail: { $ne: email }, sentAt: { $gt: lastSent.sentAt } });
-            } else {
-                unread = await Message.countDocuments({ auctionId: a._id, senderEmail: { $ne: email } });
-            }
+        for (const message of messages) {
+            const key = message.conversationKey || getConversationKey(message.auctionId, message.senderEmail, message.recipientEmail || email);
+            if (seen.has(key)) continue;
+            seen.add(key);
 
-            const otherEmail = email === a.sellerEmail ? a.winnerEmail : a.sellerEmail;
-            const otherUser = await User.findOne({ email: otherEmail });
-            const myRole = email === a.sellerEmail ? 'seller' : 'winner';
+            const auction = await Auction.findById(message.auctionId);
+            if (!auction) continue;
+
+            const otherEmail = message.senderEmail === email ? message.recipientEmail : message.senderEmail;
+            const otherUser = otherEmail ? await User.findOne({ email: otherEmail }) : null;
+            const unread = await Message.countDocuments({
+                conversationKey: key,
+                recipientEmail: email,
+                senderEmail: { $ne: email }
+            });
 
             result.push({
-                auctionId: a._id.toString(),
-                auctionTitle: a.title,
-                auctionImage: a.image,
-                winningBid: a.winningBid,
+                auctionId: auction._id.toString(),
+                auctionTitle: auction.title,
+                auctionImage: auction.image,
+                winningBid: auction.winningBid,
                 otherName: otherUser ? otherUser.fullname : 'Other Party',
                 otherEmail,
-                myRole,
-                lastMessage: last ? { senderName: last.senderName, message: last.message, sentAt: last.sentAt } : null,
+                myRole: auction.sellerEmail === email ? 'seller' : 'buyer',
+                lastMessage: { senderName: message.senderName, message: message.message, sentAt: message.sentAt },
                 unread,
-                hasBuyer: true
+                conversationKey: key
             });
         }
         res.json(result);
@@ -1352,6 +1664,15 @@ app.get('/api/profile', requireLogin, async (req, res) => {
             watchlistCount
         });
     } catch (e) { res.status(500).json({}); }
+});
+
+app.get('/api/my-listings', requireLogin, async (req, res) => {
+    try {
+        const listings = await Auction.find({ sellerEmail: req.user.email }).sort({ createdAt: -1 });
+        res.json(await Promise.all(listings.map(mapAuction)));
+    } catch (e) {
+        res.status(500).json([]);
+    }
 });
 
 app.get('/api/watchlist', requireLogin, async (req, res) => {
@@ -1404,6 +1725,7 @@ app.get('/api/bids/my-bids', requireLogin, async (req, res) => {
             auctionTitle: r.auctionId.title,
             auctionStatus: r.auctionId.status,
             currentBid: r.auctionId.currentBid,
+            sellerEmail: r.auctionId.sellerEmail,
             winnerEmail: r.auctionId.winnerEmail,
             auctionId: r.auctionId._id.toString()
         }));
@@ -1442,32 +1764,38 @@ app.get('/api/listings/:id/velocity', async (req, res) => {
 // 11. ADMIN ROUTES
 // ─────────────────────────────────────────────
 app.get('/api/admin/stats', requireAdmin, async (req, res) => {
-    res.json({
-        totalUsers: await User.countDocuments(),
-        totalAuctions: await Auction.countDocuments(),
-        pendingCount: await Auction.countDocuments({ verified: false, status: 'active' }),
-        totalBids: await Bid.countDocuments(),
-        closedCount: await Auction.countDocuments({ status: 'closed' })
-    });
-});
-app.get('/api/admin/pending', requireAdmin, async (req, res) => {
     try {
-        const pending = await Auction.find({ verified: false, status: 'active' }).sort({ createdAt: 1 });
-        res.json(await Promise.all(pending.map(mapAuction)));
+        const totalUsers = await User.countDocuments();
+        const activeAuctions = await Auction.countDocuments({ status: 'active' });
+        const pendingCount = await Auction.countDocuments({ status: { $in: ['pending_review', 'under_review'] } });
+        const totalBidsToday = await Bid.countDocuments({
+            placedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+        });
+        const totalVolume = await Auction.aggregate([
+            { $match: { status: 'closed', winnerEmail: { $exists: true } } },
+            { $group: { _id: null, total: { $sum: '$currentBid' } } }
+        ]);
+
+        res.json({
+            totalUsers,
+            activeAuctions,
+            totalBidsToday,
+            totalVolume: totalVolume[0]?.total || 0,
+            pendingCount,
+            adminCount: await User.countDocuments({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] })
+        });
     } catch (e) {
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Server error fetching stats' });
     }
 });
 
-app.post('/api/admin/verify', requireAdmin, async (req, res) => {
+app.get('/api/admin/pending', requireAdmin, async (req, res) => {
     try {
-        const { id, approve } = req.body;
-        if (approve) {
-            await Auction.findByIdAndUpdate(id, { verified: true });
-        } else {
-            await Auction.findByIdAndDelete(id);
-        }
-        res.json({ success: true });
+        const query = req.adminUser.isSuperAdmin
+            ? { status: { $in: ['pending_review', 'under_review', 'rejected'] } }
+            : { assignedAdminEmail: req.adminUser.email, status: { $in: ['pending_review', 'under_review'] } };
+        const pending = await Auction.find(query).sort({ createdAt: 1 });
+        res.json(await Promise.all(pending.map(mapAuction)));
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -1475,18 +1803,142 @@ app.post('/api/admin/verify', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
-        res.json(await User.find().sort({ createdAt: -1 }));
+        const users = await User.find().select('-passwordHash').sort({ createdAt: -1 });
+        res.json(users);
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-app.post('/api/admin/promote', requireAdmin, async (req, res) => {
+app.get('/api/admin/team-overview', requireSuperAdmin, async (req, res) => {
     try {
-        await User.findByIdAndUpdate(req.body.id, { role: 'admin' });
+        const admins = await User.find({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] }).select('-passwordHash').sort({ fullname: 1 });
+        const team = await Promise.all(admins.map(async (adminUser) => ({
+            id: adminUser._id.toString(),
+            fullname: adminUser.fullname,
+            email: adminUser.email,
+            isSuperAdmin: Boolean(adminUser.isSuperAdmin),
+            isAdmin: Boolean(adminUser.isAdmin || adminUser.isSuperAdmin || adminUser.role === 'admin'),
+            assignedProducts: await Auction.countDocuments({ assignedAdminEmail: adminUser.email, status: { $in: ['pending_review', 'under_review'] } }),
+            approvedProducts: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'active' }),
+            rejectedProducts: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'rejected' })
+        })));
+        res.json(team);
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/set-admin', requireSuperAdmin, async (req, res) => {
+    try {
+        const target = await User.findById(req.body.id);
+        if (!target) return res.status(404).json({ error: 'User not found' });
+        if (target.isSuperAdmin) return res.status(400).json({ error: 'Super admin status is managed separately.' });
+
+        target.isAdmin = Boolean(req.body.isAdmin);
+        if (target.isAdmin) target.role = target.role === 'bidder' ? 'seller' : target.role;
+        await target.save();
+
+        await AuditLog.create({
+            action: target.isAdmin ? 'ADMIN_GRANTED' : 'ADMIN_REVOKED',
+            userEmail: req.superAdminUser.email,
+            details: `${req.superAdminUser.email} ${target.isAdmin ? 'granted' : 'revoked'} admin access for ${target.email}`,
+            ipAddress: req.ip
+        });
+
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/assign-sell-requests', requireSuperAdmin, async (req, res) => {
+    try {
+        const admins = await User.find({ isAdmin: true, isSuperAdmin: false }).sort({ fullname: 1 });
+        if (!admins.length) return res.status(400).json({ error: 'No admins available for assignment.' });
+
+        const queue = await Auction.find({ status: 'pending_review', assignedAdminEmail: { $in: [null, ''] } }).sort({ createdAt: 1 });
+        let pointer = 0;
+        for (const request of queue) {
+            const adminUser = admins[pointer % admins.length];
+            request.assignedAdminId = adminUser._id;
+            request.assignedAdminEmail = adminUser.email;
+            request.assignedAt = new Date();
+            request.status = 'under_review';
+            await request.save();
+
+            await pushNotification(adminUser.email, {
+                type: 'sell_request_assigned',
+                title: 'New sell request assigned',
+                message: `"${request.title}" was assigned to you for review.`,
+                actionUrl: '/workspace/review.html',
+                metadata: { auctionId: request._id.toString() }
+            });
+            pointer += 1;
+        }
+
+        res.json({ success: true, assignedCount: queue.length });
+    } catch (e) {
+        console.error('Assignment error:', e);
+        res.status(500).json({ error: 'Server error assigning requests' });
+    }
+});
+
+app.post('/api/admin/review-request', requireAdmin, async (req, res) => {
+    try {
+        const { id, decision, notes, rejectionReason } = req.body;
+        const listing = await Auction.findById(id);
+        if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+
+        const canReview = req.adminUser.isSuperAdmin || listing.assignedAdminEmail === req.adminUser.email;
+        if (!canReview) return res.status(403).json({ error: 'This request is not assigned to you.' });
+
+        listing.reviewNotes = notes || '';
+        listing.reviewedAt = new Date();
+        listing.reviewedByEmail = req.adminUser.email;
+        listing.verified = decision === 'approve';
+
+        if (decision === 'approve') {
+            listing.status = 'active';
+            listing.rejectionReason = '';
+            listing.earlySellActivatedAt = null;
+            listing.earlySellDeadline = null;
+            listing.earlySellActivatedBy = '';
+            await pushNotification(listing.sellerEmail, {
+                type: 'sell_request_approved',
+                title: 'Listing approved',
+                message: `"${listing.title}" is now live on Gavel.`,
+                actionUrl: `/item-detail.html?id=${listing._id}`,
+                metadata: { auctionId: listing._id.toString() }
+            });
+        } else {
+            listing.status = 'rejected';
+            listing.rejectionReason = rejectionReason || 'Listing information needs correction.';
+            listing.earlySellActivatedAt = null;
+            listing.earlySellDeadline = null;
+            listing.earlySellActivatedBy = '';
+            await pushNotification(listing.sellerEmail, {
+                type: 'sell_request_rejected',
+                title: 'Listing requires updates',
+                message: `"${listing.title}" was rejected: ${listing.rejectionReason}`,
+                actionUrl: '/workspace/listings.html',
+                metadata: { auctionId: listing._id.toString() }
+            });
+        }
+
+        await listing.save();
+
+        await AuditLog.create({
+            action: decision === 'approve' ? 'SELL_REQUEST_APPROVED' : 'SELL_REQUEST_REJECTED',
+            userEmail: req.adminUser.email,
+            details: `${req.adminUser.email} ${decision}d ${listing.title} (${listing._id})`,
+            ipAddress: req.ip
+        });
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Review error:', e);
+        res.status(500).json({ error: 'Server error processing review.' });
     }
 });
 
@@ -1496,33 +1948,6 @@ app.post('/api/admin/close-auction', requireAdmin, async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
-    }
-});
-
-// ── Admin Dashboard: Platform Analytics ──
-app.get('/api/admin/stats', requireAdmin, async (req, res) => {
-    try {
-        const totalUsers = await User.countDocuments();
-        const activeAuctions = await Auction.countDocuments({ status: 'active' });
-        const totalBidsToday = await Bid.countDocuments({ 
-            placedAt: { $gte: new Date(new Date().setHours(0,0,0,0)) } 
-        });
-        const totalVolume = await Auction.aggregate([
-            { $match: { status: 'closed', winnerEmail: { $exists: true } } },
-            { $group: { _id: null, total: { $sum: '$currentBid' } } }
-        ]);
-
-        const flaggedItems = await Auction.countDocuments({ verified: false }); // Placeholder for "flagged"
-
-        res.json({
-            totalUsers,
-            activeAuctions,
-            totalBidsToday,
-            totalVolume: totalVolume[0]?.total || 0,
-            flaggedItems
-        });
-    } catch (e) {
-        res.status(500).json({ error: 'Server error fetching stats' });
     }
 });
 
@@ -1559,12 +1984,12 @@ setInterval(async () => {
 // ─────────────────────────────────────────────
 // 13. START
 // ─────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Prepare Next.js and then start server
 nextApp.prepare().then(() => {
     console.log('   Next.js  : Ready');
-    
+
     server.listen(PORT, () => {
         console.log(`\n🔨 Gavel is open at http://localhost:${PORT}`);
         console.log(`   Database  : MongoDB Atlas`);

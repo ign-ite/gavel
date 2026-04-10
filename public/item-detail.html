@@ -87,6 +87,36 @@
             100% { transform: scale(1); color: var(--text-primary); }
         }
         .flash-active { animation: bidFlash 0.5s ease; }
+
+        .detail-thumb-strip {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+
+        .detail-thumb-strip button {
+            width: 72px;
+            height: 72px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            overflow: hidden;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .detail-thumb-strip button.active {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 2px rgba(140, 199, 196, 0.18);
+        }
+
+        .detail-thumb-strip img,
+        .detail-thumb-strip video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
     </style>
 </head>
 <body>
@@ -110,6 +140,7 @@
         <div class="detail-image-box">
             <img id="display-img" src="" alt="Market asset">
         </div>
+        <div class="detail-thumb-strip" id="detail-thumb-strip"></div>
         <div id="verification-section" style="display:none; margin-top:20px;">
             <span class="badge" style="background:rgba(0,196,255,0.1); color:var(--accent-blue); border-color:var(--accent-blue);">360° Verification Footage</span>
             <video id="display-video" controls style="width:100%; border-radius:12px; margin-top:12px; border:1px solid var(--border-color);"></video>
@@ -161,6 +192,8 @@
 
 <script src="js/nav.js"></script>
 <script>
+let detailMedia = [];
+
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const itemId  = urlParams.get('id') || urlParams.get('item'); // For backwards compatibility with 'item'
@@ -194,10 +227,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         window.currentItemId = itemData._id || itemData.id;
 
+        detailMedia = buildDetailMedia(itemData);
         document.getElementById('display-title').textContent = itemData.title;
-        document.getElementById('display-img').src = itemData.image;
+        document.getElementById('display-img').src = detailMedia[0] && detailMedia[0].type === 'image' ? detailMedia[0].src : (itemData.image || '');
         document.getElementById('display-price').textContent = itemData.currentBid.toLocaleString('en-IN');
         document.getElementById('bid-count-label').textContent = `${itemData.bidCount || 0} trade${itemData.bidCount !== 1 ? 's' : ''} placed`;
+        renderDetailThumbs(detailMedia);
 
         const reserveBadge = document.getElementById('reserve-badge');
         if (itemData.status === 'closed') {
@@ -260,6 +295,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="login-to-bid" style="border-color:var(--border-color); background:var(--bg-main);">
                     <p>This is your market — you cannot trade on your own asset.</p>
                 </div>`;
+            if (itemData.earlySellActive) {
+                bidFormArea.innerHTML += `
+                    <div class="login-to-bid" style="margin-top:12px; border-color:rgba(255,59,48,0.25); background:rgba(255,59,48,0.08);">
+                        <p>This listing is in early sell mode and closes in under 5 minutes.</p>
+                    </div>`;
+            }
         } else {
             bidFormArea.innerHTML = `
                 <div class="input-with-label" style="margin-bottom: 12px;">
@@ -310,6 +351,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                     alert("Failed to submit trade.");
                 }
             });
+
+            const sellerChatBtn = document.createElement('a');
+            sellerChatBtn.href = `/chat.html?auction=${window.currentItemId}&with=${encodeURIComponent(itemData.sellerEmail)}`;
+            sellerChatBtn.className = 'btn-primary';
+            sellerChatBtn.style.cssText = 'width:100%; display:block; text-align:center; margin-top:12px; background:transparent; color:var(--text-primary); border:1px solid var(--border-color);';
+            sellerChatBtn.textContent = 'Contact Seller';
+            bidFormArea.appendChild(sellerChatBtn);
+        }
+
+        if (currentUser && currentUser.isAdmin && itemData.status === 'active') {
+            const adminButton = document.createElement('button');
+            adminButton.className = 'btn-primary';
+            adminButton.style.cssText = 'width:100%; margin-top:12px; background:rgba(255,59,48,0.12); color:#ffd7df; border-color:rgba(255,59,48,0.35);';
+            adminButton.textContent = itemData.earlySellActive ? 'Early Sell Active' : 'Start Early Sell (5 min)';
+            adminButton.disabled = itemData.earlySellActive;
+            adminButton.addEventListener('click', async function() {
+                const res = await fetch('/api/admin/early-sell', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: window.currentItemId })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    alert(data.error || 'Failed to start early sell.');
+                    return;
+                }
+                alert('Early sell started. This listing now closes in 5 minutes.');
+                window.location.reload();
+            });
+            bidFormArea.appendChild(adminButton);
         }
 
         // 4. Load history
@@ -348,6 +419,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error("Error loading item:", err);
     }
 });
+
+function buildDetailMedia(item) {
+    const images = Array.isArray(item.images) && item.images.length ? item.images : [item.image];
+    const media = images.filter(Boolean).map(function(src) { return { type: 'image', src: src }; });
+    const video = item.verificationVideo || item.videoUrl;
+    if (video) media.push({ type: 'video', src: video });
+    return media;
+}
+
+function renderDetailThumbs(media) {
+    const strip = document.getElementById('detail-thumb-strip');
+    if (!strip) return;
+    strip.innerHTML = media.map(function(entry, index) {
+        return entry.type === 'image'
+            ? `<button type="button" class="${index === 0 ? 'active' : ''}" onclick="switchDetailMedia(${index})"><img src="${entry.src}" alt="Media ${index + 1}"></button>`
+            : `<button type="button" class="${index === 0 ? 'active' : ''}" onclick="switchDetailMedia(${index})"><video src="${entry.src}" muted></video></button>`;
+    }).join('');
+}
+
+window.switchDetailMedia = function(index) {
+    const selected = detailMedia[index];
+    if (!selected) return;
+    document.querySelectorAll('#detail-thumb-strip button').forEach(function(button, buttonIndex) {
+        button.classList.toggle('active', buttonIndex === index);
+    });
+    const image = document.getElementById('display-img');
+    const video = document.getElementById('display-video');
+    const section = document.getElementById('verification-section');
+
+    if (selected.type === 'image') {
+        image.src = selected.src;
+        image.style.display = 'block';
+        if (video) {
+            video.pause();
+            section.style.display = detailMedia.some(function(entry) { return entry.type === 'video'; }) ? 'block' : 'none';
+        }
+    } else {
+        image.style.display = 'none';
+        section.style.display = 'block';
+        video.src = selected.src;
+        video.play().catch(() => {});
+    }
+};
 
 async function loadBidHistory(itemId) {
     try {

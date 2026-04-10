@@ -56,3 +56,51 @@ Plaintext
     Select View Bid on any item to enter the bidding room and place your maximum bid.
 
 © 2026 Gavel Auction House. All rights reserved.
+
+## Updated Workspace And Review Flow
+
+- `dashboard.html` is now the single workspace for buyers, sellers, admins, and the super admin.
+- Seller submissions no longer go live immediately. They are stored as sell requests with statuses like `pending_review`, `under_review`, `active`, and `rejected`.
+- Admin access is controlled by `isAdmin`; super-admin access is controlled by `isSuperAdmin`.
+- Only the super admin can grant or revoke admin access through the workspace.
+- Super admin can run auto-assignment for sell requests, which distributes unassigned requests across available admins.
+- Admins review only the requests assigned to them unless they are the super admin.
+- Seller notifications are stored inside `User.notifications`.
+- Product images and videos are now intended to be stored in MongoDB through the `Media` collection and served from `/api/media/:id`.
+
+## Super Admin Setup
+
+Set a comma-separated env var before starting the server:
+
+```bash
+SUPER_ADMIN_EMAILS=founder@example.com,ops@example.com
+```
+
+When a matching user signs up or is synced from Supabase, that user is marked with:
+
+- `isSuperAdmin: true`
+- `isAdmin: true`
+
+If you need to promote an existing Mongo user manually once:
+
+```js
+db.users.updateOne(
+  { email: "founder@example.com" },
+  { $set: { isSuperAdmin: true, isAdmin: true } }
+)
+```
+
+## Demo Data
+
+Run the richer demo seed with:
+
+```bash
+npm run seed:demo
+```
+
+This seeds:
+
+- one super admin
+- two admins
+- sample sellers and buyers
+- active, pending, under-review, and rejected listings

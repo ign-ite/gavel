@@ -101,7 +101,7 @@
             vertical-align: middle;
         }
         .role-pill.seller { background: var(--glass-bg); color: var(--text-secondary); border: 1px solid var(--border-color); }
-        .role-pill.winner { background: rgba(0,255,136,0.1); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.2); }
+        .role-pill.winner, .role-pill.buyer { background: rgba(0,255,136,0.1); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.2); }
 
         .chat-body .chat-preview {
             font-size: 0.95rem;
@@ -186,7 +186,7 @@
 
 <div class="chats-page">
     <h1>Messages</h1>
-    <p class="subtitle">Private settlement channels with market counterparties.</p>
+    <p class="subtitle">See the product, the person, and the latest message.</p>
     <div id="chats-list">
         <p style="color:var(--text-secondary); text-align:center; padding:40px;">Syncing messages...</p>
     </div>
@@ -220,8 +220,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"></path>
                         </svg>
                     </div>
-                    <h3>No Active Channels</h3>
-                    <p>Channels open automatically when an auction you listed or won successfully settles.</p>
+                    <h3>No Messages Yet</h3>
+                    <p>Your product conversations will appear here.</p>
                     <a href="/auction.html" class="btn-primary" style="display:inline-block;">Explore Markets</a>
                 </div>`;
             return;
@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         chats.forEach(chat => {
             const hasUnread = chat.unread > 0;
             const a = document.createElement('a');
-            a.href      = `/chat.html?auction=${chat.auctionId}`;
+            a.href      = `/chat.html?auction=${chat.auctionId}&with=${encodeURIComponent(chat.otherEmail || '')}`;
             a.className = `chat-row${hasUnread ? ' has-unread' : ''}`;
 
             let previewHtml = '';
@@ -255,10 +255,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="chat-body">
                     <div class="chat-title">${escapeHtml(chat.auctionTitle)}</div>
                     <div class="chat-with">
-                        with <strong style="color:var(--text-primary);">${escapeHtml(chat.otherName)}</strong>
+                        <strong style="color:var(--text-primary);">${escapeHtml(chat.otherName)}</strong>
                         <span class="role-pill ${chat.myRole}">${chat.myRole === 'seller' ? 'Seller' : 'Buyer'}</span>
                     </div>
-                    ${chat.winningBid ? `<div class="winning-chip">Settled for ₹${Number(chat.winningBid).toLocaleString('en-IN')}</div>` : ''}
                     ${previewHtml}
                 </div>
                 <div class="chat-meta">

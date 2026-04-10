@@ -76,6 +76,120 @@
 
         .form-group textarea { height: 140px; resize: none; }
 
+        .helper-note {
+            margin-top: 8px;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            line-height: 1.5;
+        }
+
+        .helper-link {
+            color: var(--accent-blue);
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        .upload-stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .upload-slot {
+            display: grid;
+            gap: 8px;
+            padding: 14px;
+            border: 1px dashed var(--border-color);
+            border-radius: 10px;
+            background: var(--glass-bg);
+        }
+
+        .upload-slot-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slot-label {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .slot-state {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+
+        .slot-remove {
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 999px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 0.78rem;
+        }
+
+        .mini-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 10px 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: transparent;
+            color: var(--text-primary);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .sell-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(4, 10, 18, 0.78);
+            z-index: 1500;
+        }
+
+        .sell-modal.open {
+            display: flex;
+        }
+
+        .sell-modal-card {
+            width: min(560px, 100%);
+            padding: 28px;
+            border-radius: 18px;
+            border: 1px solid var(--border-color);
+            background: #10213a;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+        }
+
+        .sell-modal-card h3 {
+            margin: 0 0 10px;
+            font-size: 1.35rem;
+        }
+
+        .sell-modal-card p,
+        .sell-modal-card li {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .sell-modal-card ul {
+            margin: 16px 0 0;
+            padding-left: 18px;
+        }
+
+        .sell-modal-close {
+            margin-top: 22px;
+        }
+
         .sell-btn {
             width: 100%;
             margin-top: 20px;
@@ -118,8 +232,8 @@
 
     <main class="sell-container">
         <div class="sell-card">
-            <h2>List Your Asset</h2>
-            <span class="sell-subtitle">Submit your asset for market verification.</span>
+            <h2>Submit A Sell Request</h2>
+            <span class="sell-subtitle">Every listing enters a review queue before it goes live. Provide strong media, ownership details, and category-specific specs.</span>
             
             <form id="sell-form" action="/api/sell" method="POST" enctype="multipart/form-data" class="form-grid">
                 <div class="form-group full-width">
@@ -159,27 +273,73 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Primary Image (Cover)</label>
-                    <input type="file" name="image" accept="image/*" required>
+                    <label>Product Images</label>
+                    <div id="image-upload-stack" class="upload-stack"></div>
+                    <button type="button" class="mini-action" id="add-image-slot" style="margin-top:12px;">Add Another Image</button>
+                    <small class="helper-note">
+                        Upload images one by one. Add at least 3 clear photos: front, back, close-up, serial/orientation, and any defects.
+                    </small>
                 </div>
 
                 <div class="form-group">
-                    <label>360° Verification (Video)</label>
+                    <label>Verification Video</label>
                     <input type="file" name="video" accept="video/*" required>
                     <small style="color: var(--text-secondary); font-size: 0.75rem; display: block; margin-top: 8px;">
-                        *Must show 360 view for authenticity review.
+                        Capture a short 360° walkaround showing condition, packaging, and ownership markers.
                     </small>
+                </div>
+
+                <div class="form-group">
+                    <label>Auction Duration</label>
+                    <input type="datetime-local" name="endTime" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Recommended Bid Increment (₹)</label>
+                    <input type="number" name="increment" min="1" step="1" value="500" required>
                 </div>
 
                 <div class="form-group full-width">
                     <label>Asset Provenance & Description</label>
+                    <div class="helper-note" style="margin-bottom:10px;">
+                        Include condition, ownership proof, serial/orientation details, included accessories, and anything the admin should verify.
+                        <span class="helper-link" data-modal-target="listing-help-modal">What should I write?</span>
+                    </div>
                     <textarea id="base-description" required placeholder="Describe the asset's history, condition, and any accompanying documentation."></textarea>
                     <!-- Hidden input to hold the combined final description -->
                     <input type="hidden" name="description" id="final-description">
+                    <input type="hidden" name="specifications" id="specifications-json">
+                    <input type="hidden" name="checklist" id="checklist-json">
+                </div>
+
+                <div class="form-group full-width" style="padding: 18px; background: var(--glass-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+                    <label style="margin-bottom: 12px;">Submission Checklist</label>
+                    <div style="display:grid; gap:10px;">
+                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
+                            <input type="checkbox" class="checklist-item" data-key="ownershipConfirmed" required style="margin-top:3px;">
+                            <span>I confirm I own this product or I am authorized to sell it.</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
+                            <input type="checkbox" class="checklist-item" data-key="authenticityStatement" required style="margin-top:3px;">
+                            <span>I confirm the description and authenticity claims are accurate.</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
+                            <input type="checkbox" class="checklist-item" data-key="mediaQualityConfirmed" required style="margin-top:3px;">
+                            <span>I uploaded clear media that shows the true condition of the item.</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
+                            <input type="checkbox" class="checklist-item" data-key="orientationConfirmed" required style="margin-top:3px;">
+                            <span>I checked that the images and video are correctly oriented and easy to review.</span>
+                        </label>
+                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
+                            <input type="checkbox" class="checklist-item" data-key="termsAccepted" required style="margin-top:3px;">
+                            <span>I agree to the <a href="/terms-and-conditions.html" target="_blank" rel="noopener" style="color:var(--accent-blue);">terms and conditions</a>.</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="full-width">
-                    <button type="submit" class="btn-primary sell-btn">Submit for Verification</button>
+                    <button type="submit" class="btn-primary sell-btn">Submit For Review</button>
                 </div>
             </form>
         </div>
@@ -188,6 +348,19 @@
     <footer>
         <p>&copy; 2026 Gavel Protocol. All rights reserved.</p>
     </footer>
+    <div class="sell-modal" id="listing-help-modal" aria-hidden="true">
+        <div class="sell-modal-card">
+            <h3>Seller Submission Tips</h3>
+            <p>Give the reviewer exactly what they need to approve the listing in one pass.</p>
+            <ul>
+                <li>State the current condition clearly, including scratches, defects, repairs, and missing parts.</li>
+                <li>Add ownership markers such as serial numbers, invoice references, or packaging details.</li>
+                <li>Mention what is included: box, charger, papers, warranty card, accessories, or certificates.</li>
+                <li>Make sure images are upright and the video shows a full walkaround without heavy blur.</li>
+            </ul>
+            <button type="button" class="btn-primary sell-modal-close" data-close-modal="listing-help-modal">Close</button>
+        </div>
+    </div>
     <script src="js/nav.js"></script>
     <script>
         const categoryConfigs = {
@@ -231,6 +404,67 @@
         const form = document.getElementById('sell-form');
         const baseDesc = document.getElementById('base-description');
         const finalDesc = document.getElementById('final-description');
+        const specsJson = document.getElementById('specifications-json');
+        const checklistJson = document.getElementById('checklist-json');
+        const imageStack = document.getElementById('image-upload-stack');
+        const addImageSlotButton = document.getElementById('add-image-slot');
+        let imageSlotCount = 0;
+
+        function createImageSlot() {
+            if (imageSlotCount >= 6) return;
+            imageSlotCount += 1;
+
+            const slot = document.createElement('div');
+            slot.className = 'upload-slot';
+            slot.dataset.slot = String(imageSlotCount);
+            slot.innerHTML = `
+                <div class="upload-slot-top">
+                    <div>
+                        <div class="slot-label">Image ${imageSlotCount}</div>
+                        <div class="slot-state">No file selected</div>
+                    </div>
+                    ${imageSlotCount > 3 ? '<button type="button" class="slot-remove">Remove</button>' : ''}
+                </div>
+                <input type="file" name="images" accept="image/*" ${imageSlotCount <= 3 ? 'required' : ''}>
+            `;
+
+            const input = slot.querySelector('input');
+            const state = slot.querySelector('.slot-state');
+            input.addEventListener('change', function(event) {
+                const file = event.target.files && event.target.files[0];
+                state.textContent = file ? file.name : 'No file selected';
+            });
+
+            const removeButton = slot.querySelector('.slot-remove');
+            if (removeButton) {
+                removeButton.addEventListener('click', function() {
+                    slot.remove();
+                    syncImageSlots();
+                });
+            }
+
+            imageStack.appendChild(slot);
+            syncImageSlots();
+        }
+
+        function syncImageSlots() {
+            const slots = Array.from(imageStack.querySelectorAll('.upload-slot'));
+            imageSlotCount = slots.length;
+            slots.forEach(function(slot, index) {
+                const order = index + 1;
+                slot.dataset.slot = String(order);
+                const label = slot.querySelector('.slot-label');
+                if (label) label.textContent = `Image ${order}`;
+                const input = slot.querySelector('input');
+                if (input) input.required = order <= 3;
+                const removeButton = slot.querySelector('.slot-remove');
+                if (removeButton) removeButton.style.display = order <= 3 ? 'none' : 'inline-flex';
+            });
+            addImageSlotButton.style.display = imageSlotCount >= 6 ? 'none' : 'inline-flex';
+        }
+
+        [1, 2, 3].forEach(createImageSlot);
+        addImageSlotButton.addEventListener('click', createImageSlot);
 
         catSelect.addEventListener('change', (e) => {
             const cat = e.target.value;
@@ -252,18 +486,27 @@
         });
 
         form.addEventListener('submit', (e) => {
-            // Combine dynamic fields into the main description
-            let specsText = "";
             const inputs = document.querySelectorAll('.dyn-input');
+            const specPayload = {};
             if (inputs.length > 0) {
-                specsText += "### Specifications\n";
                 inputs.forEach(input => {
-                    specsText += `- **${input.getAttribute('data-label')}:** ${input.value}\n`;
+                    specPayload[input.getAttribute('data-label')] = input.value;
                 });
-                specsText += "\n### Description\n";
             }
-            
-            finalDesc.value = specsText + baseDesc.value;
+
+            const selectedImages = Array.from(imageStack.querySelectorAll('input[type="file"]')).filter((input) => input.files && input.files[0]);
+            if (selectedImages.length < 3) {
+                e.preventDefault();
+                alert("Please upload at least 3 images. You can add them one by one.");
+                return;
+            }
+
+            finalDesc.value = baseDesc.value.trim();
+            specsJson.value = JSON.stringify(specPayload);
+            checklistJson.value = JSON.stringify(Array.from(document.querySelectorAll('.checklist-item')).reduce((acc, item) => {
+                acc[item.getAttribute('data-key')] = item.checked;
+                return acc;
+            }, {}));
         });
 
         document.querySelector('input[name="video"]').addEventListener('change', function(e) {
@@ -271,6 +514,26 @@
             if (file) {
                 alert("Verification video attached. Our compliance team will review the footage upon listing submission.");
             }
+        });
+
+        document.querySelectorAll('[data-modal-target]').forEach(function(trigger) {
+            trigger.addEventListener('click', function() {
+                const modal = document.getElementById(trigger.getAttribute('data-modal-target'));
+                if (modal) modal.classList.add('open');
+            });
+        });
+
+        document.querySelectorAll('[data-close-modal]').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const modal = document.getElementById(button.getAttribute('data-close-modal'));
+                if (modal) modal.classList.remove('open');
+            });
+        });
+
+        document.querySelectorAll('.sell-modal').forEach(function(modal) {
+            modal.addEventListener('click', function(event) {
+                if (event.target === modal) modal.classList.remove('open');
+            });
         });
     </script>
 </body>

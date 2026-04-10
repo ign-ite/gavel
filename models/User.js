@@ -4,6 +4,8 @@ const UserSchema = new mongoose.Schema({
     fullname: { type: String, required: true },
     email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
     role:     { type: String, default: 'bidder', enum: ['bidder', 'seller', 'admin'] },
+    isAdmin:  { type: Boolean, default: false },
+    isSuperAdmin: { type: Boolean, default: false },
     balance:  { type: Number, default: 0 },
     avatar:   { type: String, default: '/images/default-avatar.png' },
     bio:      { type: String, default: '' },
@@ -21,7 +23,10 @@ const UserSchema = new mongoose.Schema({
     watchlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Auction' }],
     notifications: [{
         type: { type: String },
+        title: { type: String },
         message: { type: String },
+        actionUrl: { type: String },
+        metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
         read: { type: Boolean, default: false },
         createdAt: { type: Date, default: Date.now }
     }],

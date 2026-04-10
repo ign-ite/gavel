@@ -58,7 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    await authAPI.logout();
+    await authAPI.logout().catch(() => undefined);
+    clearClientAuthState();
     setUser(null);
   };
 
@@ -75,4 +76,30 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+function clearClientAuthState() {
+  if (typeof window === 'undefined') return;
+
+  const clearStore = (store: Storage) => {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < store.length; i += 1) {
+      const key = store.key(i);
+      if (!key) continue;
+      if (key.includes('supabase') || key.includes('sb-')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => store.removeItem(key));
+  };
+
+  try {
+    clearStore(window.localStorage);
+    clearStore(window.sessionStorage);
+  } catch (error) {
+    console.warn('Failed to clear auth storage', error);
+  }
+
+  document.cookie = 'sb_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  document.cookie = 'jwt_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
 }

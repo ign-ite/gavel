@@ -1,6 +1,7 @@
 let allAuctionsData = [];
 let userWatchlist = [];
 let currentLayout = localStorage.getItem('gavel-layout') || 'masonry';
+window.userWatchlist = userWatchlist;
 
 function getUrlFilters() {
     const params = new URLSearchParams(window.location.search);
@@ -60,6 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const wRes = await fetch('/api/watchlist');
                 const wList = await wRes.json();
                 userWatchlist = wList.map(a => a.id);
+                window.userWatchlist = userWatchlist;
             } catch(e) {}
         }
 
@@ -174,7 +176,8 @@ function renderFilteredAuctions() {
 }
 
 function buildMediaArray(item) {
-    const media = [{ type: 'image', src: item.image }];
+    const images = Array.isArray(item.images) && item.images.length ? item.images : [item.image];
+    const media = images.filter(Boolean).map(src => ({ type: 'image', src }));
     const verificationVideo = item.verificationVideo || item.videoUrl;
     if (verificationVideo) media.push({ type: 'video', src: verificationVideo });
     return media;
@@ -197,6 +200,7 @@ function buildMasonryCard(item) {
         <div class="card-media" style="height:${imageHeight}px;">
             ${!item.verified ? '<span class="unverified-badge">Unverified</span>' : ''}
             <button class="heart-btn" onclick="toggleCardWatchlist(event, '${item.id}', this)" title="${isWatched ? 'Remove Watchlist' : 'Add Watchlist'}" style="color:${starColor}">★</button>
+            ${item.hotLabel ? `<span class="unverified-badge" style="right:auto; left:12px; background:rgba(174,36,72,0.14); color:#ffd7df; border-color:rgba(174,36,72,0.35);">${item.hotLabel}</span>` : ''}
             ${media.map((m, i) => m.type === 'image'
                 ? `<img src="${m.src}" alt="${item.title}" style="height:${imageHeight}px; display:${i===0?'block':'none'};" data-media-idx="${i}">`
                 : `<video src="${m.src}" style="height:${imageHeight}px; display:none; object-fit:cover;" data-media-idx="${i}" muted playsinline></video>`
@@ -213,7 +217,7 @@ function buildMasonryCard(item) {
             <div class="card-title">${item.title}</div>
             <div class="card-bid">₹${item.currentBid.toLocaleString('en-IN')}</div>
             <div class="card-timer" id="timer-${item.id}">Loading...</div>
-            <button class="btn-primary" style="width:100%; padding:10px; font-size:0.85rem;" onclick="openDetail(event,'${item.id}')">View Market</button>
+            <button class="btn-primary" style="width:100%; padding:10px; font-size:0.85rem;" onclick="openDetail(event,'${item.id}')">See More Details</button>
         </div>
     `;
     return div;
@@ -231,6 +235,7 @@ function buildRowCard(item) {
         <div class="row-img-wrap">
             <img src="${item.image}" alt="${item.title}">
             ${!item.verified ? '<span class="unverified-badge" style="position:absolute; top:10px; left:10px; background:rgba(255,59,48,0.1); color:var(--neon-red); font-size:0.65rem; font-weight:700; padding:4px 8px; border-radius:6px; border: 1px solid rgba(255,59,48,0.3); z-index:5;">UNVERIFIED</span>' : ''}
+            ${item.hotLabel ? '<span class="unverified-badge" style="position:absolute; top:10px; left:10px; background:rgba(174,36,72,0.14); color:#ffd7df; font-size:0.65rem; font-weight:700; padding:4px 8px; border-radius:6px; border: 1px solid rgba(174,36,72,0.35); z-index:5;">' + item.hotLabel + '</span>' : ''}
             <button class="heart-btn" onclick="toggleCardWatchlist(event, '${item.id}', this)" title="${isWatched ? 'Remove Watchlist' : 'Add Watchlist'}" style="color:${isWatched ? 'var(--accent-blue)' : 'rgba(255,255,255,0.4)'}">★</button>
         </div>
         <div class="row-body">
@@ -246,7 +251,7 @@ function buildRowCard(item) {
                         <span class="card-timer" id="timer-${item.id}" style="font-size:0.9rem; font-weight:600; color:var(--text-primary); margin:0;">Loading...</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <button class="btn-primary" style="padding:10px 20px; font-size:0.85rem;" onclick="openDetail(event,'${item.id}')">View Market</button>
+                        <button class="btn-primary" style="padding:10px 20px; font-size:0.85rem;" onclick="openDetail(event,'${item.id}')">See More Details</button>
                     </div>
                 </div>
             </div>
@@ -327,6 +332,7 @@ window.closeDetail = function(e) {
 
 function renderDetailPanel(item, container) {
     const media = buildMediaArray(item);
+    window.currentDetailMedia = media;
 
     container.innerHTML = `
         <div style="background:var(--bg-card); display:flex; justify-content:space-between; align-items:center; padding:15px 25px; border-bottom:1px solid var(--border-color);">
@@ -336,8 +342,11 @@ function renderDetailPanel(item, container) {
         
         <div style="flex:1; overflow-y:auto;">
             <div class="detail-images">
-                <img id="detail-main-img" class="main-img" src="${item.image}" alt="${item.title}" style="display:${media[0].type==='image'?'block':'none'};">
-                ${item.verificationVideo || item.videoUrl ? `<video id="detail-main-vid" class="main-video" controls src="${item.verificationVideo || item.videoUrl}" style="display:none;"></video>` : ''}
+                ${media[0].type === 'image'
+                    ? `<img id="detail-main-img" class="main-img" src="${media[0].src}" alt="${item.title}">`
+                    : `<img id="detail-main-img" class="main-img" src="" alt="${item.title}" style="display:none;">`
+                }
+                <video id="detail-main-vid" class="main-video" controls style="display:${media[0].type === 'video' ? 'block' : 'none'};" ${media[0].type === 'video' ? `src="${media[0].src}"` : ''}></video>
             </div>
 
             ${media.length > 1 ? `
@@ -379,7 +388,7 @@ function renderDetailPanel(item, container) {
                 <h4 style="font-size:1.1rem; margin-bottom:10px;">Asset Description</h4>
                 <p style="color:var(--text-secondary); line-height:1.6; margin-bottom:30px;">${item.description || 'No description provided.'}</p>
 
-                <a href="/item-detail.html?id=${item.id}" class="btn-primary" style="display:block; text-align:center; background:transparent; border:1px solid var(--border-color); color:var(--text-primary);">Open Isolated Market View</a>
+                <a href="/item-detail.html?id=${item.id}" class="btn-primary" style="display:block; text-align:center; background:transparent; border:1px solid var(--border-color); color:var(--text-primary);">See More Details</a>
             </div>
         </div>
     `;
@@ -409,18 +418,31 @@ function renderDetailPanel(item, container) {
 
 // ── Detail switch media ────────────────────────────
 window.switchDetailMedia = function(idx) {
+    const media = window.currentDetailMedia || [];
     const img = document.getElementById('detail-main-img');
     const vid = document.getElementById('detail-main-vid');
     const thumbs = document.querySelectorAll('.detail-thumb-strip img, .detail-thumb-strip .vid-thumb');
+    const selected = media[idx];
+    if (!selected) return;
 
     thumbs.forEach((t, i) => { if (i === idx) t.classList.add('active'); else t.classList.remove('active'); });
 
-    if (idx === 0) {
-        if (img) img.style.display = 'block';
-        if (vid) { vid.style.display = 'none'; vid.pause(); }
+    if (selected.type === 'image') {
+        if (img) {
+            img.style.display = 'block';
+            img.src = selected.src;
+        }
+        if (vid) {
+            vid.style.display = 'none';
+            vid.pause();
+        }
     } else {
         if (img) img.style.display = 'none';
-        if (vid) { vid.style.display = 'block'; vid.play(); }
+        if (vid) {
+            vid.style.display = 'block';
+            vid.src = selected.src;
+            vid.play().catch(() => {});
+        }
     }
 };
 
@@ -655,6 +677,7 @@ window.toggleCardWatchlist = async (e, id, btn) => {
             btn.title = data.added ? 'Remove from Watchlist' : 'Add to Watchlist';
             if (data.added && !userWatchlist.includes(id)) userWatchlist.push(id);
             if (!data.added) userWatchlist = userWatchlist.filter(wId => wId !== id);
+            window.userWatchlist = userWatchlist;
         }
     } catch(err) {}
 };

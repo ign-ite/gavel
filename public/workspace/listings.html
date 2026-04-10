@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace Listings | Gavel</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/workspace.css">
+</head>
+<body class="workspace-mode" data-workspace-view="listings">
+    <div class="workspace-shell">
+        <header class="workspace-topbar">
+            <a href="/" class="workspace-brand"><span class="workspace-brand-mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="workspace-brand-copy"><strong>Gavel Workspace</strong><span>Listings</span></span></a>
+            <div class="workspace-user"><div class="workspace-avatar" id="workspace-avatar">G</div><div><strong id="workspace-user-name">Loading...</strong><span id="workspace-user-role">Loading role</span><span id="workspace-user-balance">Balance ₹0</span></div></div>
+        </header>
+        <div class="workspace-layout">
+            <nav class="workspace-tabs" id="workspace-tabs"></nav>
+            <section class="workspace-hero">
+                <article class="workspace-panel hero"><span class="workspace-kicker">Workspace Mode</span><h1 id="workspace-title">Loading workspace</h1><p id="workspace-copy">Pulling your current queues and activity.</p><div class="workspace-actions"><a class="workspace-button" href="/sell-product.html">Create Listing</a><a class="workspace-button-secondary" href="/auction.html">Browse Auctions</a><a class="workspace-button-secondary" href="/login.html" id="workspace-logout">Logout</a></div></article>
+                <article class="workspace-panel"><span class="workspace-kicker" id="workspace-spotlight-label">Marketplace status</span><h3 id="workspace-spotlight-title">Loading workspace</h3><p id="workspace-spotlight-copy">Please wait while Gavel loads your data.</p><div class="workspace-spotlight-value" id="workspace-spotlight-value">0</div><div class="workspace-meta" id="workspace-spotlight-footnote">Metrics will appear here.</div></article>
+            </section>
+            <section class="workspace-stats" id="workspace-stats"></section>
+            <main class="workspace-view" id="workspace-content"></main>
+        </div>
+    </div>
+    <script src="/js/nav.js"></script>
+    <script src="/js/workspace.js"></script>
+</body>
+</html>

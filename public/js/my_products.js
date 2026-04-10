@@ -69,14 +69,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         listContainer.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:30px; grid-column: 1 / -1;">Loading...</p>';
         window.activeTimers = [];
         try {
-            const [activeRes, closedRes] = await Promise.all([
-                fetch('/api/auctions'),
-                fetch('/api/auctions/closed')
-            ]);
-            const activeAuctions = await activeRes.json();
-            const closedAuctions = await closedRes.json();
-            const allAuctions    = activeTab === 'active' ? activeAuctions : closedAuctions;
-            const myItems        = allAuctions.filter(item => item.sellerEmail === currentUser.email);
+            const res = await fetch('/api/my-listings');
+            const listings = await res.json();
+            const myItems = listings.filter(item => activeTab === 'active'
+                ? ['active', 'pending_review', 'under_review', 'rejected'].includes(item.status)
+                : item.status === 'closed');
 
             if (myItems.length === 0) {
                 listContainer.innerHTML = activeTab === 'active' ? `
@@ -108,9 +105,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const statusBadge = isClosed
             ? `<span style="position:absolute; top:12px; right:12px; background:var(--glass-bg); color:var(--text-secondary); padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid var(--border-color);">SETTLED</span>`
+            : item.status === 'rejected'
+                ? `<span style="position:absolute; top:12px; right:12px; background:rgba(255,59,48,0.12); color:var(--neon-red); padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid rgba(255,59,48,0.3);">REJECTED</span>`
             : item.verified
                 ? `<span style="position:absolute; top:12px; right:12px; background:rgba(0,255,136,0.1); color:var(--neon-green); padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid rgba(0,255,136,0.3);">VERIFIED</span>`
-                : `<span style="position:absolute; top:12px; right:12px; background:rgba(255,165,0,0.1); color:orange; padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid rgba(255,165,0,0.3);">PENDING</span>`;
+                : `<span style="position:absolute; top:12px; right:12px; background:rgba(255,165,0,0.1); color:orange; padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid rgba(255,165,0,0.3);">${item.status === 'under_review' ? 'UNDER REVIEW' : 'PENDING'}</span>`;
+        const hotBadge = !isClosed && item.earlySellActive
+            ? `<span style="position:absolute; top:12px; left:12px; background:rgba(255,59,48,0.14); color:#ffd7df; padding:4px 8px; font-size:0.7rem; font-weight:700; border-radius:6px; border:1px solid rgba(255,59,48,0.35);">HOT SELLING</span>`
+            : '';
 
         let timeHtml = '';
         if (!isClosed && item.endTime) {
@@ -175,12 +177,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         div.innerHTML = `
             <div style="position:relative; height:180px;">
                 ${statusBadge}
+                ${hotBadge}
                 <img src="${item.image}" alt="${item.title}" style="width:100%; height:100%; object-fit:cover; border-bottom:1px solid var(--border-color);">
             </div>
             <div class="my-product-info">
                 <h3>${item.title}</h3>
                 <p style="margin-bottom:16px; color:var(--text-secondary); font-size:0.85rem;">
-                    Volume: ${item.bidCount || 0} trade${item.bidCount !== 1 ? 's' : ''}
+                    Volume: ${item.bidCount || 0} trade${item.bidCount !== 1 ? 's' : ''}${item.assignedAdminEmail ? ` · Reviewer: ${item.assignedAdminEmail}` : ''}${item.rejectionReason ? ` · ${item.rejectionReason}` : ''}${item.earlySellActive ? ' · Closing fast' : ''}
                 </p>
                 ${timeHtml}
                 ${winnerHtml}

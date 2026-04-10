@@ -11,6 +11,7 @@ const Feed = {
         const sellerName = (item.sellerEmail || 'seller').split('@')[0];
         const sellerInitial = sellerName.charAt(0).toUpperCase();
         const hasVideo = !!item.videoUrl;
+        const isWatched = Array.isArray(window.userWatchlist) && window.userWatchlist.includes(item.id);
 
         const card = document.createElement('div');
         card.className = 'short-card';
@@ -21,6 +22,8 @@ const Feed = {
                 <span class="short-seller-name">${sellerName}</span>
             </div>
             <div class="short-live-badge"><span class="short-live-dot"></span>LIVE</div>
+            ${item.hotLabel ? `<div class="short-live-badge" style="top:58px; background:rgba(174,36,72,0.14); color:#ffd7df; border-color:rgba(174,36,72,0.35);">${item.hotLabel}</div>` : ''}
+            <button class="heart-btn" onclick="toggleCardWatchlist(event, '${item.id}', this)" title="${isWatched ? 'Remove Watchlist' : 'Add Watchlist'}" style="color:${isWatched ? 'var(--accent-blue)' : 'rgba(255,255,255,0.6)'}">★</button>
             ${hasVideo
                 ? `<video class="short-video" src="${item.videoUrl}" muted loop playsinline preload="metadata"></video>`
                 : `<img class="short-media" src="${item.image}" alt="${item.title}" loading="lazy">`
@@ -85,5 +88,31 @@ const Feed = {
         });
     }
 };
+
+if (typeof window.toggleCardWatchlist !== 'function') {
+    window.toggleCardWatchlist = async function(event, id, button) {
+        event.stopPropagation();
+        try {
+            const res = await fetch('/api/watchlist/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            });
+            if (res.status === 401) {
+                window.location.href = '/login.html';
+                return;
+            }
+            const data = await res.json();
+            if (!res.ok || !data.success) return;
+            button.style.color = data.added ? 'var(--accent-blue)' : 'rgba(255,255,255,0.6)';
+            if (!Array.isArray(window.userWatchlist)) window.userWatchlist = [];
+            if (data.added) {
+                window.userWatchlist = [...new Set(window.userWatchlist.concat(id))];
+            } else {
+                window.userWatchlist = window.userWatchlist.filter(function(entry) { return entry !== id; });
+            }
+        } catch (error) {}
+    };
+}
 
 window.GavelFeed = Feed;

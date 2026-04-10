@@ -301,6 +301,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const params    = new URLSearchParams(window.location.search);
     const auctionId = params.get('auction');
+    const otherEmailParam = params.get('with');
 
     if (!auctionId) { showError('No market specified.'); return; }
 
@@ -314,7 +315,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let chatData = null;
     try {
-        const res = await fetch(`/api/chat/${auctionId}`);
+        const suffix = otherEmailParam ? `?with=${encodeURIComponent(otherEmailParam)}` : '';
+        const res = await fetch(`/api/chat/${auctionId}${suffix}`);
         if (!res.ok) {
             const err = await res.json();
             showError(err.message || 'Access denied.');
@@ -342,7 +344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         connLabel.textContent = 'Connected (Secure)';
         ws.send(JSON.stringify({
             type:      'join_chat',
-            auctionId: auctionId,
+            conversationKey: chatData.conversationKey,
             email:     currentUser.email,
             name:      currentUser.name || currentUser.fullname
         }));
@@ -355,7 +357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ws.addEventListener('message', (event) => {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'chat_msg' && String(msg.auctionId) === String(auctionId)) {
+        if (msg.type === 'chat_msg' && msg.conversationKey === chatData.conversationKey) {
             appendMessage(msg, currentUser.email);
         }
     });
@@ -370,12 +372,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.style.height = 'auto';
 
         if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'chat_msg', auctionId, text }));
+            ws.send(JSON.stringify({ type: 'chat_msg', auctionId, text, recipientEmail: chatData.otherEmail }));
         } else {
             fetch(`/api/chat/${auctionId}`, {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ message: text })
+                body:    JSON.stringify({ message: text, recipientEmail: chatData.otherEmail })
             }).then(r => r.json()).then(data => {
                 if (data.message) appendMessage({ ...data.message, senderEmail: currentUser.email }, currentUser.email);
             });

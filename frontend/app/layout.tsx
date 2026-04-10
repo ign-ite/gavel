@@ -1,20 +1,19 @@
 import type { Metadata } from 'next'
-import { Inter, Roboto_Slab } from 'next/font/google'
+import { Fraunces, Manrope } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 
 // Inter - Clean body font
-const inter = Inter({ 
+const manrope = Manrope({
   subsets: ['latin'],
   variable: '--font-body',
   weight: ['400', '500', '600', '700']
 })
 
-// Roboto Slab - Clean headings, no cursive
-const robotoSlab = Roboto_Slab({
+const fraunces = Fraunces({
   subsets: ['latin'],
   variable: '--font-heading',
-  weight: ['400', '500', '600', '700']
+  weight: ['500', '600', '700']
 })
 
 export const metadata: Metadata = {
@@ -29,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${robotoSlab.variable}`}>
+      <body className={`${manrope.variable} ${fraunces.variable}`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

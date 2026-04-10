@@ -63,8 +63,19 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
         try {
-            const res = await fetch('/api/auctions');
-            allAuctions = await res.json();
+            const [auctionRes, meRes] = await Promise.all([
+                fetch('/api/auctions'),
+                fetch('/api/me')
+            ]);
+            allAuctions = await auctionRes.json();
+            const me = await meRes.json();
+            if (me.loggedIn) {
+                const watchlistRes = await fetch('/api/watchlist').catch(() => null);
+                if (watchlistRes && watchlistRes.ok) {
+                    const watchlist = await watchlistRes.json();
+                    window.userWatchlist = watchlist.map(item => item.id);
+                }
+            }
             renderExplore();
             GavelFeed.startTimers();
         } catch(e) { console.error(e); }

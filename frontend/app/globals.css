@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Slab:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,9 +12,8 @@
   
   --background: #1A3263;
   --foreground: #FFFFFF;
-
-  --font-heading: 'Roboto Slab', serif;
-  --font-body: 'Inter', sans-serif;
+  --font-gravitas: var(--font-heading);
+  --font-montserrat: var(--font-body);
 
   /* shadcn variables */
   --foreground: 217 33% 17%;
@@ -68,20 +65,20 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-montserrat);
+    font-family: var(--font-body);
   }
   
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-gravitas);
-    font-weight: 400;
+    font-family: var(--font-heading);
+    font-weight: 500;
     letter-spacing: 0.03em;
   }
 }
 
 @layer components {
   .font-display {
-    font-family: var(--font-gravitas);
-    font-weight: 400;
+    font-family: var(--font-heading);
+    font-weight: 500;
     letter-spacing: 0.03em;
   }
   
@@ -92,7 +89,7 @@
   }
   
   .font-body {
-    font-family: var(--font-montserrat);
+    font-family: var(--font-body);
   }
   
   .text-teal {

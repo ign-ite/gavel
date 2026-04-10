@@ -270,28 +270,9 @@
                 }
 
                 btn.disabled = true;
-                btn.textContent = 'Opening Razorpay...';
+                btn.textContent = 'Adding Funds...';
                 try {
-                    if (!window.Razorpay) {
-                        await new Promise((resolve, reject) => {
-                            const script = document.createElement('script');
-                            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                            script.onload = resolve;
-                            script.onerror = reject;
-                            document.head.appendChild(script);
-                        });
-                    }
-
-                    const configRes = await fetch('/api/payments/razorpay/config');
-                    const config = await configRes.json();
-                    if (!config.enabled) {
-                        alert('Razorpay is not configured yet. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on the server.');
-                        btn.disabled = false;
-                        btn.textContent = 'Add Funds';
-                        return;
-                    }
-
-                    const orderRes = await fetch('/api/payments/razorpay/order', {
+                    const orderRes = await fetch('/api/deposit', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ amount })
@@ -303,42 +284,9 @@
                         btn.textContent = 'Add Funds';
                         return;
                     }
-
-                    const razorpay = new window.Razorpay({
-                        key: orderData.keyId,
-                        amount: orderData.order.amount,
-                        currency: orderData.order.currency,
-                        name: 'Gavel',
-                        description: 'Wallet top-up',
-                        order_id: orderData.order.id,
-                        handler: async function (response) {
-                            const verifyRes = await fetch('/api/payments/razorpay/verify', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    ...response,
-                                    amount
-                                })
-                            });
-                            const verifyData = await verifyRes.json();
-                            if (!verifyRes.ok || !verifyData.success) {
-                                alert(verifyData.message || 'Payment verification failed.');
-                            } else {
-                                document.getElementById('wallet-balance-display').textContent = '₹' + verifyData.newBalance.toLocaleString('en-IN');
-                            }
-                            btn.disabled = false;
-                            btn.textContent = 'Add Funds';
-                        },
-                        theme: { color: '#8CC7C4' }
-                    });
-
-                    razorpay.on('payment.failed', function (response) {
-                        alert(response.error.description || 'Payment failed.');
-                        btn.disabled = false;
-                        btn.textContent = 'Add Funds';
-                    });
-
-                    razorpay.open();
+                    document.getElementById('wallet-balance-display').textContent = '₹' + orderData.newBalance.toLocaleString('en-IN');
+                    btn.disabled = false;
+                    btn.textContent = 'Add Funds';
                 } catch(e) {
                     btn.disabled = false;
                     btn.textContent = 'Add Funds';
@@ -360,7 +308,7 @@
 
             listEl.innerHTML = bids.map(b => {
                 const isClosed = b.auctionStatus === 'closed';
-                const isWinner = isClosed && b.winner_email === myEmail;
+                const isWinner = isClosed && b.winnerEmail === myEmail;
                 const isOutbid = !isClosed && Number(b.amount) < Number(b.currentBid);
 
                 let statusTag = '';
@@ -372,7 +320,7 @@
 
                 const viewBtn = `<a href="/item-detail.html?id=${b.auctionId}" class="btn-primary" style="padding: 6px 14px; font-size:0.8rem; background:transparent; border-color:var(--accent-blue); color:var(--accent-blue); margin-left:10px;">View</a>`;
                 const chatBtn = isWinner
-                    ? `<a href="/chat.html?auction=${b.auctionId}" class="btn-primary" style="padding: 6px 14px; font-size:0.8rem; margin-left:10px;">Chat with Seller</a>`
+                    ? `<a href="/chat.html?auction=${b.auctionId}&with=${encodeURIComponent(b.sellerEmail || '')}" class="btn-primary" style="padding: 6px 14px; font-size:0.8rem; margin-left:10px;">Chat with Seller</a>`
                     : '';
 
                 return `
