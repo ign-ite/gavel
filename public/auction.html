@@ -50,33 +50,36 @@
                     <option value="price_asc">Price: Low to High</option>
                     <option value="price_desc">Price: High to Low</option>
                 </select>
+
+                <button id="market-search-btn" class="btn-primary" type="button" style="padding:10px 18px;">
+                    Search
+                </button>
             </div>
 
             <!-- Layout Toggle Buttons -->
-                <div style="display:flex; align-items:center; gap:8px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; padding:4px;">
-                    <button id="toggle-masonry" onclick="setLayout('masonry')" title="Pinterest view"
-                        style="width:36px; height:36px; border:none; border-radius:6px; cursor:pointer; background:var(--accent-blue); display:flex; align-items:center; justify-content:center; transition:background 0.2s;">
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="white">
-                            <rect x="1" y="1" width="7" height="5" rx="1.5"/>
-                            <rect x="1" y="8" width="7" height="9" rx="1.5"/>
-                            <rect x="10" y="1" width="7" height="9" rx="1.5"/>
-                            <rect x="10" y="12" width="7" height="5" rx="1.5"/>
-                        </svg>
-                    </button>
-                    <button id="toggle-row" onclick="setLayout('row')" title="List view"
-                        style="width:36px; height:36px; border:none; border-radius:6px; cursor:pointer; background:transparent; display:flex; align-items:center; justify-content:center; transition:background 0.2s;">
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="var(--text-secondary)">
-                            <rect x="1" y="1"  width="5" height="5"  rx="1.5"/>
-                            <rect x="8" y="2"  width="9" height="1.5" rx="0.75"/>
-                            <rect x="8" y="5"  width="6" height="1.5" rx="0.75"/>
-                            <rect x="1" y="8"  width="5" height="5"  rx="1.5"/>
-                            <rect x="8" y="9"  width="9" height="1.5" rx="0.75"/>
-                            <rect x="8" y="12" width="6" height="1.5" rx="0.75"/>
-                            <rect x="1" y="15" width="5" height="2"  rx="1"/>
-                            <rect x="8" y="15" width="7" height="1.5" rx="0.75"/>
-                        </svg>
-                    </button>
-                </div>
+            <div style="display:flex; align-items:center; gap:8px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; padding:4px;">
+                <button id="toggle-masonry" onclick="setLayout('masonry')" title="Pinterest view"
+                    style="width:36px; height:36px; border:none; border-radius:6px; cursor:pointer; background:var(--accent-blue); display:flex; align-items:center; justify-content:center; transition:background 0.2s;">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="white">
+                        <rect x="1" y="1" width="7" height="5" rx="1.5"/>
+                        <rect x="1" y="8" width="7" height="9" rx="1.5"/>
+                        <rect x="10" y="1" width="7" height="9" rx="1.5"/>
+                        <rect x="10" y="12" width="7" height="5" rx="1.5"/>
+                    </svg>
+                </button>
+                <button id="toggle-row" onclick="setLayout('row')" title="List view"
+                    style="width:36px; height:36px; border:none; border-radius:6px; cursor:pointer; background:transparent; display:flex; align-items:center; justify-content:center; transition:background 0.2s;">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="var(--text-secondary)">
+                        <rect x="1" y="1"  width="5" height="5"  rx="1.5"/>
+                        <rect x="8" y="2"  width="9" height="1.5" rx="0.75"/>
+                        <rect x="8" y="5"  width="6" height="1.5" rx="0.75"/>
+                        <rect x="1" y="8"  width="5" height="5"  rx="1.5"/>
+                        <rect x="8" y="9"  width="9" height="1.5" rx="0.75"/>
+                        <rect x="8" y="12" width="6" height="1.5" rx="0.75"/>
+                        <rect x="1" y="15" width="5" height="2"  rx="1"/>
+                        <rect x="8" y="15" width="7" height="1.5" rx="0.75"/>
+                    </svg>
+                </button>
             </div>
         </div>
         <div class="masonry-grid" id="auction-grid">

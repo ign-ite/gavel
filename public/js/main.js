@@ -2,6 +2,25 @@ let allAuctionsData = [];
 let userWatchlist = [];
 let currentLayout = localStorage.getItem('gavel-layout') || 'masonry';
 
+function getUrlFilters() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        search: params.get('search') || '',
+        category: params.get('category') || '',
+        sort: params.get('sort') || 'ending_soon'
+    };
+}
+
+function syncFilterUrl(query, category, sortVal) {
+    if (!window.location.pathname.endsWith('auction.html')) return;
+    const params = new URLSearchParams(window.location.search);
+    query ? params.set('search', query) : params.delete('search');
+    category ? params.set('category', category) : params.delete('category');
+    sortVal && sortVal !== 'ending_soon' ? params.set('sort', sortVal) : params.delete('sort');
+    const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+    window.history.replaceState({}, '', nextUrl);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     const grid = document.getElementById("auction-grid") || document.getElementById("auction-list");
     if (!grid) return;
@@ -48,9 +67,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         const filterSelect = document.getElementById("market-filter");
         const sortSelect = document.getElementById("sort-filter");
 
-        if (searchInput) searchInput.addEventListener("input", renderFilteredAuctions);
-        if (filterSelect) filterSelect.addEventListener("change", renderFilteredAuctions);
-        if (sortSelect) sortSelect.addEventListener("change", renderFilteredAuctions);
+        const searchBtn = document.getElementById("market-search-btn");
+        const initialFilters = getUrlFilters();
+
+        if (searchInput) {
+            searchInput.value = initialFilters.search;
+            searchInput.addEventListener("input", renderFilteredAuctions);
+            searchInput.addEventListener("keydown", (e) => {
+                if (e.key === 'Enter') renderFilteredAuctions();
+            });
+        }
+        if (filterSelect) {
+            filterSelect.value = initialFilters.category;
+            filterSelect.addEventListener("change", renderFilteredAuctions);
+        }
+        if (sortSelect) {
+            sortSelect.value = initialFilters.sort;
+            sortSelect.addEventListener("change", renderFilteredAuctions);
+        }
+        if (searchBtn) searchBtn.addEventListener("click", renderFilteredAuctions);
 
         renderFilteredAuctions();
         renderShortsFeed(allAuctionsData);
@@ -103,11 +138,13 @@ function renderFilteredAuctions() {
     const query = searchInput ? searchInput.value.toLowerCase() : "";
     const category = filterSelect ? filterSelect.value : "";
     const sortVal = sortSelect ? sortSelect.value : "ending_soon";
+    syncFilterUrl(query, category, sortVal);
 
     let filtered = allAuctionsData.filter(item => {
         const matchesQuery = !query || item.title.toLowerCase().includes(query) || (item.description && item.description.toLowerCase().includes(query));
-        const matchesCategory = !category || (item.category && item.category === category);
-        return matchesQuery && (matchesCategory || !item.category); 
+        const itemCategory = (item.category || '').trim().toLowerCase();
+        const matchesCategory = !category || itemCategory === category.trim().toLowerCase();
+        return matchesQuery && matchesCategory;
     });
 
     // Apply Sorting
@@ -138,7 +175,8 @@ function renderFilteredAuctions() {
 
 function buildMediaArray(item) {
     const media = [{ type: 'image', src: item.image }];
-    if (item.verificationVideo) media.push({ type: 'video', src: item.verificationVideo });
+    const verificationVideo = item.verificationVideo || item.videoUrl;
+    if (verificationVideo) media.push({ type: 'video', src: verificationVideo });
     return media;
 }
 
@@ -193,6 +231,7 @@ function buildRowCard(item) {
         <div class="row-img-wrap">
             <img src="${item.image}" alt="${item.title}">
             ${!item.verified ? '<span class="unverified-badge" style="position:absolute; top:10px; left:10px; background:rgba(255,59,48,0.1); color:var(--neon-red); font-size:0.65rem; font-weight:700; padding:4px 8px; border-radius:6px; border: 1px solid rgba(255,59,48,0.3); z-index:5;">UNVERIFIED</span>' : ''}
+            <button class="heart-btn" onclick="toggleCardWatchlist(event, '${item.id}', this)" title="${isWatched ? 'Remove Watchlist' : 'Add Watchlist'}" style="color:${isWatched ? 'var(--accent-blue)' : 'rgba(255,255,255,0.4)'}">★</button>
         </div>
         <div class="row-body">
             <div>
@@ -298,7 +337,7 @@ function renderDetailPanel(item, container) {
         <div style="flex:1; overflow-y:auto;">
             <div class="detail-images">
                 <img id="detail-main-img" class="main-img" src="${item.image}" alt="${item.title}" style="display:${media[0].type==='image'?'block':'none'};">
-                ${item.verificationVideo ? `<video id="detail-main-vid" class="main-video" controls src="${item.verificationVideo}" style="display:none;"></video>` : ''}
+                ${item.verificationVideo || item.videoUrl ? `<video id="detail-main-vid" class="main-video" controls src="${item.verificationVideo || item.videoUrl}" style="display:none;"></video>` : ''}
             </div>
 
             ${media.length > 1 ? `
@@ -331,7 +370,7 @@ function renderDetailPanel(item, container) {
                 <div class="form-group" style="background:var(--bg-card); padding:25px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:25px;">
                     <label style="display:block; font-size:0.85rem; font-weight:700; margin-bottom:10px;">PLACE A TRADE LIMIT</label>
                     <div style="display:flex; gap:10px;">
-                        <input type="number" id="detail-bid-input" placeholder="₹${(item.currentBid + 1).toLocaleString('en-IN')} or more" class="form-control" style="flex:1;">
+                        <input type="number" id="detail-bid-input" min="${item.currentBid + Math.max(1, Math.round(item.increment || 1))}" step="1" placeholder="₹${(item.currentBid + Math.max(1, Math.round(item.increment || 1))).toLocaleString('en-IN')} or more" class="form-control" style="flex:1;">
                         <button onclick="placeDetailBid('${item.id}')" class="btn-primary" style="padding:0 25px; white-space:nowrap;">Execute Trade</button>
                     </div>
                     <p id="detail-bid-msg" style="margin-top:10px; font-size:0.85rem; display:none;"></p>
@@ -393,6 +432,12 @@ window.placeDetailBid = async function(auctionId) {
 
     if (!amount || amount <= 0) {
         msgEl.textContent = 'Enter a valid amount limit.';
+        msgEl.style.color = 'var(--neon-red)';
+        msgEl.style.display = 'block';
+        return;
+    }
+    if (!Number.isInteger(amount)) {
+        msgEl.textContent = 'Trade amount must be in whole rupees only.';
         msgEl.style.color = 'var(--neon-red)';
         msgEl.style.display = 'block';
         return;

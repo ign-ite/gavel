@@ -66,6 +66,21 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+input,
+select,
+button {
+    font: inherit;
+}
+
+select {
+    color-scheme: dark;
+}
+
+select option {
+    background: #ffffff;
+    color: #0f1d33;
+}
+
 .navbar {
     display: flex;
     justify-content: space-between;

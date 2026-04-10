@@ -219,8 +219,27 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const params = new URLSearchParams(window.location.search);
-            const id = params.get('id');
-            if(!id) return window.location.href = '/';
+            let id = params.get('id');
+
+            if (!id) {
+                try {
+                    const listingRes = await fetch('/api/auctions');
+                    const listings = await listingRes.json();
+                    const firstActive = listings.find(item => item.status === 'active');
+                    if (firstActive) {
+                        id = firstActive.id;
+                        const nextUrl = `${window.location.pathname}?id=${encodeURIComponent(id)}`;
+                        window.history.replaceState({}, '', nextUrl);
+                    }
+                } catch (error) {
+                    console.error('Unable to load shorts feed:', error);
+                }
+            }
+
+            if (!id) {
+                document.getElementById('short-title').textContent = 'No live shorts available';
+                return;
+            }
 
             // Click routing
             document.getElementById('video-area').addEventListener('click', () => {
@@ -237,10 +256,10 @@
 
                 // Populate media
                 const videoArea = document.getElementById('video-area');
-                const mediaUrl = data.videoUrl || data.image;
-                if(data.videoUrl) {
+                const mediaUrl = data.verificationVideo || data.videoUrl || data.image;
+                if(data.verificationVideo || data.videoUrl) {
                     const vid = document.createElement('video');
-                    vid.src = data.videoUrl;
+                    vid.src = mediaUrl;
                     vid.autoplay = true;
                     vid.loop = true;
                     vid.muted = true;

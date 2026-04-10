@@ -32,15 +32,26 @@ interface ReelItem {
 }
 
 export default function Home() {
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [reels, setReels] = useState<ReelItem[]>([]);
   const [activeReelIndex, setActiveReelIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [tickerVisible, setTickerVisible] = useState(true);
-  const [scrollY, setScrollY] = useState(0);
+  const [watchlistIds, setWatchlistIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchReels = async () => {
+      const cacheKey = "gavel-landing-reels";
+      const cachedReels = window.localStorage.getItem(cacheKey);
+      if (cachedReels) {
+        try {
+          setReels(JSON.parse(cachedReels));
+          setIsLoading(false);
+        } catch {
+          window.localStorage.removeItem(cacheKey);
+        }
+      }
+
       try {
         const res = await fetch('/api/auctions');
         const data = await res.json();
@@ -55,11 +66,15 @@ export default function Home() {
           live: true,
           image: a.image || a.images?.[0]
         }));
-        setReels(activeAuctions.length > 0 ? activeAuctions : demoReels);
+        const nextReels = activeAuctions.length > 0 ? activeAuctions : demoReels;
+        setReels(nextReels);
+        window.localStorage.setItem(cacheKey, JSON.stringify(nextReels));
         setIsLoading(false);
       } catch (error) {
         console.error("Failed to fetch reels:", error);
-        setReels(demoReels);
+        if (!cachedReels) {
+          setReels(demoReels);
+        }
         setIsLoading(false);
       }
     };
@@ -67,11 +82,28 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const fetchWatchlist = async () => {
+      if (!user) {
+        setWatchlistIds([]);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/watchlist');
+        if (!res.ok) return;
+        const data = await res.json();
+        setWatchlistIds(data.map((item: any) => item.id));
+      } catch (error) {
+        console.error("Failed to fetch watchlist:", error);
+      }
+    };
+
+    fetchWatchlist();
+  }, [user]);
+
+  useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      setScrollY(currentScrollY);
-      
-      // Hide ticker when scrolling down, show when scrolling up
       if (currentScrollY > 50) {
         setTickerVisible(false);
       } else {
@@ -84,6 +116,46 @@ export default function Home() {
 
   const nextReel = () => setActiveReelIndex((prev) => (prev + 1) % reels.length);
   const prevReel = () => setActiveReelIndex((prev) => (prev - 1 + reels.length) % reels.length);
+  const currentReel = reels[activeReelIndex];
+
+  const handleJoinNow = () => {
+    window.location.assign('/signup.html');
+  };
+
+  const handleCategoryClick = (category: string) => {
+    window.location.assign(`/auction.html?category=${encodeURIComponent(category)}`);
+  };
+
+  const handleWatchlistToggle = async (auctionId: string) => {
+    if (!user) {
+      window.location.assign('/login.html');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/watchlist/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: auctionId })
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.assign('/login.html');
+        }
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        setWatchlistIds((prev) =>
+          data.added ? [...new Set([...prev, auctionId])] : prev.filter((id) => id !== auctionId)
+        );
+      }
+    } catch (error) {
+      console.error("Failed to update watchlist:", error);
+    }
+  };
 
   return (
     <main className="min-h-screen overflow-x-hidden" style={{ background: "linear-gradient(180deg, #1A3263 0%, #547792 50%, #EFD2B0 100%)", fontFamily: "var(--font-montserrat)" }}>
@@ -128,7 +200,7 @@ export default function Home() {
                 <button onClick={logout} className="px-4 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}>Logout</button>
               </div>
             ) : (
-              <button onClick={() => window.location.href = '/login.html'} className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}>Join Now</button>
+              <button onClick={handleJoinNow} className="px-5 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}>Join Now</button>
             )
           )}
         </div>
@@ -170,26 +242,35 @@ export default function Home() {
                 <div className="flex items-center justify-center h-full"><div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "#EFD2B0", borderTopColor: "transparent" }} /></div>
               ) : reels.length > 0 ? (
                 <div className="relative w-full h-full">
-                  <Image src={reels[activeReelIndex].image} alt={reels[activeReelIndex].title} fill className="object-cover" priority />
+                  <Image src={currentReel.image} alt={currentReel.title} fill className="object-cover" priority />
                   <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(26, 50, 99, 0.95) 0%, rgba(84, 119, 146, 0.4) 50%, transparent 100%)" }} />
-                  {reels[activeReelIndex].live && <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.95)" }}><span className="w-2 h-2 bg-white rounded-full animate-pulse" /><span className="text-white text-xs font-bold tracking-wider" style={{ fontFamily: "var(--font-montserrat)" }}>LIVE</span></div>}
+                  {currentReel.live && <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.95)" }}><span className="w-2 h-2 bg-white rounded-full animate-pulse" /><span className="text-white text-xs font-bold tracking-wider" style={{ fontFamily: "var(--font-montserrat)" }}>LIVE</span></div>}
                   <div className="absolute bottom-0 left-0 p-6 w-full">
                     <div className="flex items-end justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "rgba(239, 210, 176, 0.25)", color: "#EFD2B0", fontFamily: "var(--font-montserrat)" }}>LOT {reels[activeReelIndex].id}</span>
-                          {reels[activeReelIndex].verified && <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}><Shield className="w-3 h-3" /> VERIFIED</span>}
+                          <span className="text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "rgba(239, 210, 176, 0.25)", color: "#EFD2B0", fontFamily: "var(--font-montserrat)" }}>LOT {currentReel.id}</span>
+                          {currentReel.verified && <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded tracking-wider" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}><Shield className="w-3 h-3" /> VERIFIED</span>}
                         </div>
-                        <h3 className="text-lg md:text-xl text-white mb-1 tracking-wide" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>{reels[activeReelIndex].title}</h3>
-                        <p className="text-xl md:text-2xl tracking-wider" style={{ color: "#EFD2B0", fontFamily: "var(--font-gravitas)", fontWeight: 500 }}>{reels[activeReelIndex].price}</p>
-                        <p className="text-xs mt-2 tracking-wider" style={{ color: "#547792", fontFamily: "var(--font-montserrat)" }}>ENDS IN {reels[activeReelIndex].timeLeft}</p>
+                        <h3 className="text-lg md:text-xl text-white mb-1 tracking-wide" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>{currentReel.title}</h3>
+                        <p className="text-xl md:text-2xl tracking-wider" style={{ color: "#EFD2B0", fontFamily: "var(--font-gravitas)", fontWeight: 500 }}>{currentReel.price}</p>
+                        <p className="text-xs mt-2 tracking-wider" style={{ color: "#547792", fontFamily: "var(--font-montserrat)" }}>ENDS IN {currentReel.timeLeft}</p>
                       </div>
                       <div className="flex flex-col items-center gap-3 ml-4">
-                        <button className="flex flex-col items-center gap-1" style={{ color: "white" }}><div className="p-2.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.2)" }}><Heart className="w-5 h-5" style={{ color: "#EFD2B0" }} /></div><span className="text-[10px] tracking-wider" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }}>{reels[activeReelIndex].likes}</span></button>
-                        <button className="flex flex-col items-center gap-1" style={{ color: "white" }}><div className="p-2.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.2)" }}><Bookmark className="w-5 h-5" style={{ color: "#EFD2B0" }} /></div></button>
+                        <button className="flex flex-col items-center gap-1" style={{ color: "white" }}><div className="p-2.5 rounded-full" style={{ background: "rgba(239, 210, 176, 0.2)" }}><Heart className="w-5 h-5" style={{ color: "#EFD2B0" }} /></div><span className="text-[10px] tracking-wider" style={{ color: "#FFC570", fontFamily: "var(--font-montserrat)" }}>{currentReel.likes}</span></button>
+                        <button
+                          onClick={() => handleWatchlistToggle(currentReel.id)}
+                          className="flex flex-col items-center gap-1"
+                          style={{ color: "white" }}
+                          aria-label="Add to watchlist"
+                        >
+                          <div className="p-2.5 rounded-full" style={{ background: watchlistIds.includes(currentReel.id) ? "rgba(239, 210, 176, 0.45)" : "rgba(239, 210, 176, 0.2)" }}>
+                            <Bookmark className="w-5 h-5" style={{ color: watchlistIds.includes(currentReel.id) ? "#FFC570" : "#EFD2B0", fill: watchlistIds.includes(currentReel.id) ? "#FFC570" : "transparent" }} />
+                          </div>
+                        </button>
                       </div>
                     </div>
-                    <button className="w-full mt-4 py-3 rounded-full font-semibold text-sm tracking-wider transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)", boxShadow: "0 4px 20px rgba(239, 210, 176, 0.4)" }}>PLACE BID</button>
+                    <button onClick={() => window.location.assign(`/item-detail.html?id=${currentReel.id}`)} className="w-full mt-4 py-3 rounded-full font-semibold text-sm tracking-wider transition-all hover:scale-[1.02]" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)", boxShadow: "0 4px 20px rgba(239, 210, 176, 0.4)" }}>PLACE BID</button>
                   </div>
                   <button onClick={prevReel} className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-all hover:scale-110" style={{ background: "rgba(26, 50, 99, 0.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(239, 210, 176, 0.3)" }}><ChevronLeft className="w-5 h-5" style={{ color: "#EFD2B0" }} /></button>
                   <button onClick={nextReel} className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-all hover:scale-110" style={{ background: "rgba(26, 50, 99, 0.85)", backdropFilter: "blur(10px)", border: "1px solid rgba(239, 210, 176, 0.3)" }}><ChevronRight className="w-5 h-5" style={{ color: "#EFD2B0" }} /></button>
@@ -212,14 +293,14 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {categories.map((cat, idx) => (
-              <div key={idx} className="group relative overflow-hidden rounded-xl cursor-pointer transition-transform hover:-translate-y-1" style={{ aspectRatio: "3/4" }}>
+              <button key={idx} type="button" onClick={() => handleCategoryClick(cat.name)} className="group relative overflow-hidden rounded-xl cursor-pointer transition-transform hover:-translate-y-1 text-left" style={{ aspectRatio: "3/4" }}>
                 <Image src={cat.image} alt={cat.name} fill className="object-cover transition-transform group-hover:scale-110" />
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(26, 50, 99, 0.95) 0%, transparent 60%)" }} />
                 <div className="absolute bottom-0 left-0 right-0 p-4">
                   <h3 className="text-lg tracking-wider text-white" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>{cat.name}</h3>
                   <p className="text-xs mt-1" style={{ color: "#547792", fontFamily: "var(--font-montserrat)" }}>{cat.count} items</p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -243,6 +324,18 @@ export default function Home() {
                   onClick={() => window.location.href = `/short-view.html?id=${reel.id}`}
                 >
                   <Image src={reel.image} alt={reel.title} fill className="object-cover opacity-80" />
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleWatchlistToggle(reel.id);
+                    }}
+                    className="absolute top-3 left-3 z-10 p-2 rounded-full"
+                    style={{ background: "rgba(26, 50, 99, 0.75)", border: "1px solid rgba(239, 210, 176, 0.2)" }}
+                    aria-label="Add to watchlist"
+                  >
+                    <Bookmark className="w-4 h-4" style={{ color: watchlistIds.includes(reel.id) ? "#FFC570" : "#EFD2B0", fill: watchlistIds.includes(reel.id) ? "#FFC570" : "transparent" }} />
+                  </button>
                   {reel.live && <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-600/90 backdrop-blur-sm"><span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /><span className="text-[8px] font-bold text-white tracking-widest">LIVE</span></div>}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-4">
                     <p className="text-[10px] font-bold text-white mb-0.5 truncate">{reel.title}</p>
@@ -257,40 +350,38 @@ export default function Home() {
 
 
 
-      {/* EXCLUSIVE ACCESS - FULLSCREEN */}
-      <section className="min-h-screen relative overflow-hidden flex items-center justify-center" style={{ background: "linear-gradient(135deg, #1A3263 0%, #547792 50%, #EFD2B0 100%" }}>
-        <div className="absolute inset-0 opacity-15">
-          <div className="absolute top-0 right-0 w-full h-full" style={{ backgroundImage: "radial-gradient(circle at 20% 50%, rgba(239, 210, 176, 0.3) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(84, 119, 146, 0.25) 0%, transparent 50%)" }} />
-        </div>
-        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-          <div className="mb-8">
-            <div className="w-24 h-24 rounded-full mx-auto mb-8 flex items-center justify-center" style={{ background: "rgba(239, 210, 176, 0.2)", border: "2px solid rgba(239, 210, 176, 0.4)" }}>
-              <Lock className="w-12 h-12" style={{ color: "#EFD2B0" }} />
-            </div>
-            <h2 className="text-5xl md:text-7xl mb-6 tracking-[0.05em]" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400, color: "#EFD2B0" }}>Exclusive Access</h2>
-            <p className="text-xl max-w-2xl mx-auto mb-12" style={{ color: "rgba(237, 247, 189, 0.9)", fontFamily: "var(--font-montserrat)", fontSize: "1.1rem" }}>
-              Join our invite-only auctions featuring the world's rarest collectibles. Limited to 100 new members per month.
+      <section className="py-24 px-6" style={{ background: "rgba(26, 50, 99, 0.45)" }}>
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <span className="text-[10px] font-semibold tracking-[0.4em] uppercase" style={{ color: "#EFD2B0", fontFamily: "var(--font-montserrat)" }}>Bid With Clarity</span>
+            <h2 className="text-3xl md:text-5xl text-white mt-3 tracking-[0.06em]" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>Everything You Need To Join A Live Auction</h2>
+            <p className="text-sm mt-4 max-w-2xl mx-auto" style={{ color: "rgba(237, 247, 189, 0.9)", fontFamily: "var(--font-montserrat)" }}>
+              Explore active lots, save items to your watchlist, and jump into verified bidding flows without leaving the main experience.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
+          <div className="grid md:grid-cols-3 gap-6">
             {[
-              { icon: <Star className="w-6 h-6" />, title: "Invite-Only", desc: "Private auctions" },
-              { icon: <Crown className="w-6 h-6" />, title: "VIP Concierge", desc: "Personal service" },
-              { icon: <Zap className="w-6 h-6" />, title: "Early Access", desc: "Preview lots" },
-              { icon: <Gem className="w-6 h-6" />, title: "Private Sales", desc: "Direct deals" }
-            ].map((benefit, idx) => (
-              <div key={idx} className="p-6 rounded-2xl" style={{ background: "rgba(26, 50, 99, 0.6)", border: "1px solid rgba(239, 210, 176, 0.25)" }}>
-                <div className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "rgba(239, 210, 176, 0.2)", color: "#EFD2B0" }}>{benefit.icon}</div>
-                <h3 className="text-sm font-medium mb-1" style={{ color: "#EFD2B0", fontFamily: "var(--font-gravitas)" }}>{benefit.title}</h3>
-                <p className="text-xs" style={{ color: "#547792", fontFamily: "var(--font-montserrat)" }}>{benefit.desc}</p>
+              { icon: <Shield className="w-6 h-6" />, title: "Verified Lots", desc: "Every listing surfaces trust, category, and media details before you bid." },
+              { icon: <Bookmark className="w-6 h-6" />, title: "Watchlist Ready", desc: "Save promising items from the landing page and revisit them from your dashboard." },
+              { icon: <Zap className="w-6 h-6" />, title: "Real-Time Bidding", desc: "Move from discovery to live auction pages with filters, timers, and lot details intact." }
+            ].map((feature, idx) => (
+              <div key={idx} className="p-6 rounded-2xl" style={{ background: "rgba(26, 50, 99, 0.7)", border: "1px solid rgba(239, 210, 176, 0.2)" }}>
+                <div className="w-12 h-12 rounded-full mb-4 flex items-center justify-center" style={{ background: "rgba(239, 210, 176, 0.16)", color: "#EFD2B0" }}>{feature.icon}</div>
+                <h3 className="text-lg mb-2 text-white" style={{ fontFamily: "var(--font-gravitas)", fontWeight: 400 }}>{feature.title}</h3>
+                <p className="text-sm" style={{ color: "#547792", fontFamily: "var(--font-montserrat)" }}>{feature.desc}</p>
               </div>
             ))}
           </div>
 
-          <button onClick={() => window.location.href = '/signup.html'} className="px-12 py-5 rounded-full font-semibold text-lg tracking-wider transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)", boxShadow: "0 10px 40px rgba(239, 210, 176, 0.4)" }}>
-            Request Membership
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-10">
+            <button onClick={() => window.location.assign('/auction.html')} className="px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "linear-gradient(135deg, #EFD2B0 0%, #547792 100%)", color: "#1A3263", fontFamily: "var(--font-montserrat)" }}>
+              Browse Live Auctions
+            </button>
+            <button onClick={handleJoinNow} className="px-8 py-3.5 rounded-full font-semibold text-sm transition-all hover:scale-105" style={{ background: "transparent", border: "1px solid rgba(239, 210, 176, 0.5)", color: "#EFD2B0", fontFamily: "var(--font-montserrat)" }}>
+              Create Account
+            </button>
+          </div>
         </div>
       </section>
 
@@ -317,17 +408,17 @@ export default function Home() {
 }
 
 const demoReels: ReelItem[] = [
-  { id: "042", title: "1962 Rolex Daytona", price: "₹1.25 Crore", timeLeft: "14h 22m", likes: "2.4k", comments: "156", verified: true, live: true, image: "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?w=800&q=80" },
-  { id: "057", title: "Mercedes-Benz 300 SL", price: "₹2.45 Crore", timeLeft: "9h 45m", likes: "3.2k", comments: "234", verified: true, live: true, image: "https://images.unsplash.com/photo-1563720223185-11003d516935?w=800&q=80" },
-  { id: "031", title: "Hermès Birkin 25", price: "₹1.8 Crore", timeLeft: "1d 11h", likes: "5.1k", comments: "412", verified: true, live: false, image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=800&q=80" },
-  { id: "095", title: "Patek Philippe", price: "₹68 Lakh", timeLeft: "18h 30m", likes: "3.5k", comments: "289", verified: true, live: true, image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80" },
+  { id: "042", title: "1962 Rolex Daytona", price: "₹1.25 Crore", timeLeft: "14h 22m", likes: "2.4k", comments: "156", verified: true, live: true, image: "/images/product-headphones.png" },
+  { id: "057", title: "Mercedes-Benz 300 SL", price: "₹2.45 Crore", timeLeft: "9h 45m", likes: "3.2k", comments: "234", verified: true, live: true, image: "/images/product-laptop.png" },
+  { id: "031", title: "Hermès Birkin 25", price: "₹1.8 Crore", timeLeft: "1d 11h", likes: "5.1k", comments: "412", verified: true, live: false, image: "/images/product-sneakers.png" },
+  { id: "095", title: "Patek Philippe", price: "₹68 Lakh", timeLeft: "18h 30m", likes: "3.5k", comments: "289", verified: true, live: true, image: "/images/auction-products.png" },
 ];
 
 const categories = [
-  { name: "Timepieces", count: "240", image: "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?w=400&q=80" },
-  { name: "Fine Art", count: "186", image: "https://images.unsplash.com/photo-1577083552431-6e5fd01988ec?w=400&q=80" },
-  { name: "Automobiles", count: "42", image: "https://images.unsplash.com/photo-1563720223185-11003d516935?w=400&q=80" },
-  { name: "Handbags", count: "95", image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&q=80" },
+  { name: "Electronics", count: "240", image: "/images/product-headphones.png" },
+  { name: "Art", count: "186", image: "/images/auction-products.png" },
+  { name: "Vehicles", count: "42", image: "/images/product-laptop.png" },
+  { name: "Fashion", count: "95", image: "/images/product-sneakers.png" },
 ];
 
 const trustFeatures = [

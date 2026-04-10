@@ -31,6 +31,7 @@ const express = require('express');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
 const http = require('http');
 const { WebSocketServer } = require('ws');
@@ -111,7 +112,7 @@ const redirectIfLoggedIn = (req, res, next) => {
 };
 
 app.get('/login.html', redirectIfLoggedIn, (req, res, next) => next());
-app.get('/signup.html', (req, res) => res.redirect('/login.html')); // User requested to "remove signup"
+app.get('/signup.html', redirectIfLoggedIn, (req, res, next) => next());
 
 // ─────────────────────────────────────────────
 // 2.5 LOCAL AUTHENTICATION (Varunkumar)
@@ -254,6 +255,7 @@ async function mapAuction(doc) {
         winnerName: obj.winnerName,
         winningBid: obj.winningBid,
         category: obj.category,
+        increment: obj.increment || 1,
         reserve_met: obj.currentBid >= (obj.reservePrice || 0),
         bidCount,
         velocityScore: obj.velocityScore || 0
@@ -456,6 +458,28 @@ async function closeAuction(auctionId) {
 // Since we use Supabase for Auth on the client, /api/me just parses the cookie
 app.get('/api/me', async (req, res) => {
     try {
+        const localToken = req.cookies.jwt_token;
+        if (localToken) {
+            try {
+                const decoded = jwt.verify(localToken, JWT_SECRET);
+                const dbUser = await User.findById(decoded.id);
+                if (dbUser) {
+                    return res.json({
+                        loggedIn: true,
+                        user: {
+                            id: dbUser._id.toString(),
+                            email: dbUser.email,
+                            name: dbUser.fullname,
+                            role: dbUser.role,
+                            walletBalance: dbUser.walletBalance || 0
+                        }
+                    });
+                }
+            } catch (error) {
+                console.warn('Local auth cookie invalid:', error.message);
+            }
+        }
+
         const token = req.cookies.sb_access_token;
         if (!token) return res.json({ loggedIn: false });
 
@@ -486,7 +510,6 @@ app.get('/api/me', async (req, res) => {
     }
 });
 
-// Mock Deposit Flow
 app.post('/api/deposit', requireLogin, async (req, res) => {
     try {
         const { amount } = req.body;
@@ -509,6 +532,107 @@ app.post('/api/deposit', requireLogin, async (req, res) => {
         res.json({ success: true, newBalance: dbUser.walletBalance });
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/api/payments/razorpay/config', (req, res) => {
+    res.json({
+        enabled: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+        keyId: process.env.RAZORPAY_KEY_ID || ''
+    });
+});
+
+app.post('/api/payments/razorpay/order', requireLogin, async (req, res) => {
+    try {
+        const keyId = process.env.RAZORPAY_KEY_ID;
+        const keySecret = process.env.RAZORPAY_KEY_SECRET;
+        if (!keyId || !keySecret) {
+            return res.status(503).json({ success: false, message: 'Razorpay is not configured on the server.' });
+        }
+
+        const amount = Math.round(Number(req.body.amount));
+        if (!Number.isInteger(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, message: 'Enter a valid rupee amount.' });
+        }
+
+        const orderRes = await fetch('https://api.razorpay.com/v1/orders', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                amount: amount * 100,
+                currency: 'INR',
+                receipt: `gavel_${Date.now()}`,
+                notes: {
+                    userEmail: req.user.email,
+                    userId: req.user.id,
+                    purpose: 'wallet_top_up'
+                }
+            })
+        });
+
+        const orderData = await orderRes.json();
+        if (!orderRes.ok) {
+            return res.status(502).json({
+                success: false,
+                message: orderData?.error?.description || 'Failed to create Razorpay order.'
+            });
+        }
+
+        res.json({ success: true, keyId, order: orderData });
+    } catch (e) {
+        console.error('Razorpay order error:', e);
+        res.status(500).json({ success: false, message: 'Unable to start payment.' });
+    }
+});
+
+app.post('/api/payments/razorpay/verify', requireLogin, async (req, res) => {
+    try {
+        const keySecret = process.env.RAZORPAY_KEY_SECRET;
+        if (!keySecret) {
+            return res.status(503).json({ success: false, message: 'Razorpay is not configured on the server.' });
+        }
+
+        const {
+            razorpay_order_id: orderId,
+            razorpay_payment_id: paymentId,
+            razorpay_signature: signature,
+            amount
+        } = req.body;
+
+        const rupeeAmount = Math.round(Number(amount));
+        if (!orderId || !paymentId || !signature || !Number.isInteger(rupeeAmount) || rupeeAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid payment verification payload.' });
+        }
+
+        const expectedSignature = crypto
+            .createHmac('sha256', keySecret)
+            .update(`${orderId}|${paymentId}`)
+            .digest('hex');
+
+        if (expectedSignature !== signature) {
+            return res.status(400).json({ success: false, message: 'Payment signature mismatch.' });
+        }
+
+        const dbUser = await User.findOne({ email: req.user.email });
+        if (!dbUser) return res.status(404).json({ success: false, message: 'User not found.' });
+
+        dbUser.walletBalance += rupeeAmount;
+        await dbUser.save();
+
+        await AuditLog.create({
+            action: 'WALLET_TOP_UP',
+            userEmail: dbUser.email,
+            details: `Razorpay payment ${paymentId} credited ₹${rupeeAmount.toLocaleString('en-IN')}`,
+            ipAddress: req.ip
+        });
+
+        res.json({ success: true, newBalance: dbUser.walletBalance });
+    } catch (e) {
+        console.error('Razorpay verify error:', e);
+        res.status(500).json({ success: false, message: 'Unable to verify payment.' });
     }
 });
 
@@ -608,7 +732,25 @@ app.get('/api/profile', requireLogin, async (req, res) => {
             context.stats.watchlistCount = user.watchlist ? user.watchlist.length : 0;
         }
 
-        res.json(context);
+        res.json({
+            user,
+            stats: context.stats,
+            id: user._id.toString(),
+            fullname: user.fullname,
+            email: user.email,
+            role: user.role,
+            trustScore: user.trustScore || 100,
+            ratingsCount: user.ratings ? user.ratings.length : 0,
+            walletBalance: user.walletBalance || 0,
+            activeListings: context.stats.activeListings || 0,
+            closedListings: await Auction.countDocuments({ sellerEmail: user.email, status: 'closed' }),
+            totalBids: await Bid.countDocuments({ bidderEmail: user.email }),
+            activeBids: context.stats.activeBids || 0,
+            auctionsWon: context.stats.wins || 0,
+            watchlistCount: context.stats.watchlistCount || 0,
+            totalVolume: context.stats.totalEarnings || 0,
+            created_at: user.createdAt
+        });
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -860,7 +1002,18 @@ async function handlePlaceBid(req, res) {
         if (item.status === 'closed') return res.status(400).json({ success: false, message: 'This auction has closed.' });
         if (item.endTime && item.endTime <= new Date()) return res.status(400).json({ success: false, message: 'This auction has expired.' });
         if (item.sellerEmail === req.user.email) return res.status(403).json({ success: false, message: 'You cannot bid on your own listing.' });
-        if (amount <= item.currentBid) return res.status(400).json({ success: false, message: `Bid must exceed ₹${item.currentBid.toLocaleString('en-IN')}.` });
+        if (!Number.isInteger(amount)) {
+            return res.status(400).json({ success: false, message: 'Bid amount must be in whole rupees only.' });
+        }
+
+        const minIncrement = Math.max(1, Math.round(item.increment || 1));
+        const minimumAllowedBid = item.currentBid + minIncrement;
+        if (amount < minimumAllowedBid) {
+            return res.status(400).json({
+                success: false,
+                message: `Bid must be at least ₹${minimumAllowedBid.toLocaleString('en-IN')} (minimum increment ₹${minIncrement.toLocaleString('en-IN')}).`
+            });
+        }
 
         const dbUser = await User.findOne({ email: req.user.email });
         if (!dbUser || dbUser.walletBalance < amount) {

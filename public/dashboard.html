@@ -263,7 +263,7 @@
                 <h3>Available Balance</h3>
                 <div class="balance">₹<span id="wallet-balance">0.00</span></div>
             </div>
-            <button class="btn-primary" onclick="addFundsMock()">Add Funds</button>
+            <button class="btn-primary" onclick="startAddFunds()">Add Funds</button>
         </div>
 
         <!-- OVERVIEW SECTION -->
@@ -408,13 +408,85 @@
             });
         }
 
-        async function addFundsMock() {
-            await fetch('/api/deposit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount: 100000 })
+        async function ensureRazorpayScript() {
+            if (window.Razorpay) return true;
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
             });
-            loadProfile();
+            return Boolean(window.Razorpay);
+        }
+
+        async function startAddFunds() {
+            const rawAmount = window.prompt('Enter amount to add in INR', '1000');
+            if (rawAmount === null) return;
+
+            const amount = Math.round(Number(rawAmount));
+            if (!Number.isInteger(amount) || amount <= 0) {
+                alert('Enter a valid rupee amount.');
+                return;
+            }
+
+            try {
+                const configRes = await fetch('/api/payments/razorpay/config');
+                const config = await configRes.json();
+                if (!config.enabled) {
+                    alert('Razorpay is not configured yet. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on the server.');
+                    return;
+                }
+
+                await ensureRazorpayScript();
+
+                const orderRes = await fetch('/api/payments/razorpay/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                const orderData = await orderRes.json();
+                if (!orderRes.ok || !orderData.success) {
+                    alert(orderData.message || 'Unable to start payment.');
+                    return;
+                }
+
+                const razorpay = new window.Razorpay({
+                    key: orderData.keyId,
+                    amount: orderData.order.amount,
+                    currency: orderData.order.currency,
+                    name: 'Gavel',
+                    description: 'Wallet top-up',
+                    order_id: orderData.order.id,
+                    handler: async function (response) {
+                        const verifyRes = await fetch('/api/payments/razorpay/verify', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ...response,
+                                amount
+                            })
+                        });
+                        const verifyData = await verifyRes.json();
+                        if (!verifyRes.ok || !verifyData.success) {
+                            alert(verifyData.message || 'Payment verification failed.');
+                            return;
+                        }
+                        alert(`Funds added successfully. New balance: ₹${verifyData.newBalance.toLocaleString('en-IN')}`);
+                        loadProfile();
+                    },
+                    theme: { color: '#8CC7C4' }
+                });
+
+                razorpay.on('payment.failed', function (response) {
+                    alert(response.error.description || 'Payment failed.');
+                });
+
+                razorpay.open();
+            } catch (err) {
+                console.error(err);
+                alert('Unable to open payment window.');
+            }
         }
     </script>
 </body>
