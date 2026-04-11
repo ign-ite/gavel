@@ -1,9 +1,13 @@
 // API utility functions for communicating with the Express backend
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
+function buildApiUrl(endpoint: string) {
+  return API_BASE ? `${API_BASE}${endpoint}` : endpoint;
+}
 
 export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
-  const url = `${API_BASE}${endpoint}`;
+  const url = buildApiUrl(endpoint);
   
   const defaultOptions: RequestInit = {
     credentials: 'include',
@@ -62,7 +66,7 @@ export const auctionAPI = {
     fetchAPI('/api/auctions/closed'),
   
   create: (formData: FormData) =>
-    fetch(`${API_BASE}/api/sell`, {
+    fetch(buildApiUrl('/api/sell'), {
       method: 'POST',
       credentials: 'include',
       body: formData,

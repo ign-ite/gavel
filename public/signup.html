@@ -28,43 +28,49 @@
     <main class="auth-container">
         <div class="auth-card">
             <h2>Create Account</h2>
-            <p class="subtitle">Join the world's premier asset market</p>
+            <p class="subtitle">Google signup is live. Other methods stay as placeholders for now.</p>
 
             <button class="btn-google" id="google-auth-btn" type="button">
                 <img src="images/google-logo.png" alt="Google Logo">
                 Sign up with Google
             </button>
-            <div class="auth-divider">or</div>
+            <button type="button" class="btn-primary btn-block" id="toggle-other-methods" style="margin-top:12px; background:transparent; color:var(--text-primary); border:1px solid var(--border-color);">
+                Use other methods
+            </button>
 
             <div class="error-msg" id="error-msg"
                 style="display:none; color:var(--neon-red); margin-bottom:15px; text-align:center;"></div>
 
-            <form id="signup-form">
-                <div class="form-group">
-                    <label for="fullname">Full Name</label>
-                    <input type="text" id="fullname" name="fullname" class="form-control" required
-                        placeholder="John Doe">
-                </div>
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" class="form-control" required
-                        placeholder="john@example.com">
-                </div>
-                <div class="form-group">
-                    <label for="role">Register As</label>
-                    <select id="role" name="role" class="form-control"
-                        style="appearance: none; background: url('data:image/svg+xml;utf8,<svg fill=%22%238b949e%22 viewBox=%220 0 24 24%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>') no-repeat right 10px center; background-size: 20px;">
-                        <option value="bidder">Trader (Buyer)</option>
-                        <option value="seller">Creator (Seller)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" class="form-control" required
-                        placeholder="Min. 8 characters" minlength="8">
-                </div>
-                <button type="submit" class="btn-primary btn-block">Sign Up</button>
-            </form>
+            <div id="auth-placeholder-panel" style="display:none; margin-top:18px; padding:18px; border:1px dashed var(--border-color); border-radius:12px; background:rgba(255,255,255,0.02);">
+                <div class="auth-divider" style="margin-top:0;">other methods</div>
+                <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:14px;">Email signup is only a placeholder right now. The fields are shown for future wiring and do not submit anywhere.</p>
+                <form id="signup-form">
+                    <div class="form-group">
+                        <label for="fullname">Full Name</label>
+                        <input type="text" id="fullname" name="fullname" class="form-control" disabled
+                            placeholder="Placeholder only">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" class="form-control" disabled
+                            placeholder="Placeholder only">
+                    </div>
+                    <div class="form-group">
+                        <label for="role">Register As</label>
+                        <select id="role" name="role" class="form-control" disabled
+                            style="appearance: none; background: url('data:image/svg+xml;utf8,<svg fill=%22%238b949e%22 viewBox=%220 0 24 24%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>') no-repeat right 10px center; background-size: 20px;">
+                            <option value="bidder">Trader (Buyer)</option>
+                            <option value="seller">Creator (Seller)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" class="form-control" disabled
+                            placeholder="Placeholder only">
+                    </div>
+                    <button type="submit" class="btn-primary btn-block" id="email-signup-placeholder">Sign Up</button>
+                </form>
+            </div>
             <div class="auth-links">
                 <p>Already a member? <a href="login.html">Log In</a></p>
             </div>

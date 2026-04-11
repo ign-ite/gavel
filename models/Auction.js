@@ -32,6 +32,13 @@ const AuctionSchema = new mongoose.Schema({
         orientationConfirmed: { type: Boolean, default: false },
         termsAccepted: { type: Boolean, default: false }
     },
+    moderationChecklist: {
+        clearMediaOnly: { type: Boolean, default: false },
+        noFacesVisible: { type: Boolean, default: false },
+        noSexualContent: { type: Boolean, default: false },
+        noViolenceOrHarm: { type: Boolean, default: false },
+        categoryAndClaimsVerified: { type: Boolean, default: false }
+    },
     specifications: { type: mongoose.Schema.Types.Mixed, default: {} },
     mediaIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Media' }],
     startingPrice: { type: Number, default: 0 },

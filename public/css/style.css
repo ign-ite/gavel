@@ -1,33 +1,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
-    /* New Color Palette */
-    --navy: #1A3263;
-    --teal: #8CC7C4;
-    --green: #79AE6F;
-    --olive: #4C5C2D;
-    --red: #AE2448;
-    
-    --bg-main: #0F1D33;
-    --bg-card: #1E3A5F;
-    --bg-nav: rgba(26, 50, 99, 0.95);
-    --bg-deep: #1A3263;
-    
-    --text-primary: #FFFFFF;
-    --text-secondary: #8CC7C4;
-    --text-muted: #8CC7C4;
-    
-    --accent-blue: #8CC7C4;
-    --accent-hover: #79AE6F;
-    --border-color: rgba(140, 199, 196, 0.15);
-    
-    --neon-green: #79AE6F;
-    --neon-red: #AE2448;
-    --accent-teal: #8CC7C4;
-    --accent-green: #79AE6F;
-    
-    --glass-bg: rgba(140, 199, 196, 0.03);
-    --brass-gold: #8CC7C4;
+    --navy: #384959;
+    --teal: #6A89A7;
+    --green: #68BA7F;
+    --olive: #3D562F;
+    --red: #BF7A8C;
+
+    --bg-main: #384959;
+    --bg-card: #314454;
+    --bg-nav: rgba(56, 73, 89, 0.92);
+    --bg-deep: #25313d;
+
+    --text-primary: #f4fbff;
+    --text-secondary: #BDDDFC;
+    --text-muted: #A3E0CA;
+
+    --accent-blue: #88BDF2;
+    --accent-hover: #BDDDFC;
+    --border-color: rgba(189, 221, 252, 0.18);
+
+    --neon-green: #68BA7F;
+    --neon-red: #E491A6;
+    --accent-teal: #A3E0CA;
+    --accent-green: #CFFFDC;
+
+    --glass-bg: rgba(189, 221, 252, 0.06);
+    --brass-gold: #DFEFB2;
     
     --font-heading: 'Fraunces', 'Roboto Slab', serif;
     --font-body: 'Manrope', 'Inter', sans-serif;
@@ -63,9 +62,24 @@ body {
     font-family: var(--font-body);
     margin: 0;
     padding: 0;
-    background-color: var(--bg-main);
+    background:
+        radial-gradient(circle at top center, rgba(189, 221, 252, 0.12), transparent 24%),
+        linear-gradient(180deg, #384959 0%, #314454 50%, #253D2C 100%);
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+body.page-transition-ready {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+body.page-transition-leaving {
+    opacity: 0;
+    transform: translateY(8px);
 }
 
 body.has-app-sidebar {
@@ -74,13 +88,15 @@ body.has-app-sidebar {
 
 .app-sidebar {
     position: fixed;
-    top: 0;
+    top: 50%;
     left: 0;
     width: 260px;
-    height: 100vh;
+    height: calc(100vh - 32px);
+    transform: translateY(-50%);
     padding: 24px 18px;
     background: rgba(10, 21, 41, 0.96);
     border-right: 1px solid rgba(140, 199, 196, 0.14);
+    border-radius: 0 28px 28px 0;
     backdrop-filter: blur(18px);
     z-index: 1200;
     display: flex;
@@ -101,6 +117,8 @@ body.has-app-sidebar {
 .app-sidebar-logo svg {
     width: 30px;
     height: 30px;
+    color: var(--accent-blue);
+    flex: none;
 }
 
 .app-sidebar-links {
@@ -254,8 +272,10 @@ body.has-app-sidebar {
     }
 
     .app-sidebar {
+        top: 0;
         width: 100%;
         height: auto;
+        transform: none;
         flex-direction: row;
         flex-wrap: wrap;
         align-items: center;
@@ -263,6 +283,7 @@ body.has-app-sidebar {
         padding: 16px;
         border-right: none;
         border-bottom: 1px solid rgba(140, 199, 196, 0.14);
+        border-radius: 0 0 24px 24px;
     }
 
     .app-sidebar-logo {
@@ -381,7 +402,7 @@ select option {
     align-items: center;
     justify-content: center;
     padding: 12px 28px;
-    background: var(--accent-teal);
+    background: linear-gradient(135deg, #bcd6ce 0%, #d9c8a4 100%);
     color: var(--bg-deep);
     text-decoration: none;
     font-weight: 700;
@@ -393,9 +414,9 @@ select option {
 }
 
 .btn-primary:hover {
-    background: #ffffff;
+    background: linear-gradient(135deg, #d4e6df 0%, #e7dbc1 100%);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(140, 199, 196, 0.3);
+    box-shadow: 0 10px 24px rgba(188, 214, 206, 0.18);
 }
 
 .auctions-section {

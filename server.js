@@ -47,7 +47,7 @@ const dev = process.env.NODE_ENV !== 'production';
 const nextApp = next({ dev, dir: path.join(__dirname, 'frontend') });
 const handle = nextApp.getRequestHandler();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'gavel-super-secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET || '';
 const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAILS || '')
     .split(',')
     .map((email) => email.trim().toLowerCase())
@@ -116,6 +116,44 @@ const redirectIfLoggedIn = (req, res, next) => {
     next();
 };
 
+function createRateLimiter(options) {
+    const windowMs = Number(options.windowMs) || 60 * 1000;
+    const max = Number(options.max) || 30;
+    const message = options.message || 'Too many requests. Please try again later.';
+    const buckets = new Map();
+
+    return function rateLimitMiddleware(req, res, next) {
+        const key = `${req.ip}::${req.user?.email || req.body?.email || 'guest'}::${req.path}`;
+        const now = Date.now();
+        const current = buckets.get(key);
+
+        if (!current || current.resetAt <= now) {
+            buckets.set(key, { count: 1, resetAt: now + windowMs });
+            return next();
+        }
+
+        if (current.count >= max) {
+            res.setHeader('Retry-After', Math.ceil((current.resetAt - now) / 1000));
+            return res.status(429).json({ success: false, message });
+        }
+
+        current.count += 1;
+        next();
+    };
+}
+
+const authLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: 'Too many authentication attempts. Please wait before trying again.'
+});
+
+const bidLimiter = createRateLimiter({
+    windowMs: 60 * 1000,
+    max: 30,
+    message: 'Too many bid requests. Please slow down and try again shortly.'
+});
+
 app.get('/login.html', redirectIfLoggedIn, (req, res, next) => next());
 app.get('/signup.html', redirectIfLoggedIn, (req, res, next) => next());
 
@@ -123,8 +161,11 @@ app.get('/signup.html', redirectIfLoggedIn, (req, res, next) => next());
 // 2.5 LOCAL AUTHENTICATION (Varunkumar)
 // ─────────────────────────────────────────────
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
     try {
+        if (!JWT_SECRET) {
+            return res.status(503).json({ error: 'Email authentication is disabled.' });
+        }
         const { fullname, email, password, college } = req.body;
         if (!fullname || !email || !password) return res.status(400).json({ error: 'Missing fields' });
 
@@ -162,8 +203,11 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
     try {
+        if (!JWT_SECRET) {
+            return res.status(503).json({ error: 'Email authentication is disabled.' });
+        }
         const { email, password } = req.body;
         const user = await User.findOne({ email: email.toLowerCase() });
         if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid credentials' });
@@ -211,22 +255,25 @@ async function requireLogin(req, res, next) {
     if (!token) return res.status(401).json({ success: false, message: 'Login required.', redirect: '/login.html' });
 
     try {
-        // 1. Try Local JWT verification first
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const dbUser = await User.findById(decoded.id);
-        if (!dbUser) throw new Error('User not found in DB');
+        if (JWT_SECRET) {
+            try {
+                const decoded = jwt.verify(token, JWT_SECRET);
+                const dbUser = await User.findById(decoded.id);
+                if (!dbUser) throw new Error('User not found in DB');
 
-        req.user = {
-            id: dbUser._id.toString(),
-            email: dbUser.email,
-            name: dbUser.fullname,
-            role: dbUser.role,
-            isAdmin: Boolean(dbUser.isAdmin || dbUser.isSuperAdmin || dbUser.role === 'admin'),
-            isSuperAdmin: Boolean(dbUser.isSuperAdmin)
-        };
-        return next();
-    } catch (jwtError) {
-        // 2. JWT failed, try Supabase verification as fallback
+                req.user = {
+                    id: dbUser._id.toString(),
+                    email: dbUser.email,
+                    name: dbUser.fullname,
+                    role: dbUser.role,
+                    isAdmin: Boolean(dbUser.isAdmin || dbUser.isSuperAdmin || dbUser.role === 'admin'),
+                    isSuperAdmin: Boolean(dbUser.isSuperAdmin)
+                };
+                return next();
+            } catch (jwtError) { }
+        }
+
+        // Supabase verification fallback / primary mode
         const { data: { user }, error } = await supabase.auth.getUser(token);
         if (error || !user) return res.status(401).json({ success: false, message: 'Invalid session.', redirect: '/login.html' });
 
@@ -241,11 +288,14 @@ async function requireLogin(req, res, next) {
             isSuperAdmin: Boolean(dbUser?.isSuperAdmin)
         };
         return next();
+    } catch (e) {
+        return res.status(401).json({ success: false, message: 'Invalid session.', redirect: '/login.html' });
     }
 }
 
 function getConversationKey(auctionId, a, b) {
-    return [String(auctionId), a.toLowerCase(), b.toLowerCase()].sort().join('::');
+    const pair = [a.toLowerCase(), b.toLowerCase()].sort().join('::');
+    return `${String(auctionId)}::${pair}`;
 }
 
 async function pushNotification(email, notification) {
@@ -265,6 +315,24 @@ async function pushNotification(email, notification) {
             }
         }
     );
+}
+
+async function getBidCountMap(auctionIds) {
+    const ids = [...new Set((auctionIds || []).map((id) => String(id)).filter(Boolean))];
+    if (!ids.length) return {};
+
+    const objectIds = ids
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+
+    if (!objectIds.length) return {};
+
+    const bidCounts = await Bid.aggregate([
+        { $match: { auctionId: { $in: objectIds } } },
+        { $group: { _id: '$auctionId', count: { $sum: 1 } } }
+    ]);
+
+    return Object.fromEntries(bidCounts.map((row) => [row._id.toString(), row.count]));
 }
 
 async function storeMediaDoc(file, ownerId, kind) {
@@ -334,9 +402,11 @@ function getAuctionUrgency(obj) {
 
 
 // Map Mongoose docs to the legacy API format expected by frontend
-async function mapAuction(doc) {
+async function mapAuction(doc, bidCountMap) {
     const obj = doc.toObject();
-    const bidCount = await Bid.countDocuments({ auctionId: doc._id });
+    const bidCount = bidCountMap && typeof bidCountMap[String(doc._id)] !== 'undefined'
+        ? bidCountMap[String(doc._id)]
+        : await Bid.countDocuments({ auctionId: doc._id });
     const displayImages = getDisplayImages(obj);
     const urgency = getAuctionUrgency(obj);
     return {
@@ -523,13 +593,13 @@ async function closeAuction(auctionId) {
             // Phase 9: Trust Score Mechanic - successful transaction boosts both parties
             const sellerUser = await User.findOne({ email: item.sellerEmail });
             if (sellerUser) {
-                sellerUser.trustScore = (sellerUser.trustScore || 100) + 5;
+                sellerUser.trustScore = Math.min(500, (sellerUser.trustScore || 100) + 5);
                 sellerUser.ratingsCount = (sellerUser.ratingsCount || 0) + 1;
                 await sellerUser.save();
             }
             const buyerUser = await User.findOne({ email: winnerObj.bidderEmail });
             if (buyerUser) {
-                buyerUser.trustScore = (buyerUser.trustScore || 100) + 5;
+                buyerUser.trustScore = Math.min(500, (buyerUser.trustScore || 100) + 5);
                 buyerUser.ratingsCount = (buyerUser.ratingsCount || 0) + 1;
                 await buyerUser.save();
             }
@@ -554,7 +624,7 @@ async function closeAuction(auctionId) {
 app.get('/api/me', async (req, res) => {
     try {
         const localToken = req.cookies.jwt_token;
-        if (localToken) {
+        if (localToken && JWT_SECRET) {
             try {
                 const decoded = jwt.verify(localToken, JWT_SECRET);
                 const dbUser = await User.findById(decoded.id);
@@ -828,69 +898,21 @@ app.get('/api/media/:id', async (req, res) => {
     }
 });
 
-// ── Dashboard: Combined Profile & Stats ──
-app.get('/api/profile', requireLogin, async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).select('-password');
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        // Build Dashboard Context
-        const context = {
-            user,
-            stats: {}
-        };
-
-        if (user.role === 'seller' || user.role === 'admin') {
-            const myAuctions = await Auction.find({ sellerEmail: user.email });
-            const soldAuctions = myAuctions.filter(a => a.status === 'closed' && a.winnerEmail);
-            context.stats.totalEarnings = soldAuctions.reduce((sum, a) => sum + (a.currentBid || 0), 0);
-            context.stats.activeListings = myAuctions.filter(a => a.status === 'active').length;
-            context.stats.soldCount = soldAuctions.length;
-        }
-
-        if (user.role === 'bidder' || user.role === 'admin') {
-            const myBids = await Bid.find({ bidderEmail: user.email });
-            const distinctAuctionIds = [...new Set(myBids.map(b => b.auctionId.toString()))];
-            const auctionsIBidOn = await Auction.find({ _id: { $in: distinctAuctionIds } });
-
-            context.stats.activeBids = auctionsIBidOn.filter(a => a.status === 'active').length;
-            context.stats.wins = await Auction.countDocuments({ winnerEmail: user.email });
-            context.stats.watchlistCount = user.watchlist ? user.watchlist.length : 0;
-        }
-
-        res.json({
-            user,
-            stats: context.stats,
-            id: user._id.toString(),
-            fullname: user.fullname,
-            email: user.email,
-            role: user.role,
-            trustScore: user.trustScore || 100,
-            ratingsCount: user.ratings ? user.ratings.length : 0,
-            walletBalance: user.walletBalance || 0,
-            activeListings: context.stats.activeListings || 0,
-            closedListings: await Auction.countDocuments({ sellerEmail: user.email, status: 'closed' }),
-            totalBids: await Bid.countDocuments({ bidderEmail: user.email }),
-            activeBids: context.stats.activeBids || 0,
-            auctionsWon: context.stats.wins || 0,
-            watchlistCount: context.stats.watchlistCount || 0,
-            totalVolume: context.stats.totalEarnings || 0,
-            created_at: user.createdAt
-        });
-    } catch (e) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
-
 app.get('/api/dashboard/summary', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.user.id);
         if (!user) return res.status(404).json({ error: 'User not found' });
 
-        const [myListingsDocs, watchlistDocs, recentBids, totalUsers, activeAuctions, totalVolume] = await Promise.all([
+        const [myListingsDocs, watchlistDocs, recentBids, soldDocs, wonDocs, walletActivityDocs, totalUsers, activeAuctions, totalVolume] = await Promise.all([
             Auction.find({ sellerEmail: user.email }).sort({ createdAt: -1 }).limit(12),
             Auction.find({ _id: { $in: user.watchlist || [] } }).sort({ createdAt: -1 }).limit(8),
             Bid.find({ bidderEmail: user.email }).populate('auctionId').sort({ placedAt: -1 }).limit(10),
+            Auction.find({ sellerEmail: user.email, status: 'closed' }).sort({ updatedAt: -1 }).limit(10),
+            Auction.find({ winnerEmail: user.email, status: 'closed' }).sort({ updatedAt: -1 }).limit(10),
+            AuditLog.find({
+                userEmail: user.email,
+                action: { $in: ['FUNDS_DEPOSITED', 'WALLET_TOP_UP', 'SELL_REQUEST_CREATED', 'BID_PLACED', 'AUTO_BID_PLACED'] }
+            }).sort({ createdAt: -1 }).limit(12),
             User.countDocuments(),
             Auction.countDocuments({ status: 'active' }),
             Auction.aggregate([
@@ -899,8 +921,16 @@ app.get('/api/dashboard/summary', requireLogin, async (req, res) => {
             ])
         ]);
 
-        const myListings = await Promise.all(myListingsDocs.map(mapAuction));
-        const watchlist = await Promise.all(watchlistDocs.map(mapAuction));
+        const [listingBidCounts, watchlistBidCounts, soldBidCounts, wonBidCounts] = await Promise.all([
+            getBidCountMap(myListingsDocs.map((row) => row._id)),
+            getBidCountMap(watchlistDocs.map((row) => row._id)),
+            getBidCountMap(soldDocs.map((row) => row._id)),
+            getBidCountMap(wonDocs.map((row) => row._id))
+        ]);
+        const myListings = await Promise.all(myListingsDocs.map((row) => mapAuction(row, listingBidCounts)));
+        const watchlist = await Promise.all(watchlistDocs.map((row) => mapAuction(row, watchlistBidCounts)));
+        const salesHistory = await Promise.all(soldDocs.map((row) => mapAuction(row, soldBidCounts)));
+        const purchaseHistory = await Promise.all(wonDocs.map((row) => mapAuction(row, wonBidCounts)));
         const notifications = (user.notifications || []).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 12);
 
         const summary = {
@@ -917,7 +947,9 @@ app.get('/api/dashboard/summary', requireLogin, async (req, res) => {
                 activeListings: myListings.filter(item => item.status === 'active').length,
                 pendingListings: myListings.filter(item => ['pending_review', 'under_review'].includes(item.status)).length,
                 rejectedListings: myListings.filter(item => item.status === 'rejected').length,
+                soldListings: salesHistory.length,
                 activeBids: recentBids.filter(item => item.auctionId && item.auctionId.status === 'active').length,
+                wonPurchases: purchaseHistory.length,
                 watchlistCount: watchlist.length,
                 unreadNotifications: notifications.filter(item => !item.read).length,
                 platformUsers: totalUsers,
@@ -925,6 +957,8 @@ app.get('/api/dashboard/summary', requireLogin, async (req, res) => {
                 totalVolume: totalVolume[0]?.total || 0
             },
             listings: myListings,
+            salesHistory,
+            purchaseHistory,
             watchlist,
             bids: recentBids.filter(item => item.auctionId).map(item => ({
                 id: item._id.toString(),
@@ -933,7 +967,14 @@ app.get('/api/dashboard/summary', requireLogin, async (req, res) => {
                 auctionId: item.auctionId._id.toString(),
                 auctionTitle: item.auctionId.title,
                 auctionStatus: item.auctionId.status,
-                currentBid: item.auctionId.currentBid
+                currentBid: item.auctionId.currentBid,
+                winnerEmail: item.auctionId.winnerEmail
+            })),
+            walletActivity: walletActivityDocs.map((entry) => ({
+                id: entry._id.toString(),
+                action: entry.action,
+                details: entry.details,
+                createdAt: entry.createdAt
             })),
             notifications
         };
@@ -944,30 +985,77 @@ app.get('/api/dashboard/summary', requireLogin, async (req, res) => {
                 status: { $in: ['pending_review', 'under_review'] }
             }).sort({ createdAt: 1 }).limit(20);
             summary.adminWorkspace = {
-                assignedRequests: await Promise.all(assignedDocs.map(mapAuction))
+                assignedRequests: await Promise.all(assignedDocs.map((row) => mapAuction(row)))
             };
         }
 
         if (summary.me.isSuperAdmin) {
-            const [reviewQueueDocs, adminUsers, nonAdminUsers] = await Promise.all([
-                Auction.find({ status: { $in: ['pending_review', 'under_review', 'rejected', 'active'] } }).sort({ createdAt: 1 }).limit(50),
+            const [reviewQueueDocs, adminUsers, nonAdminUsers, assignmentMetrics, rejectionDocs] = await Promise.all([
+                Auction.find({ status: { $in: ['pending_review', 'under_review', 'rejected'] } }).sort({ createdAt: 1 }).limit(24),
                 User.find({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] }).sort({ fullname: 1 }),
-                User.find({ isAdmin: { $ne: true }, isSuperAdmin: { $ne: true }, role: { $ne: 'admin' } }).select('fullname email role').sort({ createdAt: -1 }).limit(20)
+                User.find({ isAdmin: { $ne: true }, isSuperAdmin: { $ne: true }, role: { $ne: 'admin' } }).select('fullname email role').sort({ createdAt: -1 }).limit(12),
+                Promise.all([
+                    Auction.countDocuments({ status: 'pending_review', assignedAdminEmail: { $in: [null, ''] } }),
+                    Auction.countDocuments({ status: 'under_review' }),
+                    Auction.countDocuments({ status: 'rejected' })
+                ]),
+                Auction.find({ status: 'rejected', reviewedByEmail: { $exists: true, $ne: '' } }).sort({ reviewedAt: -1 }).limit(18)
             ]);
 
-            const adminOverview = await Promise.all(adminUsers.map(async (adminUser) => ({
+            const adminEmails = adminUsers.map((adminUser) => adminUser.email);
+            const [assignedAgg, approvedAgg, rejectedAgg] = await Promise.all([
+                Auction.aggregate([
+                    { $match: { assignedAdminEmail: { $in: adminEmails }, status: { $in: ['pending_review', 'under_review'] } } },
+                    { $group: { _id: '$assignedAdminEmail', count: { $sum: 1 } } }
+                ]),
+                Auction.aggregate([
+                    { $match: { reviewedByEmail: { $in: adminEmails }, status: 'active' } },
+                    { $group: { _id: '$reviewedByEmail', count: { $sum: 1 } } }
+                ]),
+                Auction.aggregate([
+                    { $match: { reviewedByEmail: { $in: adminEmails }, status: 'rejected' } },
+                    { $group: { _id: '$reviewedByEmail', count: { $sum: 1 } } }
+                ])
+            ]);
+            const assignedMap = Object.fromEntries(assignedAgg.map((row) => [row._id, row.count]));
+            const approvedMap = Object.fromEntries(approvedAgg.map((row) => [row._id, row.count]));
+            const rejectedMap = Object.fromEntries(rejectedAgg.map((row) => [row._id, row.count]));
+            const adminOverview = adminUsers.map((adminUser) => ({
                 id: adminUser._id.toString(),
                 fullname: adminUser.fullname,
                 email: adminUser.email,
                 isSuperAdmin: Boolean(adminUser.isSuperAdmin),
-                assignedCount: await Auction.countDocuments({ assignedAdminEmail: adminUser.email, status: { $in: ['pending_review', 'under_review'] } }),
-                approvedCount: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'active' }),
-                rejectedCount: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'rejected' })
-            })));
+                assignedCount: assignedMap[adminUser.email] || 0,
+                approvedCount: approvedMap[adminUser.email] || 0,
+                rejectedCount: rejectedMap[adminUser.email] || 0,
+                assignedItems: reviewQueueDocs
+                    .filter((row) => row.assignedAdminEmail === adminUser.email)
+                    .map((row) => ({ id: row._id.toString(), title: row.title, status: row.status }))
+            }));
 
             summary.superAdminWorkspace = {
-                reviewQueue: await Promise.all(reviewQueueDocs.map(mapAuction)),
+                reviewQueue: await Promise.all(reviewQueueDocs.map((row) => mapAuction(row))),
                 admins: adminOverview,
+                assignableReviewers: adminUsers.map((row) => ({
+                    id: row._id.toString(),
+                    fullname: row.fullname,
+                    email: row.email,
+                    isSuperAdmin: Boolean(row.isSuperAdmin)
+                })),
+                metrics: {
+                    unassigned: assignmentMetrics[0],
+                    underReview: assignmentMetrics[1],
+                    rejected: assignmentMetrics[2]
+                },
+                rejectionLog: rejectionDocs.map((row) => ({
+                    id: row._id.toString(),
+                    title: row.title,
+                    sellerEmail: row.sellerEmail,
+                    reviewedByEmail: row.reviewedByEmail || '',
+                    rejectionReason: row.rejectionReason || '',
+                    reviewNotes: row.reviewNotes || '',
+                    reviewedAt: row.reviewedAt || row.updatedAt
+                })),
                 candidates: nonAdminUsers.map((row) => ({
                     id: row._id.toString(),
                     fullname: row.fullname,
@@ -1032,7 +1120,9 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
         const targetUser = await User.findById(req.params.id);
         if (!targetUser) return res.status(404).json({ error: 'User not found' });
 
-        // Delete all their auctions and bids
+        const sellerAuctions = await Auction.find({ sellerEmail: targetUser.email }).select('_id');
+        const auctionIds = sellerAuctions.map((auction) => auction._id);
+        await Media.deleteMany({ ownerId: { $in: auctionIds } });
         await Auction.deleteMany({ sellerEmail: targetUser.email });
         await Bid.deleteMany({ bidderEmail: targetUser.email });
         await User.findByIdAndDelete(req.params.id);
@@ -1072,8 +1162,9 @@ app.delete('/api/admin/auctions/:id', requireAdmin, async (req, res) => {
 // ─────────────────────────────────────────────
 app.get('/api/auctions', async (req, res) => {
     try {
-        const rows = await Auction.find({ status: 'active' }).sort({ endTime: 1 });
-        const mapped = await Promise.all(rows.map(mapAuction));
+        const rows = await Auction.find({ status: 'active', endTime: { $gt: new Date() } }).sort({ endTime: 1 });
+        const bidCountMap = await getBidCountMap(rows.map((row) => row._id));
+        const mapped = await Promise.all(rows.map((row) => mapAuction(row, bidCountMap)));
         res.json(mapped);
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
@@ -1186,62 +1277,128 @@ app.post('/api/sell', requireLogin, upload.fields([
 // ─────────────────────────────────────────────
 // AUTO BID SYSTEM
 // ─────────────────────────────────────────────
+async function applyBidToAuction(options) {
+    const {
+        auction,
+        bidderEmail,
+        bidderName,
+        amount,
+        isAutoBid,
+        reqIp
+    } = options;
+
+    const numericAmount = Number(amount);
+    const item = auction || await Auction.findById(options.auctionId);
+    if (!item) return null;
+
+    const latestBid = await Bid.findOne({ auctionId: item._id }).sort({ placedAt: -1 });
+    const previousLeaderEmail = latestBid ? latestBid.bidderEmail : null;
+    const previousLeaderAmount = latestBid ? Number(latestBid.amount || 0) : 0;
+    const sameLeader = previousLeaderEmail === bidderEmail;
+    const holdRequired = sameLeader ? Math.max(0, numericAmount - previousLeaderAmount) : numericAmount;
+
+    const dbUser = await User.findOne({ email: bidderEmail });
+    if (!dbUser || Number(dbUser.walletBalance || 0) < holdRequired) {
+        return null;
+    }
+
+    let previousLeader = null;
+    if (previousLeaderEmail && !sameLeader) {
+        previousLeader = await User.findOne({ email: previousLeaderEmail });
+    }
+
+    dbUser.walletBalance -= holdRequired;
+    if (previousLeader) {
+        previousLeader.walletBalance += previousLeaderAmount;
+    }
+
+    await dbUser.save();
+    if (previousLeader) {
+        await previousLeader.save();
+        await pushNotification(previousLeader.email, {
+            type: 'outbid',
+            title: 'You were outbid',
+            message: `"${item.title}" now has a higher bid. ₹${previousLeaderAmount.toLocaleString('en-IN')} was released back to your wallet.`,
+            actionUrl: `/item-detail.html?id=${item._id}`,
+            metadata: { auctionId: item._id.toString(), refundedAmount: previousLeaderAmount }
+        });
+    }
+
+    item.currentBid = numericAmount;
+    item.bidCount = Number(item.bidCount || 0) + 1;
+    await item.save();
+
+    const newBid = await Bid.create({
+        auctionId: item._id,
+        bidderEmail,
+        bidderName,
+        amount: numericAmount
+    });
+
+    await AuditLog.create({
+        action: isAutoBid ? 'AUTO_BID_PLACED' : 'BID_PLACED',
+        userEmail: bidderEmail,
+        details: `${bidderEmail} placed ${isAutoBid ? 'an auto-bid' : 'a bid'} of ₹${numericAmount.toLocaleString('en-IN')} on ${item.title} (${item._id})`,
+        ipAddress: reqIp || 'system'
+    });
+
+    return newBid;
+}
+
 async function resolveAutoBids(auctionId) {
     let auction = await Auction.findById(auctionId);
     if (!auction || auction.status === 'closed') return false;
 
-    // Get all active auto-bids for this auction
-    const autoBids = await AutoBid.find({ auctionId, active: true }).sort({ maxAmount: -1 });
-    if (autoBids.length < 2) return false; // Need at least 2 for a battle
+    const currentLeader = await Bid.findOne({ auctionId }).sort({ placedAt: -1 });
+    const autoBids = await AutoBid.find({ auctionId, active: true }).sort({ maxAmount: -1, createdAt: 1 });
+    const eligible = autoBids.filter((entry) => Number(entry.maxAmount) > Number(auction.currentBid || 0));
+    if (!eligible.length) return false;
 
-    const highest = autoBids[0];
-    const secondHighest = autoBids[1];
+    const highest = eligible[0];
+    const runnerUp = eligible.find((entry) => entry.bidderEmail !== highest.bidderEmail);
+    const increment = Math.max(1, Number(auction.increment || 1));
 
-    let finalAmount = 0;
-    let winner = null;
-
-    if (highest.maxAmount > secondHighest.maxAmount) {
-        // Winner is highest, price is secondHighest + increment
-        finalAmount = Math.min(secondHighest.maxAmount + (auction.increment || 100), highest.maxAmount);
-        winner = highest;
-        // The second highest is now outbid and inactive
-        secondHighest.active = false;
-        await secondHighest.save();
-    } else {
-        // It's a tie. The earlier bidder usually wins, but for simplicity we'll take the first in DB
-        finalAmount = highest.maxAmount;
-        winner = highest;
-        secondHighest.active = false;
-        await secondHighest.save();
+    if (currentLeader && currentLeader.bidderEmail === highest.bidderEmail && !runnerUp) {
+        return false;
     }
 
-    if (finalAmount > auction.currentBid) {
-        auction.currentBid = finalAmount;
-        await auction.save();
+    const finalAmount = runnerUp
+        ? (highest.maxAmount === runnerUp.maxAmount
+            ? Number(highest.maxAmount)
+            : Math.min(Number(highest.maxAmount), Number(runnerUp.maxAmount) + increment))
+        : Number(highest.maxAmount);
 
-        await Bid.create({
-            auctionId: auctionId,
-            bidderEmail: winner.bidderEmail,
-            bidderName: winner.bidderName,
-            amount: finalAmount
-        });
+    if (finalAmount <= Number(auction.currentBid || 0)) return false;
 
-        broadcastAuction(auctionId, {
-            type: 'bid_update',
-            itemId: auctionId,
-            newBid: finalAmount,
-            bidCount: await Bid.countDocuments({ auctionId })
-        });
-        return true;
-    }
-    return false;
+    const newBid = await applyBidToAuction({
+        auction,
+        bidderEmail: highest.bidderEmail,
+        bidderName: highest.bidderName,
+        amount: finalAmount,
+        isAutoBid: true,
+        reqIp: 'system'
+    });
+    if (!newBid) return false;
+
+    broadcastAuction(auctionId, {
+        type: 'bid_update',
+        itemId: String(auctionId),
+        newBid: finalAmount,
+        bidCount: await Bid.countDocuments({ auctionId }),
+        reserve_met: finalAmount >= Number(auction.reservePrice || 0)
+    });
+    return true;
 }
 
-app.post('/api/bids/auto-bid', requireLogin, async (req, res) => {
+app.post('/api/bids/auto-bid', requireLogin, bidLimiter, async (req, res) => {
     const { listingId, maxAmount } = req.body;
     try {
         const item = await Auction.findById(listingId);
-        if (!item || item.status === 'closed') return res.status(400).json({ success: false, message: 'Invalid or closed auction.' });
+        if (!item || item.status !== 'active') return res.status(400).json({ success: false, message: 'Only live approved listings can accept bids.' });
+        if (item.sellerEmail === req.user.email) return res.status(403).json({ success: false, message: 'You cannot bid on your own listing.' });
+        if (!Number.isInteger(Number(maxAmount)) || Number(maxAmount) <= Number(item.currentBid || 0)) {
+            return res.status(400).json({ success: false, message: `Auto-bid max must be higher than ₹${Number(item.currentBid || 0).toLocaleString('en-IN')}.` });
+        }
 
         await AutoBid.findOneAndUpdate(
             { auctionId: item._id, bidderEmail: req.user.email },
@@ -1258,7 +1415,7 @@ app.post('/api/bids/auto-bid', requireLogin, async (req, res) => {
 });
 
 // ── Alias: /api/place-bid ──
-app.post('/api/place-bid', requireLogin, async (req, res) => {
+app.post('/api/place-bid', requireLogin, bidLimiter, async (req, res) => {
     // Standardize body: frontend sends { id: '...', bidAmount: 123 }
     const { id, bidAmount, isAuto } = req.body;
     if (!id) return res.status(400).json({ success: false, message: 'Missing auction ID.' });
@@ -1276,38 +1433,41 @@ async function handlePlaceBid(req, res) {
     const id = req.params.listingId;
     const amount = Number(bidAmount);
     try {
-        const item = await Auction.findById(id);
+        let item = await Auction.findById(id);
         if (!item) return res.status(404).json({ success: false, message: 'Item not found.' });
-        if (item.status === 'closed') return res.status(400).json({ success: false, message: 'This auction has closed.' });
+        if (item.status !== 'active') return res.status(400).json({ success: false, message: 'This listing is not live for bidding yet.' });
         if (item.endTime && item.endTime <= new Date()) return res.status(400).json({ success: false, message: 'This auction has expired.' });
         if (item.sellerEmail === req.user.email) return res.status(403).json({ success: false, message: 'You cannot bid on your own listing.' });
         if (!Number.isInteger(amount)) {
             return res.status(400).json({ success: false, message: 'Bid amount must be in whole rupees only.' });
         }
 
-        const minIncrement = Math.max(1, Math.round(item.increment || 1));
-        const minimumAllowedBid = item.currentBid + minIncrement;
-        if (amount < minimumAllowedBid) {
+        if (amount <= item.currentBid) {
             return res.status(400).json({
                 success: false,
-                message: `Bid must be at least ₹${minimumAllowedBid.toLocaleString('en-IN')} (minimum increment ₹${minIncrement.toLocaleString('en-IN')}).`
+                message: `Bid must be higher than ₹${item.currentBid.toLocaleString('en-IN')}.`
             });
         }
 
-        const dbUser = await User.findOne({ email: req.user.email });
-        if (!dbUser || dbUser.walletBalance < amount) {
+        const latestBid = await Bid.findOne({ auctionId: item._id }).sort({ placedAt: -1 });
+        const isCurrentLeader = latestBid && latestBid.bidderEmail === req.user.email && latestBid.amount === item.currentBid;
+        if (isCurrentLeader && !isAuto) {
+            return res.status(400).json({ success: false, message: 'You already hold the top bid on this item.' });
+        }
+
+        const newBid = await applyBidToAuction({
+            auction: item,
+            bidderEmail: req.user.email,
+            bidderName: req.user.name,
+            amount,
+            isAutoBid: Boolean(isAuto),
+            reqIp: req.ip
+        });
+        if (!newBid) {
             return res.status(400).json({ success: false, message: 'Insufficient funds. Please deposit to continue.' });
         }
 
-        item.currentBid = amount;
-        await item.save();
-
-        const newBid = await Bid.create({
-            auctionId: item._id,
-            bidderEmail: req.user.email,
-            bidderName: req.user.name,
-            amount: amount
-        });
+        item = await Auction.findById(id);
 
         // Anti-Snipe Engine
         let extensionTriggered = false;
@@ -1320,6 +1480,12 @@ async function handlePlaceBid(req, res) {
                 item.endTime = newEndTime;
                 item.snipeCount = (item.snipeCount || 0) + 1;
                 await item.save();
+                await SnipeLog.create({
+                    listingId: item._id,
+                    bidId: newBid._id,
+                    extensionNum: item.snipeCount,
+                    newEndTime
+                });
                 extensionTriggered = true;
                 broadcastAuction(id, { type: 'snipe:extended', listingId: id, newEndTime: newEndTime.toISOString(), extensionNum: item.snipeCount });
             } else if (timeLeft <= THREE_MINUTES && (item.snipeCount || 0) >= 5) {
@@ -1341,7 +1507,13 @@ async function handlePlaceBid(req, res) {
         const finalItem = await Auction.findById(item._id);
         const bidCount = await Bid.countDocuments({ auctionId: item._id });
 
-        broadcastAuction(id, { type: 'bid_update', itemId: id, newBid: finalItem.currentBid, bidCount });
+        broadcastAuction(id, {
+            type: 'bid_update',
+            itemId: id,
+            newBid: finalItem.currentBid,
+            bidCount,
+            reserve_met: finalItem.currentBid >= Number(finalItem.reservePrice || 0)
+        });
         broadcastGlobalActivity({
             message: `${req.user.name} placed a trade of ₹${finalItem.currentBid.toLocaleString('en-IN')} on "${item.title}"`,
             itemId: id, timestamp: new Date().toISOString()
@@ -1354,7 +1526,7 @@ async function handlePlaceBid(req, res) {
     }
 }
 
-app.post('/api/bids/:listingId', requireLogin, handlePlaceBid);
+app.post('/api/bids/:listingId', requireLogin, bidLimiter, handlePlaceBid);
 
 app.post('/api/end-auction', requireLogin, async (req, res) => {
     const { id } = req.body;
@@ -1537,6 +1709,16 @@ app.get('/api/chat/:auctionId', requireLogin, async (req, res) => {
         const otherEmail = userEmail === auction.sellerEmail ? (req.query.with || auction.winnerEmail) : auction.sellerEmail;
         if (!otherEmail) return res.status(400).json({ message: 'Counterparty not found.' });
         const conversationKey = getConversationKey(auctionId, userEmail, otherEmail);
+        await Message.updateMany(
+            {
+                auctionId: auctionId,
+                conversationKey,
+                recipientEmail: userEmail,
+                senderEmail: { $ne: userEmail },
+                $or: [{ readAt: null }, { readAt: { $exists: false } }]
+            },
+            { $set: { readAt: new Date() } }
+        );
         const messages = await Message.find({ auctionId: auctionId, conversationKey }).sort({ sentAt: 1 });
         const otherUser = await User.findOne({ email: otherEmail });
 
@@ -1611,7 +1793,8 @@ app.get('/api/my-chats', requireLogin, async (req, res) => {
             const unread = await Message.countDocuments({
                 conversationKey: key,
                 recipientEmail: email,
-                senderEmail: { $ne: email }
+                senderEmail: { $ne: email },
+                $or: [{ readAt: null }, { readAt: { $exists: false } }]
             });
 
             result.push({
@@ -1693,7 +1876,7 @@ app.post('/api/watchlist/toggle', requireLogin, async (req, res) => {
         const auctionId = req.body.id;
         if (!mongoose.Types.ObjectId.isValid(auctionId)) return res.status(400).json({ success: false, message: 'Invalid ID' });
 
-        const index = dbUser.watchlist.indexOf(auctionId);
+        const index = dbUser.watchlist.findIndex((id) => id.toString() === auctionId);
         let added = false;
 
         if (index === -1) {
@@ -1813,16 +1996,34 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 app.get('/api/admin/team-overview', requireSuperAdmin, async (req, res) => {
     try {
         const admins = await User.find({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] }).select('-passwordHash').sort({ fullname: 1 });
-        const team = await Promise.all(admins.map(async (adminUser) => ({
+        const adminEmails = admins.map((adminUser) => adminUser.email);
+        const [assignedAgg, approvedAgg, rejectedAgg] = await Promise.all([
+            Auction.aggregate([
+                { $match: { assignedAdminEmail: { $in: adminEmails }, status: { $in: ['pending_review', 'under_review'] } } },
+                { $group: { _id: '$assignedAdminEmail', count: { $sum: 1 } } }
+            ]),
+            Auction.aggregate([
+                { $match: { reviewedByEmail: { $in: adminEmails }, status: 'active' } },
+                { $group: { _id: '$reviewedByEmail', count: { $sum: 1 } } }
+            ]),
+            Auction.aggregate([
+                { $match: { reviewedByEmail: { $in: adminEmails }, status: 'rejected' } },
+                { $group: { _id: '$reviewedByEmail', count: { $sum: 1 } } }
+            ])
+        ]);
+        const assignedMap = Object.fromEntries(assignedAgg.map((row) => [row._id, row.count]));
+        const approvedMap = Object.fromEntries(approvedAgg.map((row) => [row._id, row.count]));
+        const rejectedMap = Object.fromEntries(rejectedAgg.map((row) => [row._id, row.count]));
+        const team = admins.map((adminUser) => ({
             id: adminUser._id.toString(),
             fullname: adminUser.fullname,
             email: adminUser.email,
             isSuperAdmin: Boolean(adminUser.isSuperAdmin),
             isAdmin: Boolean(adminUser.isAdmin || adminUser.isSuperAdmin || adminUser.role === 'admin'),
-            assignedProducts: await Auction.countDocuments({ assignedAdminEmail: adminUser.email, status: { $in: ['pending_review', 'under_review'] } }),
-            approvedProducts: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'active' }),
-            rejectedProducts: await Auction.countDocuments({ reviewedByEmail: adminUser.email, status: 'rejected' })
-        })));
+            assignedProducts: assignedMap[adminUser.email] || 0,
+            approvedProducts: approvedMap[adminUser.email] || 0,
+            rejectedProducts: rejectedMap[adminUser.email] || 0
+        }));
         res.json(team);
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
@@ -1835,9 +2036,19 @@ app.post('/api/admin/set-admin', requireSuperAdmin, async (req, res) => {
         if (!target) return res.status(404).json({ error: 'User not found' });
         if (target.isSuperAdmin) return res.status(400).json({ error: 'Super admin status is managed separately.' });
 
+        const wasAdmin = Boolean(target.isAdmin);
         target.isAdmin = Boolean(req.body.isAdmin);
-        if (target.isAdmin) target.role = target.role === 'bidder' ? 'seller' : target.role;
         await target.save();
+
+        if (!wasAdmin && target.isAdmin) {
+            await pushNotification(target.email, {
+                type: 'admin_access_granted',
+                title: 'Admin access granted',
+                message: 'Review the admin handbook before validating or approving listings.',
+                actionUrl: '/admin-handbook.html',
+                metadata: { handbook: true }
+            });
+        }
 
         await AuditLog.create({
             action: target.isAdmin ? 'ADMIN_GRANTED' : 'ADMIN_REVOKED',
@@ -1854,7 +2065,10 @@ app.post('/api/admin/set-admin', requireSuperAdmin, async (req, res) => {
 
 app.post('/api/admin/assign-sell-requests', requireSuperAdmin, async (req, res) => {
     try {
-        const admins = await User.find({ isAdmin: true, isSuperAdmin: false }).sort({ fullname: 1 });
+        const admins = await User.find({
+            isSuperAdmin: false,
+            $or: [{ isAdmin: true }, { role: 'admin' }]
+        }).sort({ fullname: 1 });
         if (!admins.length) return res.status(400).json({ error: 'No admins available for assignment.' });
 
         const queue = await Auction.find({ status: 'pending_review', assignedAdminEmail: { $in: [null, ''] } }).sort({ createdAt: 1 });
@@ -1884,9 +2098,54 @@ app.post('/api/admin/assign-sell-requests', requireSuperAdmin, async (req, res) 
     }
 });
 
+app.post('/api/admin/assign-reviewer', requireSuperAdmin, async (req, res) => {
+    try {
+        const { listingId, reviewerEmail } = req.body;
+        const listing = await Auction.findById(listingId);
+        if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+        if (!['pending_review', 'under_review', 'rejected'].includes(listing.status)) {
+            return res.status(400).json({ error: 'Only review-queue listings can be assigned.' });
+        }
+
+        if (!reviewerEmail) {
+            listing.assignedAdminId = undefined;
+            listing.assignedAdminEmail = '';
+            listing.assignedAt = null;
+            if (listing.status !== 'rejected') listing.status = 'pending_review';
+            await listing.save();
+            return res.json({ success: true, assigned: false });
+        }
+
+        const reviewer = await User.findOne({
+            email: String(reviewerEmail).toLowerCase(),
+            $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }]
+        });
+        if (!reviewer) return res.status(404).json({ error: 'Reviewer not found.' });
+
+        listing.assignedAdminId = reviewer._id;
+        listing.assignedAdminEmail = reviewer.email;
+        listing.assignedAt = new Date();
+        if (listing.status !== 'rejected') listing.status = 'under_review';
+        await listing.save();
+
+        await pushNotification(reviewer.email, {
+            type: 'sell_request_assigned',
+            title: 'Review assignment updated',
+            message: `"${listing.title}" is now assigned to you for review.`,
+            actionUrl: reviewer.isSuperAdmin ? '/workspace/governance.html' : '/workspace/review.html',
+            metadata: { auctionId: listing._id.toString() }
+        });
+
+        res.json({ success: true, assigned: true, reviewerEmail: reviewer.email });
+    } catch (e) {
+        console.error('Manual assignment error:', e);
+        res.status(500).json({ error: 'Server error updating assignment.' });
+    }
+});
+
 app.post('/api/admin/review-request', requireAdmin, async (req, res) => {
     try {
-        const { id, decision, notes, rejectionReason } = req.body;
+        const { id, decision, notes, rejectionReason, moderationChecklist } = req.body;
         const listing = await Auction.findById(id);
         if (!listing) return res.status(404).json({ error: 'Listing not found.' });
 
@@ -1897,8 +2156,19 @@ app.post('/api/admin/review-request', requireAdmin, async (req, res) => {
         listing.reviewedAt = new Date();
         listing.reviewedByEmail = req.adminUser.email;
         listing.verified = decision === 'approve';
+        listing.moderationChecklist = {
+            clearMediaOnly: Boolean(moderationChecklist && moderationChecklist.clearMediaOnly),
+            noFacesVisible: Boolean(moderationChecklist && moderationChecklist.noFacesVisible),
+            noSexualContent: Boolean(moderationChecklist && moderationChecklist.noSexualContent),
+            noViolenceOrHarm: Boolean(moderationChecklist && moderationChecklist.noViolenceOrHarm),
+            categoryAndClaimsVerified: Boolean(moderationChecklist && moderationChecklist.categoryAndClaimsVerified)
+        };
 
         if (decision === 'approve') {
+            const allChecksPassed = Object.values(listing.moderationChecklist || {}).every(Boolean);
+            if (!allChecksPassed) {
+                return res.status(400).json({ error: 'Complete every review checklist point before allowing the product on the market.' });
+            }
             listing.status = 'active';
             listing.rejectionReason = '';
             listing.earlySellActivatedAt = null;
@@ -1990,12 +2260,13 @@ const PORT = process.env.PORT || 3001;
 nextApp.prepare().then(() => {
     console.log('   Next.js  : Ready');
 
-    server.listen(PORT, () => {
-        console.log(`\n🔨 Gavel is open at http://localhost:${PORT}`);
+    server.listen(PORT, "0.0.0.0", () => {
+        console.log(`\n🔨 Gavel is open at http://0.0.0.0:${PORT}`);
+        console.log(`   Access on network: http://172.16.100.91:${PORT}`);
         console.log(`   Database  : MongoDB Atlas`);
-        console.log(`   Frontend  : Next.js`);
-        console.log(`\n`);
+        console.log(`   Frontend  : Next.js\n`);
     });
+
 }).catch(err => {
     console.error('Next.js error:', err);
     process.exit(1);

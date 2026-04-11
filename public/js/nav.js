@@ -3,6 +3,26 @@
  * Replaces legacy top nav on static pages.
  */
 (async function initSidebar() {
+    document.body.classList.add('page-transition-ready');
+
+    document.addEventListener('click', function(event) {
+        const anchor = event.target.closest('a[href]');
+        if (!anchor) return;
+        const href = anchor.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+        if (anchor.target === '_blank' || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        if (href.startsWith('http') && !href.startsWith(window.location.origin)) return;
+
+        const nextUrl = new URL(href, window.location.origin);
+        if (nextUrl.origin !== window.location.origin || nextUrl.href === window.location.href) return;
+
+        event.preventDefault();
+        document.body.classList.add('page-transition-leaving');
+        window.setTimeout(function() {
+            window.location.href = nextUrl.href;
+        }, 70);
+    });
+
     function clearBrowserAuthState() {
         try {
             [window.localStorage, window.sessionStorage].forEach((store) => {
@@ -26,7 +46,9 @@
         const res = await fetch('/api/me');
         const data = await res.json();
         if (data.loggedIn) user = data.user;
-    } catch (e) {}
+    } catch (e) {
+        console.warn('Sidebar could not load current user state:', e);
+    }
 
     const header = document.querySelector('header');
     if (header) header.style.display = 'none';
@@ -39,12 +61,12 @@
     sidebar.innerHTML = `
         <a href="/" class="app-sidebar-logo">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span>Gavel</span>
         </a>
         <nav class="app-sidebar-links">
-            ${link('/', 'Home')}
+            ${!user ? link('/', 'Home') : ''}
             ${link('/auction.html', 'Auctions')}
             ${link('/explore.html', 'Explore')}
             ${link('/workspace/', 'Workspace')}
@@ -85,7 +107,9 @@
             if (messageLink && total > 0) {
                 messageLink.innerHTML += ` <span class="sidebar-badge">${total > 99 ? '99+' : total}</span>`;
             }
-        } catch (e) {}
+        } catch (e) {
+            console.warn('Sidebar could not load unread chat count:', e);
+        }
     }
 
     const logoutBtn = document.getElementById('sidebar-logout');
@@ -107,7 +131,11 @@
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async (event) => {
             event.preventDefault();
-            await fetch('/api/logout', { method: 'POST' }).catch(() => null);
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+            } catch (e) {
+                console.warn('Logout request failed, clearing local auth state anyway:', e);
+            }
             clearBrowserAuthState();
             window.location.href = '/login.html';
         });

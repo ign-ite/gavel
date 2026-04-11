@@ -1,7 +1,28 @@
 let allAuctionsData = [];
 let userWatchlist = [];
 let currentLayout = localStorage.getItem('gavel-layout') || 'masonry';
+let videoObserver = null;
 window.userWatchlist = userWatchlist;
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function closeDetailSocket() {
+    if (window.detailWs) {
+        try {
+            window.detailWs.close();
+        } catch (e) {}
+        window.detailWs = null;
+    }
+}
+
+window.addEventListener('beforeunload', closeDetailSocket);
 
 function getUrlFilters() {
     const params = new URLSearchParams(window.location.search);
@@ -326,13 +347,17 @@ window.closeDetail = function(e) {
         document.getElementById('detail-overlay').style.display = 'none';
         panel.style.display = 'none';
         document.body.style.overflow = '';
-        if (window.detailWs) window.detailWs.close();
+        closeDetailSocket();
     }, 350);
 };
 
 function renderDetailPanel(item, container) {
     const media = buildMediaArray(item);
     window.currentDetailMedia = media;
+    const safeTitle = escapeHtml(item.title);
+    const safeDescription = escapeHtml(item.description || 'No description provided.');
+    const safeSeller = escapeHtml(item.sellerName || item.sellerEmail);
+    const safeCategory = escapeHtml(item.category || '');
 
     container.innerHTML = `
         <div style="background:var(--bg-card); display:flex; justify-content:space-between; align-items:center; padding:15px 25px; border-bottom:1px solid var(--border-color);">
@@ -343,8 +368,8 @@ function renderDetailPanel(item, container) {
         <div style="flex:1; overflow-y:auto;">
             <div class="detail-images">
                 ${media[0].type === 'image'
-                    ? `<img id="detail-main-img" class="main-img" src="${media[0].src}" alt="${item.title}">`
-                    : `<img id="detail-main-img" class="main-img" src="" alt="${item.title}" style="display:none;">`
+                    ? `<img id="detail-main-img" class="main-img" src="${media[0].src}" alt="${safeTitle}">`
+                    : `<img id="detail-main-img" class="main-img" src="" alt="${safeTitle}" style="display:none;">`
                 }
                 <video id="detail-main-vid" class="main-video" controls style="display:${media[0].type === 'video' ? 'block' : 'none'};" ${media[0].type === 'video' ? `src="${media[0].src}"` : ''}></video>
             </div>
@@ -359,10 +384,10 @@ function renderDetailPanel(item, container) {
 
             <div style="padding:25px;">
                 ${!item.verified ? `<span style="background:rgba(255,59,48,0.1); color:var(--neon-red); font-size:0.75rem; font-weight:700; padding:4px 8px; border-radius:6px; border:1px solid rgba(255,59,48,0.3); text-transform:uppercase; margin-bottom:15px; display:inline-block;">Unverified Asset</span>` : ''}
-                <h2 style="margin:0 0 10px; font-size:1.5rem;">${item.title}</h2>
+                <h2 style="margin:0 0 10px; font-size:1.5rem;">${safeTitle}</h2>
                 <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:20px;">
-                    ${item.bidCount || 0} Trades · Seller: <strong>${item.sellerName || item.sellerEmail}</strong>
-                    ${item.category ? `· <span style="background:var(--glass-bg); padding:2px 8px; border-radius:4px;">${item.category}</span>` : ''}
+                    ${item.bidCount || 0} Trades · Seller: <strong>${safeSeller}</strong>
+                    ${item.category ? `· <span style="background:var(--glass-bg); padding:2px 8px; border-radius:4px;">${safeCategory}</span>` : ''}
                 </p>
 
                 <div style="display:flex; justify-content:space-between; align-items:flex-end; padding:20px; background:var(--glass-bg); border-radius:12px; border:1px solid var(--border-color); margin-bottom:25px;">
@@ -379,14 +404,14 @@ function renderDetailPanel(item, container) {
                 <div class="form-group" style="background:var(--bg-card); padding:25px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:25px;">
                     <label style="display:block; font-size:0.85rem; font-weight:700; margin-bottom:10px;">PLACE A TRADE LIMIT</label>
                     <div style="display:flex; gap:10px;">
-                        <input type="number" id="detail-bid-input" min="${item.currentBid + Math.max(1, Math.round(item.increment || 1))}" step="1" placeholder="₹${(item.currentBid + Math.max(1, Math.round(item.increment || 1))).toLocaleString('en-IN')} or more" class="form-control" style="flex:1;">
+                        <input type="number" id="detail-bid-input" min="${item.currentBid + 1}" step="1" placeholder="₹${(item.currentBid + 1).toLocaleString('en-IN')} or more" class="form-control" style="flex:1;">
                         <button onclick="placeDetailBid('${item.id}')" class="btn-primary" style="padding:0 25px; white-space:nowrap;">Execute Trade</button>
                     </div>
                     <p id="detail-bid-msg" style="margin-top:10px; font-size:0.85rem; display:none;"></p>
                 </div>
 
                 <h4 style="font-size:1.1rem; margin-bottom:10px;">Asset Description</h4>
-                <p style="color:var(--text-secondary); line-height:1.6; margin-bottom:30px;">${item.description || 'No description provided.'}</p>
+                <p style="color:var(--text-secondary); line-height:1.6; margin-bottom:30px;">${safeDescription}</p>
 
                 <a href="/item-detail.html?id=${item.id}" class="btn-primary" style="display:block; text-align:center; background:transparent; border:1px solid var(--border-color); color:var(--text-primary);">See More Details</a>
             </div>
@@ -395,11 +420,13 @@ function renderDetailPanel(item, container) {
 
     // Start timer for panel
     if (item.endTime) {
+        window.activeTimers = (window.activeTimers || []).filter((timer) => timer.el !== `detail-timer-${item.id}`);
         window.activeTimers.push({ el: `detail-timer-${item.id}`, end: new Date(item.endTime).getTime() });
     }
 
     // WebSocket for live price update in panel
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    closeDetailSocket();
     window.detailWs = new WebSocket(`${protocol}://${location.host}/ws`);
     window.detailWs.onopen = () => window.detailWs.send(JSON.stringify({ type: 'watch', itemId: item.id }));
     window.detailWs.onmessage = (e) => {
@@ -452,6 +479,8 @@ window.placeDetailBid = async function(auctionId) {
     const msgEl = document.getElementById('detail-bid-msg');
     const amount = Number(input?.value);
 
+    const currentItem = allAuctionsData.find((entry) => entry.id === auctionId);
+
     if (!amount || amount <= 0) {
         msgEl.textContent = 'Enter a valid amount limit.';
         msgEl.style.color = 'var(--neon-red)';
@@ -460,6 +489,12 @@ window.placeDetailBid = async function(auctionId) {
     }
     if (!Number.isInteger(amount)) {
         msgEl.textContent = 'Trade amount must be in whole rupees only.';
+        msgEl.style.color = 'var(--neon-red)';
+        msgEl.style.display = 'block';
+        return;
+    }
+    if (currentItem && amount <= Number(currentItem.currentBid || 0)) {
+        msgEl.textContent = `Enter more than ₹${Number(currentItem.currentBid || 0).toLocaleString('en-IN')}.`;
         msgEl.style.color = 'var(--neon-red)';
         msgEl.style.display = 'block';
         return;
@@ -537,6 +572,7 @@ function startTimerLoop() {
 function renderShortsFeed(auctions) {
     const homeContainer = document.getElementById('home-shorts-container');
     const auctionContainer = document.getElementById('auction-shorts-container');
+    window.activeTimers = (window.activeTimers || []).filter((timer) => !String(timer.el || '').startsWith('short-timer-'));
     
     const featured = [...auctions]
         .filter(a => a.status === 'active')
@@ -593,7 +629,8 @@ function renderShortsFeed(auctions) {
 }
 
 function setupVideoAutoplay() {
-    const observer = new IntersectionObserver((entries) => {
+    if (videoObserver) videoObserver.disconnect();
+    videoObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             const video = entry.target;
             if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
@@ -604,7 +641,7 @@ function setupVideoAutoplay() {
         });
     }, { threshold: 0.6 });
 
-    document.querySelectorAll('.short-video').forEach(v => observer.observe(v));
+    document.querySelectorAll('.short-video').forEach(v => videoObserver.observe(v));
 }
 
 function setupAuthWallTrigger() {

@@ -13,15 +13,20 @@
             align-items: center;
             padding: 80px 20px;
             min-height: 100vh;
+            background:
+                radial-gradient(circle at top center, rgba(188, 214, 206, 0.12), transparent 28%),
+                linear-gradient(180deg, rgba(10, 18, 30, 0.96), rgba(14, 25, 40, 0.96));
         }
 
         .sell-card {
-            background: var(--bg-card);
+            background: rgba(18, 30, 48, 0.92);
             padding: 50px;
-            border-radius: 12px;
+            border-radius: 24px;
             border: 1px solid var(--border-color);
             width: 100%;
             max-width: 760px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.22);
+            animation: sellCardIn 0.55s ease;
         }
 
         .sell-card h2 {
@@ -68,6 +73,25 @@
             box-sizing: border-box;
             transition: border-color 0.2s;
         }
+
+        .form-group select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),
+                var(--bg-main);
+            color: var(--text-primary);
+            box-sizing: border-box;
+            appearance: none;
+            background-image:
+                linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),
+                url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 10L12 15L17 10' stroke='%23BCD6CE' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat, no-repeat;
+            background-position: center, right 14px center;
+            background-size: auto, 18px;
+        }
         
         .form-group input:focus, .form-group textarea:focus {
             outline: none;
@@ -95,41 +119,43 @@
             gap: 12px;
         }
 
-        .upload-slot {
+        .upload-dropzone {
             display: grid;
-            gap: 8px;
-            padding: 14px;
+            gap: 10px;
+            padding: 18px;
             border: 1px dashed var(--border-color);
-            border-radius: 10px;
+            border-radius: 16px;
             background: var(--glass-bg);
         }
 
-        .upload-slot-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .slot-label {
-            font-size: 0.88rem;
-            font-weight: 700;
+        .upload-dropzone strong {
             color: var(--text-primary);
+            font-size: 0.95rem;
         }
 
-        .slot-state {
-            font-size: 0.78rem;
+        .upload-dropzone p {
+            margin: 0;
             color: var(--text-secondary);
+            font-size: 0.82rem;
+            line-height: 1.55;
         }
 
-        .slot-remove {
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: transparent;
-            color: var(--text-secondary);
+        .upload-preview-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .upload-preview-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
             border-radius: 999px;
-            padding: 6px 10px;
-            cursor: pointer;
-            font-size: 0.78rem;
+            background: rgba(189, 221, 252, 0.08);
+            border: 1px solid rgba(189, 221, 252, 0.14);
+            color: var(--text-primary);
+            font-size: 0.8rem;
         }
 
         .mini-action {
@@ -195,9 +221,73 @@
             margin-top: 20px;
             cursor: pointer;
             border: none;
-            padding: 16px;
+            padding: 17px;
             font-size: 1rem;
             font-weight: 700;
+        }
+
+        .dyn-panel {
+            display: none;
+            padding: 22px;
+            background: rgba(188, 214, 206, 0.04);
+            border-radius: 18px;
+            border: 1px solid var(--border-color);
+        }
+
+        .checklist-panel {
+            padding: 22px;
+            background: rgba(188, 214, 206, 0.04);
+            border-radius: 18px;
+            border: 1px solid var(--border-color);
+        }
+
+        .sell-section-title {
+            margin: 0 0 14px;
+            font-size: 1.05rem;
+            color: var(--text-primary);
+        }
+
+        .policy-card {
+            display: grid;
+            gap: 10px;
+            padding: 16px 18px;
+            border-radius: 16px;
+            background: rgba(189, 221, 252, 0.07);
+            border: 1px solid rgba(189, 221, 252, 0.14);
+        }
+
+        .policy-card p {
+            margin: 0;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .confirm-check {
+            display: grid;
+            grid-template-columns: 18px minmax(0, 1fr);
+            gap: 12px;
+            align-items: start;
+            margin-top: 14px;
+        }
+
+        @keyframes sellCardIn {
+            from { opacity: 0; transform: translateY(18px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 760px) {
+            .sell-card {
+                padding: 28px 20px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .full-width,
+            .dyn-panel h3 {
+                grid-column: span 1;
+            }
         }
         
         input[type=file]::file-selector-button {
@@ -253,7 +343,7 @@
 
                 <div class="form-group full-width">
                     <label>Category</label>
-                    <select name="category" id="category-select" required style="width: 100%; padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-main); color: var(--text-primary); cursor:pointer;">
+                    <select name="category" id="category-select" required>
                         <option value="" disabled selected>Select a category...</option>
                         <option value="Electronics">Electronics</option>
                         <option value="Vehicles">Vehicles</option>
@@ -267,17 +357,23 @@
                 </div>
 
                 <!-- Dynamic Fields Container -->
-                <div id="dynamic-fields" class="form-grid full-width" style="display: none; padding: 20px; background: var(--glass-bg); border-radius: 8px; border: 1px solid var(--border-color);">
+                <div id="dynamic-fields" class="form-grid full-width dyn-panel">
                     <h3 style="grid-column: span 2; margin-top: 0; font-size: 1.1rem; color: var(--brass-gold);">Category specifics</h3>
                     <div id="dynamic-inputs" style="display: contents;"></div>
                 </div>
 
                 <div class="form-group">
                     <label>Product Images</label>
-                    <div id="image-upload-stack" class="upload-stack"></div>
-                    <button type="button" class="mini-action" id="add-image-slot" style="margin-top:12px;">Add Another Image</button>
+                    <div id="image-upload-stack" class="upload-stack">
+                        <label class="upload-dropzone">
+                            <strong>Select product images</strong>
+                            <p>Choose multiple images at once. Three or more is recommended for faster approval.</p>
+                            <input type="file" id="images-input" name="images" accept="image/*" multiple required>
+                        </label>
+                        <div id="image-preview-list" class="upload-preview-list"></div>
+                    </div>
                     <small class="helper-note">
-                        Upload images one by one. Add at least 3 clear photos: front, back, close-up, serial/orientation, and any defects.
+                        Add a few clear photos showing the front, back, close-up details, and any visible defects.
                     </small>
                 </div>
 
@@ -312,30 +408,16 @@
                     <input type="hidden" name="checklist" id="checklist-json">
                 </div>
 
-                <div class="form-group full-width" style="padding: 18px; background: var(--glass-bg); border-radius: 8px; border: 1px solid var(--border-color);">
-                    <label style="margin-bottom: 12px;">Submission Checklist</label>
-                    <div style="display:grid; gap:10px;">
-                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
-                            <input type="checkbox" class="checklist-item" data-key="ownershipConfirmed" required style="margin-top:3px;">
-                            <span>I confirm I own this product or I am authorized to sell it.</span>
-                        </label>
-                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
-                            <input type="checkbox" class="checklist-item" data-key="authenticityStatement" required style="margin-top:3px;">
-                            <span>I confirm the description and authenticity claims are accurate.</span>
-                        </label>
-                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
-                            <input type="checkbox" class="checklist-item" data-key="mediaQualityConfirmed" required style="margin-top:3px;">
-                            <span>I uploaded clear media that shows the true condition of the item.</span>
-                        </label>
-                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
-                            <input type="checkbox" class="checklist-item" data-key="orientationConfirmed" required style="margin-top:3px;">
-                            <span>I checked that the images and video are correctly oriented and easy to review.</span>
-                        </label>
-                        <label style="display:flex; gap:10px; align-items:flex-start; margin:0;">
-                            <input type="checkbox" class="checklist-item" data-key="termsAccepted" required style="margin-top:3px;">
-                            <span>I agree to the <a href="/terms-and-conditions.html" target="_blank" rel="noopener" style="color:var(--accent-blue);">terms and conditions</a>.</span>
-                        </label>
+                <div class="form-group full-width checklist-panel">
+                    <label class="sell-section-title">Before You Submit</label>
+                    <div class="policy-card">
+                        <p>Most seller obligations now live in the <a href="/terms-and-conditions.html" target="_blank" rel="noopener" style="color:var(--accent-blue);">Terms &amp; Conditions</a>. Focus this form on clean media, accurate details, and the correct category.</p>
+                        <p>When you press submit, you will confirm that the listing follows the terms and is ready for review.</p>
                     </div>
+                    <label class="confirm-check">
+                        <input type="checkbox" id="inline-terms-check" required>
+                        <span style="color:var(--text-primary); line-height:1.6;">I have read the <a href="/terms-and-conditions.html" target="_blank" rel="noopener" style="color:var(--accent-blue);">Terms &amp; Conditions</a> and understand the seller obligations.</span>
+                    </label>
                 </div>
 
                 <div class="full-width">
@@ -359,6 +441,20 @@
                 <li>Make sure images are upright and the video shows a full walkaround without heavy blur.</li>
             </ul>
             <button type="button" class="btn-primary sell-modal-close" data-close-modal="listing-help-modal">Close</button>
+        </div>
+    </div>
+    <div class="sell-modal" id="submit-confirm-modal" aria-hidden="true">
+        <div class="sell-modal-card">
+            <h3>Confirm Submission</h3>
+            <p>Your listing will be sent to the review queue. Please confirm that the product details, media, and category are accurate.</p>
+            <label class="confirm-check">
+                <input type="checkbox" id="submit-terms-check">
+                <span style="color:var(--text-primary); line-height:1.6;">I agree to the <a href="/terms-and-conditions.html" target="_blank" rel="noopener" style="color:var(--accent-blue);">Terms &amp; Conditions</a> and confirm this listing is accurate.</span>
+            </label>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:18px;">
+                <button type="button" class="mini-action" data-close-modal="submit-confirm-modal">Cancel</button>
+                <button type="button" class="btn-primary sell-modal-close" id="confirm-submit-button">Agree And Submit</button>
+            </div>
         </div>
     </div>
     <script src="js/nav.js"></script>
@@ -395,6 +491,16 @@
                 { name: "Designer", placeholder: "e.g. Cartier, Rolex", type: "text" },
                 { name: "Material", placeholder: "e.g. 18k Gold, Platinum", type: "text" },
                 { name: "Gemstone", placeholder: "e.g. 2.4ct Diamond", type: "text" }
+            ],
+            "Collectibles": [
+                { name: "Era / Year", placeholder: "e.g. 1998, early 20th century", type: "text" },
+                { name: "Maker / Series", placeholder: "e.g. Match Attax, LEGO Ideas", type: "text" },
+                { name: "Condition", placeholder: "e.g. sealed, near mint, graded", type: "text" }
+            ],
+            "Antiques": [
+                { name: "Period", placeholder: "e.g. Victorian, Colonial", type: "text" },
+                { name: "Material", placeholder: "e.g. teak, brass, porcelain", type: "text" },
+                { name: "Provenance", placeholder: "e.g. family estate, dealer invoice", type: "text" }
             ]
         };
 
@@ -407,64 +513,20 @@
         const specsJson = document.getElementById('specifications-json');
         const checklistJson = document.getElementById('checklist-json');
         const imageStack = document.getElementById('image-upload-stack');
-        const addImageSlotButton = document.getElementById('add-image-slot');
-        let imageSlotCount = 0;
+        const imagesInput = document.getElementById('images-input');
+        const imagePreviewList = document.getElementById('image-preview-list');
+        const submitConfirmModal = document.getElementById('submit-confirm-modal');
+        const submitTermsCheck = document.getElementById('submit-terms-check');
+        const inlineTermsCheck = document.getElementById('inline-terms-check');
+        const confirmSubmitButton = document.getElementById('confirm-submit-button');
+        let submissionConfirmed = false;
 
-        function createImageSlot() {
-            if (imageSlotCount >= 6) return;
-            imageSlotCount += 1;
-
-            const slot = document.createElement('div');
-            slot.className = 'upload-slot';
-            slot.dataset.slot = String(imageSlotCount);
-            slot.innerHTML = `
-                <div class="upload-slot-top">
-                    <div>
-                        <div class="slot-label">Image ${imageSlotCount}</div>
-                        <div class="slot-state">No file selected</div>
-                    </div>
-                    ${imageSlotCount > 3 ? '<button type="button" class="slot-remove">Remove</button>' : ''}
-                </div>
-                <input type="file" name="images" accept="image/*" ${imageSlotCount <= 3 ? 'required' : ''}>
-            `;
-
-            const input = slot.querySelector('input');
-            const state = slot.querySelector('.slot-state');
-            input.addEventListener('change', function(event) {
-                const file = event.target.files && event.target.files[0];
-                state.textContent = file ? file.name : 'No file selected';
-            });
-
-            const removeButton = slot.querySelector('.slot-remove');
-            if (removeButton) {
-                removeButton.addEventListener('click', function() {
-                    slot.remove();
-                    syncImageSlots();
-                });
-            }
-
-            imageStack.appendChild(slot);
-            syncImageSlots();
-        }
-
-        function syncImageSlots() {
-            const slots = Array.from(imageStack.querySelectorAll('.upload-slot'));
-            imageSlotCount = slots.length;
-            slots.forEach(function(slot, index) {
-                const order = index + 1;
-                slot.dataset.slot = String(order);
-                const label = slot.querySelector('.slot-label');
-                if (label) label.textContent = `Image ${order}`;
-                const input = slot.querySelector('input');
-                if (input) input.required = order <= 3;
-                const removeButton = slot.querySelector('.slot-remove');
-                if (removeButton) removeButton.style.display = order <= 3 ? 'none' : 'inline-flex';
-            });
-            addImageSlotButton.style.display = imageSlotCount >= 6 ? 'none' : 'inline-flex';
-        }
-
-        [1, 2, 3].forEach(createImageSlot);
-        addImageSlotButton.addEventListener('click', createImageSlot);
+        imagesInput.addEventListener('change', function(event) {
+            const files = Array.from(event.target.files || []);
+            imagePreviewList.innerHTML = files.map(function(file) {
+                return '<span class="upload-preview-chip">' + file.name + '</span>';
+            }).join('');
+        });
 
         catSelect.addEventListener('change', (e) => {
             const cat = e.target.value;
@@ -494,26 +556,51 @@
                 });
             }
 
-            const selectedImages = Array.from(imageStack.querySelectorAll('input[type="file"]')).filter((input) => input.files && input.files[0]);
-            if (selectedImages.length < 3) {
+            const selectedImages = Array.from(imagesInput.files || []);
+            if (selectedImages.length < 1) {
                 e.preventDefault();
-                alert("Please upload at least 3 images. You can add them one by one.");
+                alert("Please upload at least one product image.");
                 return;
             }
 
             finalDesc.value = baseDesc.value.trim();
             specsJson.value = JSON.stringify(specPayload);
-            checklistJson.value = JSON.stringify(Array.from(document.querySelectorAll('.checklist-item')).reduce((acc, item) => {
-                acc[item.getAttribute('data-key')] = item.checked;
-                return acc;
-            }, {}));
+            checklistJson.value = JSON.stringify({
+                ownershipConfirmed: true,
+                authenticityStatement: true,
+                mediaQualityConfirmed: true,
+                orientationConfirmed: true,
+                termsAccepted: Boolean(inlineTermsCheck.checked && submissionConfirmed && submitTermsCheck.checked)
+            });
+
+            if (!submissionConfirmed) {
+                e.preventDefault();
+                if (!inlineTermsCheck.checked) {
+                    alert('Please read and confirm the terms and conditions before submitting.');
+                    return;
+                }
+                submitConfirmModal.classList.add('open');
+                return;
+            }
         });
 
         document.querySelector('input[name="video"]').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
+            const input = e.target;
+            const file = input.files[0];
+            if (!file) return;
+
+            const tempVideo = document.createElement('video');
+            tempVideo.preload = 'metadata';
+            tempVideo.onloadedmetadata = function() {
+                window.URL.revokeObjectURL(tempVideo.src);
+                if (tempVideo.duration < 2) {
+                    alert("Verification video must be at least 2 seconds long.");
+                    input.value = '';
+                    return;
+                }
                 alert("Verification video attached. Our compliance team will review the footage upon listing submission.");
-            }
+            };
+            tempVideo.src = URL.createObjectURL(file);
         });
 
         document.querySelectorAll('[data-modal-target]').forEach(function(trigger) {
@@ -534,6 +621,16 @@
             modal.addEventListener('click', function(event) {
                 if (event.target === modal) modal.classList.remove('open');
             });
+        });
+
+        confirmSubmitButton.addEventListener('click', function() {
+            if (!submitTermsCheck.checked) {
+                alert('Please agree to the terms and conditions before submitting.');
+                return;
+            }
+            submissionConfirmed = true;
+            submitConfirmModal.classList.remove('open');
+            form.requestSubmit();
         });
     </script>
 </body>

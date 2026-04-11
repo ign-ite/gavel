@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
-    --workspace-bg: #0a1424;
-    --workspace-panel: rgba(255, 255, 255, 0.045);
-    --workspace-panel-strong: rgba(255, 255, 255, 0.055);
-    --workspace-border: rgba(255, 255, 255, 0.09);
-    --workspace-accent: #d6dde8;
-    --workspace-accent-strong: #89a3c7;
-    --workspace-copy: #f8fafc;
-    --workspace-copy-soft: #95a4ba;
-    --workspace-danger: #f0a0ae;
-    --workspace-success: #9ac4a3;
-    --workspace-warn: #e7c98c;
+    --workspace-bg: #384959;
+    --workspace-panel: rgba(189, 221, 252, 0.08);
+    --workspace-panel-strong: rgba(207, 255, 220, 0.1);
+    --workspace-border: rgba(189, 221, 252, 0.16);
+    --workspace-accent: #BDDDFC;
+    --workspace-accent-strong: #88BDF2;
+    --workspace-copy: #f4fbff;
+    --workspace-copy-soft: #c5e6fc;
+    --workspace-danger: #E491A6;
+    --workspace-success: #68BA7F;
+    --workspace-warn: #DFEFB2;
     --workspace-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
     --workspace-heading: 'Fraunces', Georgia, serif;
     --workspace-body: 'Manrope', 'Inter', sans-serif;
@@ -23,8 +23,13 @@ body.workspace-mode {
     color: var(--workspace-copy);
     font-family: var(--workspace-body);
     background:
-        radial-gradient(circle at top left, rgba(137, 163, 199, 0.08), transparent 28%),
-        linear-gradient(180deg, #09111e 0%, #0d1729 50%, #111c31 100%);
+        radial-gradient(circle at top left, rgba(189, 221, 252, 0.12), transparent 28%),
+        linear-gradient(180deg, #384959 0%, #314454 44%, #253D2C 100%);
+}
+
+body.workspace-mode .workspace-button {
+    background: linear-gradient(135deg, #88BDF2, #A3E0CA);
+    box-shadow: 0 14px 28px rgba(136, 189, 242, 0.18);
 }
 
 body.workspace-mode.has-app-sidebar .workspace-shell {
@@ -51,7 +56,7 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
     padding: 16px 18px;
     border: 1px solid var(--workspace-border);
     border-radius: 18px;
-    background: rgba(9, 17, 31, 0.84);
+    background: rgba(56, 73, 89, 0.84);
     backdrop-filter: blur(22px);
     box-shadow: var(--workspace-shadow);
 }
@@ -108,7 +113,7 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
     gap: 14px;
     padding: 10px 14px;
     border-radius: 14px;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(189, 221, 252, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -119,8 +124,8 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
     display: grid;
     place-items: center;
     font-weight: 800;
-    color: #06101e;
-    background: linear-gradient(135deg, #d6dde8, #89a3c7);
+    color: #253D2C;
+    background: linear-gradient(135deg, #BDDDFC, #A3E0CA);
 }
 
 .workspace-user span {
@@ -140,7 +145,7 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
     gap: 10px;
     padding: 16px;
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(189, 221, 252, 0.05);
     border: 1px solid var(--workspace-border);
     box-shadow: var(--workspace-shadow);
 }
@@ -189,7 +194,7 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
 
 .workspace-panel.hero {
     background:
-        linear-gradient(135deg, rgba(137, 163, 199, 0.08), transparent 58%),
+        linear-gradient(135deg, rgba(136, 189, 242, 0.12), transparent 58%),
         var(--workspace-panel-strong);
 }
 
@@ -330,8 +335,8 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
     padding: 8px 14px;
     font-size: 0.88rem;
     color: var(--workspace-copy);
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(189, 221, 252, 0.08);
+    border-color: rgba(189, 221, 252, 0.12);
 }
 
 .workspace-inline-button.danger {
@@ -347,6 +352,66 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
     color: var(--workspace-accent);
 }
 
+.workspace-chat-list {
+    display: grid;
+    gap: 14px;
+}
+
+.workspace-chat-card {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 16px;
+    padding: 18px;
+    border-radius: 20px;
+    background: rgba(189, 221, 252, 0.07);
+    border: 1px solid var(--workspace-border);
+    align-items: start;
+}
+
+.workspace-chat-avatar {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: #253D2C;
+    background: linear-gradient(135deg, #BDDDFC, #A3E0CA);
+}
+
+.workspace-chat-main {
+    min-width: 0;
+}
+
+.workspace-chat-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.workspace-chat-preview {
+    margin-top: 10px;
+    color: var(--workspace-copy-soft);
+    line-height: 1.6;
+    font-size: 0.94rem;
+}
+
+.workspace-chat-unread {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #253D2C;
+    background: linear-gradient(135deg, #DFEFB2, #A3E0CA);
+}
+
 .workspace-meta {
     margin-top: 10px;
     color: var(--workspace-copy-soft);
@@ -360,6 +425,19 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
 }
 
 .workspace-stat {
+    padding: 18px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--workspace-border);
+}
+
+.workspace-governance-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.workspace-stat-card {
     padding: 18px;
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.03);
@@ -507,6 +585,48 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.workspace-review-checklist {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 16px;
+    background: rgba(189, 221, 252, 0.05);
+    border: 1px solid var(--workspace-border);
+}
+
+.workspace-review-check {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    color: var(--workspace-copy);
+    font-size: 0.9rem;
+    line-height: 1.55;
+}
+
+.workspace-review-check-input {
+    margin-top: 2px;
+}
+
+.workspace-assign-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 280px;
+}
+
+.workspace-assign-select {
+    flex: 1;
+    min-width: 0;
+    border-radius: 12px;
+    border: 1px solid var(--workspace-border);
+    background: rgba(189, 221, 252, 0.06);
+    color: var(--workspace-copy);
+    padding: 10px 12px;
+    font: inherit;
+}
+
 @media (max-width: 1080px) {
     .workspace-hero,
     .workspace-two-up,
@@ -553,5 +673,15 @@ body.workspace-mode.has-app-sidebar .workspace-shell {
 
     .workspace-actions {
         flex-direction: column;
+    }
+
+    .workspace-chat-card {
+        grid-template-columns: 1fr;
+    }
+
+    .workspace-assign-row {
+        min-width: 0;
+        flex-direction: column;
+        align-items: stretch;
     }
 }

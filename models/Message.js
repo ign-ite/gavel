@@ -7,7 +7,8 @@ const MessageSchema = new mongoose.Schema({
     senderEmail: { type: String, required: true },
     senderName: { type: String, required: true },
     message: { type: String, required: true },
-    sentAt: { type: Date, default: Date.now }
+    sentAt: { type: Date, default: Date.now },
+    readAt: { type: Date, default: null }
 });
 
 module.exports = mongoose.model('Message', MessageSchema);

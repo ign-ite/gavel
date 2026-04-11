@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Handbook | Gavel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .handbook-shell {
+            max-width: 1040px;
+            margin: 0 auto;
+            padding: 56px 20px 88px;
+        }
+
+        .handbook-hero,
+        .handbook-card {
+            border-radius: 28px;
+            border: 1px solid var(--border-color);
+            background: rgba(189, 221, 252, 0.08);
+            box-shadow: 0 24px 60px rgba(20, 28, 34, 0.18);
+        }
+
+        .handbook-hero {
+            padding: 34px;
+            margin-bottom: 22px;
+        }
+
+        .handbook-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 22px;
+        }
+
+        .handbook-card {
+            padding: 28px;
+        }
+
+        .handbook-kicker {
+            display: inline-flex;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(163, 224, 202, 0.12);
+            border: 1px solid rgba(163, 224, 202, 0.2);
+            color: var(--accent-green);
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .handbook-hero h1,
+        .handbook-card h2 {
+            margin: 0;
+            font-family: var(--font-heading);
+            color: var(--text-primary);
+        }
+
+        .handbook-hero h1 {
+            margin-top: 14px;
+            font-size: clamp(2.2rem, 5vw, 3.6rem);
+            line-height: 1;
+        }
+
+        .handbook-hero p,
+        .handbook-card p,
+        .handbook-card li {
+            color: var(--text-secondary);
+            line-height: 1.74;
+        }
+
+        .handbook-card ul,
+        .handbook-card ol {
+            padding-left: 20px;
+            margin: 16px 0 0;
+        }
+
+        .handbook-card li + li {
+            margin-top: 8px;
+        }
+
+        .handbook-pill-grid {
+            margin-top: 22px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .handbook-pill {
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(189, 221, 252, 0.08);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .handbook-note {
+            margin-top: 18px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: rgba(228, 145, 166, 0.08);
+            border: 1px solid rgba(228, 145, 166, 0.18);
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 860px) {
+            .handbook-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .handbook-hero,
+            .handbook-card {
+                padding: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="handbook-shell">
+        <section class="handbook-hero">
+            <span class="handbook-kicker">Admin Review Standard</span>
+            <h1>Gavel Admin Handbook</h1>
+            <p>Admins are responsible for approving only listings that are accurate, reviewable, policy-compliant, and safe for buyers. Every decision must be traceable to the listing, media, and seller disclosures shown in the review queue.</p>
+            <div class="handbook-pill-grid">
+                <div class="handbook-pill">Review the actual item, not the seller intent.</div>
+                <div class="handbook-pill">Reject with corrective notes, not vague warnings.</div>
+                <div class="handbook-pill">Escalate suspicious cases instead of guessing.</div>
+            </div>
+        </section>
+
+        <div class="handbook-grid">
+            <article class="handbook-card">
+                <h2>Approval Requirements</h2>
+                <ol>
+                    <li>Title, category, and price setup must match the actual product being sold.</li>
+                    <li>Images must clearly show the product, visible condition, and any relevant markings or defects.</li>
+                    <li>Video must be usable for moderation: stable enough to inspect, showing the actual item, and long enough to verify continuity.</li>
+                    <li>Description must disclose condition, included accessories, notable defects, and claims of authenticity or provenance.</li>
+                    <li>Listing must not appear stolen, counterfeit, prohibited, manipulated, or materially misleading.</li>
+                </ol>
+
+                <div class="handbook-note">
+                    If the evidence is incomplete, the correct action is rejection with a clear fix list, not approval based on assumption.
+                </div>
+            </article>
+
+            <article class="handbook-card">
+                <h2>Reject When</h2>
+                <ul>
+                    <li>Media is blurry, duplicated, rotated incorrectly, heavily filtered, or unrelated to the product.</li>
+                    <li>Title or category is chosen to game discovery instead of accurately classifying the item.</li>
+                    <li>Condition, authenticity, damage, missing parts, or provenance are omitted or contradicted by the media.</li>
+                    <li>The seller makes unsupported value or authenticity claims.</li>
+                    <li>The listing could create legal, fraud, safety, or reputational risk for the platform.</li>
+                </ul>
+            </article>
+
+            <article class="handbook-card">
+                <h2>Conflict And Conduct Rules</h2>
+                <ul>
+                    <li>Never approve your own listing or any listing where you have a financial or personal conflict.</li>
+                    <li>Do not fast-track listings outside the queue for friends, repeat sellers, or internal pressure.</li>
+                    <li>Do not rewrite the seller’s listing into a materially different product claim during moderation.</li>
+                    <li>Use review notes professionally. Notes become part of the platform record.</li>
+                </ul>
+            </article>
+
+            <article class="handbook-card">
+                <h2>Writing Review Notes</h2>
+                <p>Use notes that explain exactly what must change. A useful note identifies the missing proof, the incorrect media, or the undisclosed issue.</p>
+                <ul>
+                    <li>Good: “Add a clear image of the serial plate and disclose the cracked bezel in the description.”</li>
+                    <li>Bad: “Needs better details.”</li>
+                    <li>Good: “Category should be Collectibles, not Electronics. Re-upload video in the correct orientation.”</li>
+                </ul>
+            </article>
+
+            <article class="handbook-card" style="grid-column: 1 / -1;">
+                <h2>Escalation Triggers</h2>
+                <ul>
+                    <li>Potential counterfeit goods, mismatched ownership claims, or suspiciously altered media.</li>
+                    <li>Repeated policy abuse from the same seller.</li>
+                    <li>Threats, bribery attempts, or pressure to approve outside normal review.</li>
+                    <li>Any case where the evidence suggests fraud, stolen goods, or platform abuse.</li>
+                </ul>
+                <p>Escalate these cases to a super admin with a concise summary and the exact issue observed. Do not approve them while waiting for clarification.</p>
+            </article>
+        </div>
+    </main>
+</body>
+</html>
