@@ -1,7 +1,7 @@
 {
   "name": "gavel",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
@@ -21,7 +21,7 @@
     "url": "https://github.com/SaurabhLingam/gavel/issues"
   },
   "homepage": "https://github.com/SaurabhLingam/gavel#readme",
-  "description": "",
+  "description": "Student campus auction platform — real-time bidding, campus rivalry, and verified sellers",
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
     "bcryptjs": "^3.0.3",

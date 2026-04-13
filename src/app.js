@@ -17,7 +17,36 @@ const cookieOptsShort = { httpOnly: true, secure: process.env.NODE_ENV === 'prod
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, '../public')));
+
+// Production security headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+});
+
+// Static files with aggressive caching for production
+app.use(express.static(path.join(__dirname, '../public'), {
+    maxAge: process.env.NODE_ENV === 'production' ? '7d' : 0,
+    etag: true,
+    lastModified: true,
+    immutable: process.env.NODE_ENV === 'production',
+    setHeaders: (res, filePath) => {
+        // Long cache for hashed/immutable assets
+        if (filePath.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|woff2?|ttf|otf)$/)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+        // Short cache for HTML (always revalidate)
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        }
+    }
+}));
 
 const supabaseKey = SUPABASE_SERVICE_KEY && !SUPABASE_SERVICE_KEY.startsWith('sb_publishable_') ? SUPABASE_SERVICE_KEY : SUPABASE_ANON_KEY;
 const supabase = (SUPABASE_URL && supabaseKey) ? createClient(SUPABASE_URL, supabaseKey) : null;
@@ -178,7 +207,7 @@ app.get('/auth/callback', async (req, res) => {
          }
          res.cookie('sb_access_token', access_token, cookieOptsShort);
 
-         res.redirect('/dashboard.html');
+         res.redirect('/dashboard-home.html'); /* DASHBOARD-HOME ADDITION */
      } catch (e) {
          console.error('Auth callback error:', e);
          res.redirect('/login.html');
