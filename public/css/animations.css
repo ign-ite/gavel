@@ -1,0 +1,102 @@
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+@keyframes bidPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@keyframes tick {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes heroReveal {
+  from { opacity: 0; transform: translateY(60px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes heroTextReveal {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes heroBadgeReveal {
+  from { opacity: 0; transform: translateY(10px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes grain {
+  0%, 100% { transform: translate(0,0); }
+  10% { transform: translate(-5%,-10%); }
+  30% { transform: translate(3%,-15%); }
+  50% { transform: translate(12%,9%); }
+  70% { transform: translate(9%,4%); }
+  90% { transform: translate(-1%,7%); }
+}
+
+.reveal {
+  opacity: 0; transform: translateY(40px);
+  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal.visible {
+  opacity: 1; transform: translateY(0);
+}
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+.reveal-scale {
+  opacity: 0; transform: scale(0.92);
+  transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal-scale.visible { opacity: 1; transform: scale(1); }
+
+.hero-text-reveal { animation: heroTextReveal 0.8s cubic-bezier(0.16,1,0.3,1) both; }
+.hero-badge-reveal { animation: heroBadgeReveal 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both; }
+.hero-image-reveal { animation: heroReveal 1s cubic-bezier(0.16,1,0.3,1) 0.3s both; }
+.hero-cta-reveal { animation: heroTextReveal 0.8s cubic-bezier(0.16,1,0.3,1) 0.5s both; }
+
+.animate-bid { animation: bidPulse 0.4s ease; }
+.animate-tick { animation: tick 0.3s ease; }
+.animate-modal { animation: modalFadeIn 0.3s ease both; }
+
+.spinner { width: 32px; height: 32px; border: 3px solid var(--sand); border-top-color: var(--olive); border-radius: 50%; animation: spin 0.7s linear infinite; }
+
+.grain-overlay::before {
+  content: ''; position: absolute; inset: -50%; z-index: 1; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  animation: grain 8s steps(10) infinite;
+}

@@ -16,5 +16,15 @@ yarn-error.log*
 pnpm-debug.log*
 *.log
 .DS_Store
+Thumbs.db
 
 gavel-architecture-v3.html
+
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+frontend/build/
+
+*.tgz
+*.zip
+.vercel

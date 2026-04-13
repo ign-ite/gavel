@@ -1,303 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messages | Gavel</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        .chats-page {
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 0 20px 80px;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messages — Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="images/logo.png">
+  <style>
+    .chats-hero {
+      padding: var(--space-20) 0 var(--space-6);
+      background: linear-gradient(180deg, var(--cream) 0%, var(--parchment) 100%);
+    }
 
-        .chats-page h1 {
-            font-size: 2.2rem;
-            margin-bottom: 8px;
-            letter-spacing: -1px;
-        }
+    .chat-row {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4); border-radius: var(--radius-lg);
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+      text-decoration: none; color: inherit; transition: all var(--transition);
+      margin-bottom: var(--space-3);
+    }
+    .chat-row:hover { box-shadow: var(--shadow-md); transform: translateX(4px); }
+    .chat-row.has-unread { border-left: 3px solid var(--olive); background: rgba(143,170,126,0.04); }
 
-        .chats-page .subtitle {
-            color: var(--text-secondary);
-            margin-bottom: 40px;
-            font-size: 1.05rem;
-        }
-
-        .chat-row {
-            display: flex;
-            align-items: center;
-            gap: 18px;
-            padding: 20px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            margin-bottom: 16px;
-            text-decoration: none;
-            color: inherit;
-            transition: all 0.2sease;
-            position: relative;
-        }
-        
-        .chat-row:hover {
-            border-color: rgba(255,255,255,0.2);
-            transform: translateY(-2px);
-        }
-        
-        .chat-row.has-unread {
-            border-left: 4px solid var(--accent-blue);
-            background: rgba(0, 196, 255, 0.05);
-        }
-
-        .chat-thumb {
-            width: 70px;
-            height: 70px;
-            border-radius: 8px;
-            object-fit: cover;
-            border: 1px solid var(--border-color);
-            flex-shrink: 0;
-        }
-
-        .chat-avatar {
-            width: 44px; height: 44px;
-            border-radius: 50%;
-            background: var(--accent-blue);
-            color: var(--bg-main);
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 1.15rem;
-            flex-shrink: 0;
-            border: 2px solid var(--bg-card);
-            margin-left: -20px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-
-        .chat-body {
-            flex: 1;
-            min-width: 0;
-        }
-        .chat-body .chat-title {
-            font-weight: 600;
-            color: var(--text-primary);
-            font-size: 1.1rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin-bottom: 4px;
-        }
-        .chat-body .chat-with {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-        }
-        
-        .role-pill {
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            padding: 2px 8px;
-            border-radius: 4px;
-            margin-left: 6px;
-            vertical-align: middle;
-        }
-        .role-pill.seller { background: var(--glass-bg); color: var(--text-secondary); border: 1px solid var(--border-color); }
-        .role-pill.winner, .role-pill.buyer { background: rgba(0,255,136,0.1); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.2); }
-
-        .chat-body .chat-preview {
-            font-size: 0.95rem;
-            color: var(--text-secondary);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .chat-body .chat-preview.unread-preview {
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-        .chat-body .no-messages {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            font-style: italic;
-        }
-
-        .chat-meta {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-        .chat-time {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-        .unread-badge {
-            background: var(--neon-red);
-            color: white;
-            font-size: 0.75rem;
-            font-weight: 700;
-            border-radius: 12px;
-            padding: 2px 8px;
-            min-width: 24px;
-            text-align: center;
-        }
-
-        .empty-chats {
-            text-align: center;
-            padding: 80px 20px;
-            color: var(--text-secondary);
-            background: var(--glass-bg);
-            border-radius: 12px;
-            border: 1px dashed var(--border-color);
-        }
-        .empty-chats .icon { font-size: 3.5rem; margin-bottom: 24px; color: var(--accent-blue); }
-        .empty-chats h3 { color: var(--text-primary); margin-bottom: 12px; font-size: 1.5rem; }
-        .empty-chats p { margin-bottom: 30px; font-size: 1.05rem; }
-
-        .winning-chip {
-            font-size: 0.8rem;
-            background: rgba(0,255,136,0.1);
-            border: 1px solid rgba(0,255,136,0.3);
-            border-radius: 6px;
-            padding: 4px 8px;
-            color: var(--neon-green);
-            font-weight: 700;
-            display: inline-block;
-            margin-top: 4px;
-            margin-bottom: 4px;
-        }
-    </style>
+    .chat-thumb { width: 56px; height: 56px; border-radius: var(--radius-md); object-fit: cover; flex-shrink: 0; background: var(--sand); }
+    .chat-avatar {
+      width: 36px; height: 36px; border-radius: var(--radius-full);
+      background: var(--olive); color: var(--parchment);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: var(--text-sm); flex-shrink: 0;
+    }
+    .chat-body { flex: 1; min-width: 0; }
+    .chat-body .chat-title { font-weight: 600; font-size: var(--text-base); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+    .chat-body .chat-with { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 4px; }
+    .chat-body .chat-preview { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-body .chat-preview.unread-preview { color: var(--text-primary); font-weight: 600; }
+    .chat-meta { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); flex-shrink: 0; }
+    .chat-time { font-size: var(--text-xs); color: var(--text-muted); }
+    .unread-badge {
+      background: var(--olive); color: var(--parchment);
+      font-size: var(--text-xs); font-weight: 700;
+      border-radius: var(--radius-full); padding: 2px 8px; min-width: 22px; text-align: center;
+    }
+  </style>
 </head>
-<body>
-
-<header>
-    <nav class="navbar">
-        <div class="logo">
-            <a href="/" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
-                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <span>Gavel</span>
-            </a>
-        </div>
-        <ul class="nav-links"><!-- Populated by nav.js --></ul>
-    </nav>
-</header>
-
-<div class="chats-page">
-    <h1>Messages</h1>
-    <p class="subtitle">See the product, the person, and the latest message.</p>
-    <div id="chats-list">
-        <p style="color:var(--text-secondary); text-align:center; padding:40px;">Syncing messages...</p>
+<body style="padding-top:var(--space-20);">
+  <nav class="navbar" id="navbar"><div class="container">
+    <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+    <ul class="navbar-nav">
+      <li><a href="auction.html">Live Auctions</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="sell-product.html">Sell</a></li>
+    </ul>
+    <div class="navbar-actions">
+      <a href="dashboard.html" class="btn btn-primary btn-sm" id="dashboardBtn">Dashboard</a>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" onclick="Auth.logout()" style="display:none;">Log out</button>
     </div>
-</div>
+  </div></nav>
 
-<footer><p>&copy; 2026 Gavel Protocol. All rights reserved.</p></footer>
+  <section class="chats-hero">
+    <div class="container" style="max-width:800px;">
+      <h1 style="font-size:var(--text-3xl);">Messages</h1>
+      <p style="color:var(--text-secondary);margin-top:var(--space-2);">Your product conversations</p>
+    </div>
+  </section>
 
-<script src="js/nav.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        const me = await fetch('/api/me');
-        const md = await me.json();
-        if (!md.loggedIn) { window.location.href = '/login.html'; return; }
-    } catch(e) {
-        window.location.href = '/login.html';
+  <section style="padding:var(--space-4) 0 var(--space-16);">
+    <div class="container" style="max-width:800px;">
+      <div id="chatsList"><div class="flex-center" style="padding:2rem;"><div class="spinner"></div></div></div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--border-light);padding:var(--space-8) 0;background:var(--bg);">
+    <div class="container flex-between" style="gap:var(--space-4);"><a href="/" class="navbar-brand">Gavel<span>.</span></a><p class="text-muted text-sm">&copy; 2026 Gavel</p></div>
+  </footer>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await Auth.init();
+      if (!Auth.isLoggedIn()) { window.location.href = '/login.html'; return; }
+      document.getElementById('logoutBtn').style.display = 'inline-flex';
+      window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
+
+      const chats = await api.get('/chat/my-chats/list');
+      if (!chats || chats.error) { UI.toast('Failed to load messages', 'error'); return; }
+      renderChats(chats);
+    });
+
+    function renderChats(chats) {
+      const el = document.getElementById('chatsList');
+      if (!chats.length) {
+        el.innerHTML = `<div class="empty-state"><h3>No messages yet</h3><p>Your product conversations will appear here after winning or selling.</p></div>`;
         return;
+      }
+
+      el.innerHTML = chats.map(c => {
+        const hasUnread = c.unreadCount > 0;
+        const preview = c.lastMessage ? c.lastMessage.slice(0, 60) + (c.lastMessage.length > 60 ? '…' : '') : 'No messages yet';
+        const timeLabel = c.lastMessageAt ? formatRelativeTime(c.lastMessageAt) : '';
+        const fallbackImg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="%23ebe4d6"><rect width="56" height="56"/></svg>');
+
+        return `<a href="chat.html?auction=${c.auctionId}&with=${encodeURIComponent(c.otherEmail)}" class="chat-row ${hasUnread ? 'has-unread' : ''}">
+          ${c.image ? `<img class="chat-thumb" src="${c.image}" alt="${esc(c.auctionTitle)}" onerror="this.src='${fallbackImg}'">` : `<div class="chat-thumb"></div>`}
+          <div class="chat-avatar">${(c.otherName || '?').charAt(0).toUpperCase()}</div>
+          <div class="chat-body">
+            <div class="chat-title">${esc(c.auctionTitle)}</div>
+            <div class="chat-with"><strong>${esc(c.otherName)}</strong> <span class="badge ${c.role === 'seller' ? 'badge-closed' : 'badge-approved'}" style="font-size:0.65rem;">${c.role === 'seller' ? 'Seller' : 'Buyer'}</span></div>
+            <div class="chat-preview ${hasUnread ? 'unread-preview' : ''}">${esc(preview)}</div>
+          </div>
+          <div class="chat-meta">
+            ${timeLabel ? `<span class="chat-time">${timeLabel}</span>` : ''}
+            ${hasUnread ? `<span class="unread-badge">${c.unreadCount > 99 ? '99+' : c.unreadCount}</span>` : ''}
+          </div>
+        </a>`;
+      }).join('');
     }
 
-    const listEl = document.getElementById('chats-list');
-
-    try {
-        const res   = await fetch('/api/my-chats');
-        const chats = await res.json();
-
-        if (!chats || !chats.length) {
-            listEl.innerHTML = `
-                <div class="empty-chats">
-                    <div class="icon">
-                        <svg viewBox="0 0 24 24" width="60" height="60" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z"></path>
-                        </svg>
-                    </div>
-                    <h3>No Messages Yet</h3>
-                    <p>Your product conversations will appear here.</p>
-                    <a href="/auction.html" class="btn-primary" style="display:inline-block;">Explore Markets</a>
-                </div>`;
-            return;
-        }
-
-        listEl.innerHTML = '';
-
-        chats.forEach(chat => {
-            const hasUnread = chat.unread > 0;
-            const a = document.createElement('a');
-            a.href      = `/chat.html?auction=${chat.auctionId}&with=${encodeURIComponent(chat.otherEmail || '')}`;
-            a.className = `chat-row${hasUnread ? ' has-unread' : ''}`;
-
-            let previewHtml = '';
-            if (chat.lastMessage) {
-                const isMe    = chat.lastMessage.senderName === chat.otherName ? false : true;
-                const preview = chat.lastMessage.message.replace(/\n/g, ' ').slice(0, 60) +
-                                (chat.lastMessage.message.length > 60 ? '…' : '');
-                previewHtml = `<div class="chat-preview ${hasUnread ? 'unread-preview' : ''}">
-                    ${isMe ? '<span style="color:var(--text-secondary); margin-right:4px;">You:</span>' : ''}${escapeHtml(preview)}
-                </div>`;
-            } else {
-                previewHtml = `<div class="no-messages">Encrypted channel established — say hello</div>`;
-            }
-
-            const timeLabel = chat.lastMessage ? formatRelativeTime(chat.lastMessage.sentAt) : '';
-
-            a.innerHTML = `
-                <img class="chat-thumb" src="${chat.auctionImage || ''}" alt="${escapeHtml(chat.auctionTitle)}">
-                <div class="chat-avatar">${chat.otherName ? chat.otherName.charAt(0).toUpperCase() : '?'}</div>
-                <div class="chat-body">
-                    <div class="chat-title">${escapeHtml(chat.auctionTitle)}</div>
-                    <div class="chat-with">
-                        <strong style="color:var(--text-primary);">${escapeHtml(chat.otherName)}</strong>
-                        <span class="role-pill ${chat.myRole}">${chat.myRole === 'seller' ? 'Seller' : 'Buyer'}</span>
-                    </div>
-                    ${previewHtml}
-                </div>
-                <div class="chat-meta">
-                    ${timeLabel ? `<span class="chat-time">${timeLabel}</span>` : ''}
-                    ${hasUnread ? `<span class="unread-badge">${chat.unread > 99 ? '99+' : chat.unread}</span>` : ''}
-                </div>
-            `;
-
-            listEl.appendChild(a);
-        });
-
-    } catch(e) {
-        console.error(e);
-        listEl.innerHTML = '<p style="text-align:center; color:var(--neon-red); padding:40px;">Network error: Failed to sync messages.</p>';
+    function formatRelativeTime(iso) {
+      const diff = Date.now() - new Date(iso).getTime();
+      const m = Math.floor(diff / 60000);
+      const h = Math.floor(diff / 3600000);
+      const d = Math.floor(diff / 86400000);
+      if (m < 1) return 'Now';
+      if (m < 60) return m + 'm ago';
+      if (h < 24) return h + 'h ago';
+      if (d < 7) return d + 'd ago';
+      return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     }
-});
 
-function formatRelativeTime(isoString) {
-    const now  = Date.now();
-    const then = new Date(isoString).getTime();
-    const diff = now - then;
-
-    const minutes = Math.floor(diff / 60000);
-    const hours   = Math.floor(diff / 3600000);
-    const days    = Math.floor(diff / 86400000);
-
-    if (minutes < 1)  return 'Now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24)   return `${hours}h ago`;
-    if (days < 7)     return `${days}d ago`;
-    return new Date(isoString).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-}
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-</script>
-
+    function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  </script>
 </body>
 </html>

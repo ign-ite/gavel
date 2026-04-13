@@ -1,346 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio | Gavel</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        .profile-container {
-            max-width: 1200px;
-            margin: 50px auto;
-            padding: 0 50px;
-            display: grid;
-            grid-template-columns: 320px 1fr;
-            gap: 40px;
-        }
-        
-        .profile-sidebar {
-            background: var(--bg-card);
-            padding: 30px;
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            text-align: center;
-            height: fit-content;
-            position: sticky;
-            top: 100px;
-        }
-        
-        .profile-pic {
-            width: 100px;
-            height: 100px;
-            background: var(--accent-blue);
-            color: var(--bg-main);
-            border-radius: 50%;
-            margin: 0 auto 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-            font-weight: 800;
-        }
-        
-        .profile-main {
-            display: flex;
-            flex-direction: column;
-            gap: 40px;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-        }
-        
-        .stat-card {
-            background: var(--bg-card);
-            padding: 24px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            text-align: left;
-        }
-        
-        .stat-card h4 {
-            margin: 0 0 10px 0;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .stat-card p {
-            margin: 0;
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-        
-        .activity-log h3 {
-            font-size: 1.5rem;
-            margin-top: 0;
-            margin-bottom: 24px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .activity-item {
-            background: var(--bg-card);
-            padding: 20px;
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: transform 0.2s, border-color 0.2s;
-        }
-        
-        .activity-item:hover {
-            transform: translateY(-2px);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        
-        .activity-item.won {
-            border-color: rgba(0, 255, 136, 0.3);
-            background: rgba(0, 255, 136, 0.03);
-        }
-        
-        .activity-item-left .title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 6px;
-        }
-        
-        .activity-item-left .time {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-        
-        .activity-item-right {
-            text-align: right;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            align-items: flex-end;
-        }
-        
-        .activity-item-right .amount {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--neon-green);
-        }
-        
-        .status-badge {
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-weight: 700;
-            margin-left: 10px;
-            vertical-align: middle;
-            text-transform: uppercase;
-        }
-        
-        .status-won { background: rgba(0,255,136,0.1); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.2); }
-        .status-closed { background: var(--glass-bg); color: var(--text-secondary); border: 1px solid var(--border-color); }
-        
-        @media (max-width: 900px) {
-            .profile-container { grid-template-columns: 1fr; padding: 0 20px; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-            .profile-sidebar { position: static; }
-        }
-        body { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="images/logo.png">
+  <style>
+    .profile-layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
+
+    .profile-sidebar {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8) var(--space-6);
+      text-align: center;
+      position: sticky;
+      top: calc(var(--space-20) + var(--space-4));
+    }
+
+    .profile-avatar {
+      width: 96px; height: 96px; border-radius: var(--radius-full);
+      background: var(--olive); color: var(--parchment);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-heading); font-size: var(--text-3xl);
+      margin: 0 auto var(--space-4);
+    }
+
+    .profile-name { font-family: var(--font-heading); font-size: var(--text-xl); margin-bottom: var(--space-1); }
+    .profile-role { font-size: var(--text-sm); color: var(--olive); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .profile-meta { margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border-light); text-align: left; }
+    .profile-meta-item { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-3); }
+    .profile-meta-item strong { color: var(--text-primary); display: block; margin-bottom: 2px; }
+
+    .trust-bar-wrap { margin-top: var(--space-5); padding: var(--space-4); background: rgba(143,170,126,0.06); border-radius: var(--radius-lg); border: 1px solid rgba(143,170,126,0.15); }
+    .trust-bar-label { display: flex; justify-content: space-between; font-size: var(--text-sm); margin-bottom: var(--space-2); }
+    .trust-bar-label span:first-child { font-weight: 600; color: var(--olive); }
+    .trust-bar-label span:last-child { color: var(--text-muted); }
+    .trust-bar { height: 8px; background: var(--sand); border-radius: var(--radius-full); overflow: hidden; }
+    .trust-bar-fill { height: 100%; background: linear-gradient(90deg, var(--olive), var(--sage)); border-radius: var(--radius-full); transition: width 0.6s ease; }
+
+    .wallet-mini { margin-top: var(--space-5); padding: var(--space-4); background: var(--sand); border-radius: var(--radius-lg); text-align: center; }
+    .wallet-mini-label { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .wallet-mini-value { font-family: var(--font-heading); font-size: var(--text-xl); color: var(--ink); margin: var(--space-1) 0 var(--space-3); }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+    .stat-card { background: var(--bg-raised); border: 1px solid var(--border-light); border-radius: var(--radius-xl); padding: var(--space-5); }
+    .stat-card-label { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2); }
+    .stat-card-value { font-family: var(--font-heading); font-size: var(--text-2xl); color: var(--ink); }
+
+    .bid-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg);
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+      gap: var(--space-4); transition: all var(--transition);
+    }
+    .bid-item:hover { box-shadow: var(--shadow-sm); }
+    .bid-item-left { min-width: 0; flex: 1; }
+    .bid-item-title { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bid-item-title a { color: var(--text-primary); }
+    .bid-item-time { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+    .bid-item-amount { font-family: var(--font-heading); font-size: var(--text-lg); white-space: nowrap; }
+
+    @media (max-width: 768px) {
+      .profile-layout { grid-template-columns: 1fr; }
+      .profile-sidebar { position: static; }
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
 </head>
-<body>
-    <header>
-        <nav class="navbar">
-            <div class="logo">
-                <a href="/" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
-                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Gavel</span>
-                </a>
-            </div>
-            <ul class="nav-links"><!-- Populated by nav.js --></ul>
-        </nav>
-    </header>
-
-    <div class="profile-container">
-        <aside class="profile-sidebar">
-            <div class="profile-pic" id="user-initial">?</div>
-            <h2 id="user-name" style="margin-bottom: 5px; font-size: 1.4rem;">Loading...</h2>
-            <p id="user-role" style="color:var(--accent-blue); font-size: 0.9rem; text-transform:uppercase; font-weight:600; letter-spacing:0.5px; margin-bottom:25px;">—</p>
-            
-            <div style="text-align:left; border-top: 1px solid var(--border-color); padding-top:20px; color:var(--text-secondary); font-size:0.9rem;">
-                <p style="margin-bottom: 10px;"><strong style="color:var(--text-primary);">Email:</strong> <br><span id="user-email">—</span></p>
-                <p><strong style="color:var(--text-primary);">Joined:</strong> <br><span id="user-since">—</span></p>
-            </div>
-            
-            <div style="margin-top:20px; padding:15px; background:var(--glass-bg); border-radius:8px; border:1px solid var(--border-color); text-align:center;">
-                <p style="margin:0 0 10px 0; color:var(--text-secondary); font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px;">Wallet Balance</p>
-                <p id="wallet-balance-display" style="margin:0 0 15px 0; font-size:1.8rem; font-weight:800; color:var(--neon-green);">₹0</p>
-                <button id="deposit-btn" class="btn-primary" style="width:100%; padding:10px; font-size:0.9rem; background:rgba(0,196,255,0.1); color:var(--accent-blue); border-color:rgba(0,196,255,0.3);">Add Funds</button>
-            </div>
-            
-            <a href="/sell-product.html" class="btn-primary" style="width:100%; margin-top:15px;">
-                Create Listing
-            </a>
-        </aside>
-
-        <main class="profile-main">
-            <div class="stats-grid">
-                <div class="stat-card" style="grid-column: span 3; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <h4 style="margin: 0 0 5px 0; color:var(--text-secondary); font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px;">Trust Score</h4>
-                        <p id="stat-trust-score" style="margin: 0; font-size: 2.2rem; font-weight: 800; color: var(--text-primary);">100</p>
-                    </div>
-                    <div style="background:rgba(0, 255, 136, 0.1); color:var(--neon-green); padding:10px 16px; border-radius:8px; font-weight:700; border:1px solid rgba(0,255,136,0.3);">
-                        <span id="stat-rating-count">0</span> Ratings
-                    </div>
-                </div>
-                <div class="stat-card"><h4>Active Positions</h4><p id="stat-bids">—</p></div>
-                <div class="stat-card"><h4>Markets Won</h4><p id="stat-won">—</p></div>
-                <div class="stat-card"><h4>Total Volume</h4><p id="stat-volume">—</p></div>
-                <div class="stat-card"><h4>My Listings</h4><p id="stat-listings">—</p></div>
-                <div class="stat-card"><h4>Closed Listings</h4><p id="stat-closed">—</p></div>
-                <div class="stat-card"><h4>Total Trades</h4><p id="stat-total-bids">—</p></div>
-            </div>
-
-            <div class="activity-log">
-                <h3>My Trade History</h3>
-                <div id="activity-list">
-                    <p style="color:var(--text-secondary);">Loading history...</p>
-                </div>
-            </div>
-        </main>
+<body style="padding-top:var(--space-20);">
+  <nav class="navbar" id="navbar"><div class="container">
+    <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+    <ul class="navbar-nav">
+      <li><a href="auction.html">Live Auctions</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="sell-product.html">Sell</a></li>
+    </ul>
+    <div class="navbar-actions">
+      <a href="dashboard.html" class="btn btn-primary btn-sm" id="dashboardBtn">Dashboard</a>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" onclick="Auth.logout()" style="display:none;">Log out</button>
     </div>
+  </div></nav>
 
-    <footer><p>&copy; 2026 Gavel Protocol. All rights reserved.</p></footer>
+  <section style="padding:var(--space-8) 0 var(--space-16);">
+    <div class="container">
+      <div id="profileContent"><div class="flex-center" style="padding:2rem;"><div class="spinner"></div></div></div>
+    </div>
+  </section>
 
-    <script src="js/nav.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/auth.js"></script>
-    <script>
+  <footer style="border-top:1px solid var(--border-light);padding:var(--space-8) 0;background:var(--bg);">
+    <div class="container flex-between" style="gap:var(--space-4);"><a href="/" class="navbar-brand">Gavel<span>.</span></a><p class="text-muted text-sm">&copy; 2026 Gavel</p></div>
+  </footer>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
     document.addEventListener('DOMContentLoaded', async () => {
-        let currentUser = null;
-        try {
-            const meRes = await fetch('/api/me');
-            const meData = await meRes.json();
-            if (!meData.loggedIn) { window.location.href = '/login.html'; return; }
-            currentUser = meData.user;
-            document.body.style.display = 'block';
-        } catch(e) { window.location.href = '/login.html'; return; }
+      await Auth.init();
+      if (!Auth.isLoggedIn()) { window.location.href = '/login.html'; return; }
+      document.getElementById('logoutBtn').style.display = 'inline-flex';
+      window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
 
-        try {
-            const res = await fetch('/api/profile');
-            const profile = await res.json();
+      const profile = await api.get('/profile');
+      if (!profile || profile.error) { UI.toast('Failed to load profile', 'error'); return; }
 
-            document.getElementById('user-initial').textContent = profile.fullname ? profile.fullname.charAt(0).toUpperCase() : '?';
-            document.getElementById('user-name').textContent = profile.fullname || 'Platform User';
-            document.getElementById('user-role').textContent = profile.role || 'Trader';
-            document.getElementById('user-email').textContent = profile.email;
-            
-            if (profile.created_at) {
-                document.getElementById('user-since').textContent = new Date(profile.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-            }
-
-            document.getElementById('wallet-balance-display').textContent = '₹' + (profile.walletBalance || 0).toLocaleString('en-IN');
-
-            document.getElementById('stat-trust-score').textContent = profile.trustScore !== undefined ? profile.trustScore : 100;
-            document.getElementById('stat-rating-count').textContent = profile.ratingsCount || '0';
-            
-            document.getElementById('stat-bids').textContent = profile.activeBids || '0';
-            document.getElementById('stat-won').textContent = profile.auctionsWon || '0';
-            document.getElementById('stat-listings').textContent = profile.activeListings || '0';
-            document.getElementById('stat-total-bids').textContent = profile.totalBids || '0';
-            document.getElementById('stat-closed').textContent = profile.closedListings || '0';
-            document.getElementById('stat-volume').textContent = '₹' + (profile.totalVolume || 0).toLocaleString('en-IN');
-
-            document.getElementById('deposit-btn').addEventListener('click', async () => {
-                const btn = document.getElementById('deposit-btn');
-                const rawAmount = window.prompt('Enter amount to add in INR', '1000');
-                if (rawAmount === null) return;
-
-                const amount = Math.round(Number(rawAmount));
-                if (!Number.isInteger(amount) || amount <= 0) {
-                    alert('Enter a valid rupee amount.');
-                    return;
-                }
-
-                btn.disabled = true;
-                btn.textContent = 'Adding Funds...';
-                try {
-                    const orderRes = await fetch('/api/deposit', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ amount })
-                    });
-                    const orderData = await orderRes.json();
-                    if (!orderRes.ok || !orderData.success) {
-                        alert(orderData.message || 'Unable to start payment.');
-                        btn.disabled = false;
-                        btn.textContent = 'Add Funds';
-                        return;
-                    }
-                    document.getElementById('wallet-balance-display').textContent = '₹' + orderData.newBalance.toLocaleString('en-IN');
-                    btn.disabled = false;
-                    btn.textContent = 'Add Funds';
-                } catch(e) {
-                    btn.disabled = false;
-                    btn.textContent = 'Add Funds';
-                }
-            });
-        } catch(e) {}
-
-        try {
-            const res = await fetch('/api/my-bids');
-            const bids = await res.json();
-            const listEl = document.getElementById('activity-list');
-
-            if (!bids || !bids.length) {
-                listEl.innerHTML = '<p style="color:var(--text-secondary); border:1px dashed var(--border-color); padding: 30px; text-align:center; border-radius:12px;">No trades executed yet. <a href="/auction.html" style="color:var(--accent-blue);">Explore Markets</a></p>';
-                return;
-            }
-
-            const myEmail = currentUser.email;
-
-            listEl.innerHTML = bids.map(b => {
-                const isClosed = b.auctionStatus === 'closed';
-                const isWinner = isClosed && b.winnerEmail === myEmail;
-                const isOutbid = !isClosed && Number(b.amount) < Number(b.currentBid);
-
-                let statusTag = '';
-                if (isClosed) {
-                    statusTag = isWinner ? `<span class="status-badge status-won">Won</span>` : `<span class="status-badge status-closed">Closed</span>`;
-                } else if (isOutbid) {
-                    statusTag = `<span class="status-badge" style="background:rgba(255, 59, 48, 0.1); color:var(--neon-red); border: 1px solid rgba(255, 59, 48, 0.2);">Outbid</span>`;
-                }
-
-                const viewBtn = `<a href="/item-detail.html?id=${b.auctionId}" class="btn-primary" style="padding: 6px 14px; font-size:0.8rem; background:transparent; border-color:var(--accent-blue); color:var(--accent-blue); margin-left:10px;">View</a>`;
-                const chatBtn = isWinner
-                    ? `<a href="/chat.html?auction=${b.auctionId}&with=${encodeURIComponent(b.sellerEmail || '')}" class="btn-primary" style="padding: 6px 14px; font-size:0.8rem; margin-left:10px;">Chat with Seller</a>`
-                    : '';
-
-                return `
-                    <div class="activity-item ${isWinner ? 'won' : ''}">
-                        <div class="activity-item-left">
-                            <div class="title">${b.auctionTitle}${statusTag}</div>
-                            <div class="time">${new Date(b.placed_at || b.placedAt).toLocaleString('en-IN')}</div>
-                        </div>
-                        <div class="activity-item-right">
-                            <div class="amount">₹${Number(b.amount).toLocaleString('en-IN')}</div>
-                            <div class="actions">
-                                ${viewBtn}
-                                ${chatBtn}
-                            </div>
-                        </div>
-                    </div>`;
-            }).join('');
-
-        } catch(e) {}
+      const bids = await api.get('/my-bids');
+      renderProfile(profile, bids || []);
     });
-    </script>
+
+    function renderProfile(p, bids) {
+      const initials = (p.name || p.email || '?').charAt(0).toUpperCase();
+      const trust = p.trustScore || 50;
+      const trustPct = Math.min(100, Math.max(0, trust));
+      const role = p.isSuperAdmin ? 'Super Admin' : p.isAdmin ? 'Admin' : (p.role || 'Bidder');
+
+      let sidebar = `
+        <div class="profile-sidebar reveal">
+          <div class="profile-avatar">${initials}</div>
+          <h2 class="profile-name">${p.name || 'User'}</h2>
+          <div class="profile-role">${role}</div>
+          ${p.campusVerified ? '<span class="badge badge-approved" style="margin-top:var(--space-2);">Campus Verified</span>' : ''}
+          <div class="profile-meta">
+            <div class="profile-meta-item"><strong>Email</strong>${p.email}</div>
+            ${p.college ? `<div class="profile-meta-item"><strong>College</strong>${p.college}</div>` : ''}
+            <div class="profile-meta-item"><strong>Joined</strong>${p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}</div>
+          </div>
+          <div class="trust-bar-wrap">
+            <div class="trust-bar-label"><span>Trust Score</span><span>${trust}/100</span></div>
+            <div class="trust-bar"><div class="trust-bar-fill" style="width:${trustPct}%"></div></div>
+          </div>
+          <div class="wallet-mini">
+            <div class="wallet-mini-label">Wallet Balance</div>
+            <div class="wallet-mini-value">${UI.formatPrice(p.walletBalance || 0)}</div>
+            <button class="btn btn-sm btn-secondary" onclick="addFunds()">Add Funds</button>
+          </div>
+          <a href="sell-product.html" class="btn btn-primary btn-sm" style="margin-top:var(--space-4);width:100%;">+ New Listing</a>
+        </div>`;
+
+      const st = p.stats || {};
+      let main = `
+        <div>
+          <div class="stat-grid reveal">
+            <div class="stat-card"><div class="stat-card-label">Active Listings</div><div class="stat-card-value">${st.activeListings || 0}</div></div>
+            <div class="stat-card"><div class="stat-card-label">Pending Review</div><div class="stat-card-value">${st.pendingListings || 0}</div></div>
+            <div class="stat-card"><div class="stat-card-label">Closed Listings</div><div class="stat-card-value">${st.closedListings || 0}</div></div>
+            <div class="stat-card"><div class="stat-card-label">Active Bids</div><div class="stat-card-value">${st.activeBids || 0}</div></div>
+            <div class="stat-card"><div class="stat-card-label">Auctions Won</div><div class="stat-card-value">${st.auctionsWon || 0}</div></div>
+            <div class="stat-card"><div class="stat-card-label">Total Bids</div><div class="stat-card-value">${st.totalBids || 0}</div></div>
+          </div>
+
+          <div style="margin-top:var(--space-10);" class="reveal reveal-delay-1">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);">
+              <h2 style="font-size:var(--text-2xl);">Bid History</h2>
+              <a href="watchlist.html" class="btn btn-ghost btn-sm">Watchlist (${st.watchlistCount || 0})</a>
+            </div>
+            ${bids.length ? `<div style="display:flex;flex-direction:column;gap:var(--space-3);">${bids.map(b => {
+              const isOutbid = b.auctionStatus === 'active' && b.amount < b.currentBid;
+              const statusBadge = b.auctionStatus === 'closed'
+                ? (b.winnerEmail === p.email ? '<span class="badge badge-approved">Won</span>' : '<span class="badge badge-closed">Closed</span>')
+                : isOutbid ? '<span class="badge badge-live">Outbid</span>' : '<span class="badge badge-approved">Leading</span>';
+              return `<div class="bid-item">
+                <div class="bid-item-left">
+                  <div class="bid-item-title"><a href="item-detail.html?id=${b.auctionId}">${b.auctionTitle}</a> ${statusBadge}</div>
+                  <div class="bid-item-time">${new Date(b.placedAt).toLocaleString('en-IN')}</div>
+                </div>
+                <div class="bid-item-amount">${UI.formatPrice(b.amount)}</div>
+              </div>`;
+            }).join('')}</div>` : `<div class="empty-state"><h3>No bids yet</h3><p><a href="auction.html">Browse auctions</a></p></div>`}
+          </div>
+        </div>`;
+
+      document.getElementById('profileContent').innerHTML = `<div class="profile-layout">${sidebar}${main}</div>`;
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+      }, { threshold: 0.1 });
+      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    }
+
+    async function addFunds() {
+      const amount = prompt('Enter amount to add (₹):', '1000');
+      if (!amount) return;
+      const num = Number(amount);
+      if (!num || num <= 0) { UI.toast('Invalid amount', 'error'); return; }
+      const res = await api.post('/deposit', { amount: num });
+      if (res?.success) {
+        UI.toast(`₹${num.toLocaleString('en-IN')} added!`, 'success');
+        document.querySelector('.wallet-mini-value').textContent = UI.formatPrice(res.newBalance);
+      } else { UI.toast(res?.error || 'Deposit failed', 'error'); }
+    }
+  </script>
 </body>
 </html>

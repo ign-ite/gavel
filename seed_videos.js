@@ -8,12 +8,12 @@ const uri = process.env.MONGODB_URI;
 
 // ───────── USERS ─────────
 const USERS = [
-    { fullname: 'Arjun Mehta', email: 'arjun@gavel.com', role: 'seller', trustScore: 98 },
-    { fullname: 'Priya Sharma', email: 'priya@gavel.com', role: 'seller', trustScore: 95 },
-    { fullname: 'Rahul Verma', email: 'rahul@gavel.com', role: 'bidder', trustScore: 92 },
-    { fullname: 'Sneha Patel', email: 'sneha@gavel.com', role: 'bidder', trustScore: 88 },
-    { fullname: 'Vikram Singh', email: 'vikram@gavel.com', role: 'seller', trustScore: 100 },
-    { fullname: 'Ananya Desai', email: 'ananya@gavel.com', role: 'bidder', trustScore: 90 }
+    { fullname: 'Arjun Mehta', email: 'arjun@gavel.com', role: 'seller', trustScore: 78 },
+    { fullname: 'Priya Sharma', email: 'priya@gavel.com', role: 'seller', trustScore: 75 },
+    { fullname: 'Rahul Verma', email: 'rahul@gavel.com', role: 'bidder', trustScore: 62 },
+    { fullname: 'Sneha Patel', email: 'sneha@gavel.com', role: 'bidder', trustScore: 55 },
+    { fullname: 'Vikram Singh', email: 'vikram@gavel.com', role: 'seller', trustScore: 80 },
+    { fullname: 'Ananya Desai', email: 'ananya@gavel.com', role: 'bidder', trustScore: 60 }
 ];
 
 // ───────── MEDIA POOLS ─────────

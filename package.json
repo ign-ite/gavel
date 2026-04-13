@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "seed:demo": "node scripts/seed.js",
     "set:super-admin": "node scripts/set-super-admin.js",
     "reset:demo-data": "node scripts/reset-demo-data.js"

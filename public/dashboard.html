@@ -1,12 +1,331 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=/workspace/">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workspace | Gavel</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="images/logo.png">
+  <style>
+    .dash-hero {
+      padding: var(--space-20) 0 var(--space-6);
+      background: linear-gradient(180deg, var(--cream) 0%, var(--parchment) 100%);
+    }
+    .dash-hero .container { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
+    .dash-hero h1 { font-size: var(--text-4xl); margin: 0; }
+    .dash-hero-welcome { color: var(--text-secondary); font-size: var(--text-lg); margin-top: var(--space-1); }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--space-4);
+    }
+    .stat-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5);
+      transition: all var(--transition-slow);
+    }
+    .stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .stat-card-label { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2); }
+    .stat-card-value { font-family: var(--font-heading); font-size: var(--text-2xl); color: var(--ink); }
+    .stat-card-value.text-olive { color: var(--olive); }
+    .stat-card-value.text-ember { color: var(--ember); }
+    .stat-card-value.text-gold { color: var(--gold); }
+
+    .dash-section { margin-top: var(--space-10); }
+    .dash-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); }
+    .dash-section-header h2 { font-size: var(--text-2xl); margin: 0; }
+    .dash-section-header a { font-size: var(--text-sm); font-weight: 600; }
+
+    .notif-list { display: flex; flex-direction: column; gap: var(--space-3); }
+    .notif-item {
+      display: flex; gap: var(--space-4); align-items: flex-start;
+      padding: var(--space-4); border-radius: var(--radius-lg);
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+      transition: all var(--transition);
+    }
+    .notif-item.unread { border-left: 3px solid var(--olive); background: rgba(143,170,126,0.04); }
+    .notif-item:hover { box-shadow: var(--shadow-sm); }
+    .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--olive); margin-top: 6px; flex-shrink: 0; }
+    .notif-item:not(.unread) .notif-dot { background: var(--stone); }
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+    .notif-msg { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+    .notif-time { font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-1); }
+
+    .bid-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg);
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+      gap: var(--space-4);
+    }
+    .bid-item-left { min-width: 0; flex: 1; }
+    .bid-item-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bid-item-time { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+    .bid-item-amount { font-family: var(--font-heading); font-size: var(--text-lg); color: var(--ink); white-space: nowrap; }
+
+    .listing-item {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4); border-radius: var(--radius-lg);
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+    }
+    .listing-item img { width: 56px; height: 56px; border-radius: var(--radius-md); object-fit: cover; background: var(--sand); }
+    .listing-item-body { flex: 1; min-width: 0; }
+    .listing-item-title { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .listing-item-meta { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+
+    .admin-panel {
+      background: rgba(143,170,126,0.06);
+      border: 1px solid rgba(143,170,126,0.15);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-6);
+      margin-top: var(--space-8);
+    }
+    .admin-panel h3 { font-size: var(--text-xl); color: var(--olive); margin-bottom: var(--space-4); }
+    .admin-link {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+      font-size: var(--text-sm); font-weight: 600; color: var(--olive);
+      background: rgba(92,107,79,0.08); transition: all var(--transition);
+      text-decoration: none; margin-right: var(--space-3); margin-bottom: var(--space-3);
+    }
+    .admin-link:hover { background: var(--olive); color: var(--parchment); }
+
+    .wallet-card {
+      background: linear-gradient(135deg, var(--forest) 0%, var(--olive-dark) 100%);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-6);
+      color: var(--parchment);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: var(--space-4);
+    }
+    .wallet-label { font-size: var(--text-sm); opacity: 0.8; margin-bottom: var(--space-1); }
+    .wallet-balance { font-family: var(--font-heading); font-size: var(--text-3xl); }
+    .wallet-actions { display: flex; gap: var(--space-3); }
+    .wallet-actions .btn { background: rgba(255,255,255,0.15); color: var(--parchment); border: 1px solid rgba(255,255,255,0.2); }
+    .wallet-actions .btn:hover { background: rgba(255,255,255,0.25); }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); }
+
+    @media (max-width: 768px) {
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .two-col { grid-template-columns: 1fr; }
+      .dash-hero h1 { font-size: var(--text-3xl); }
+    }
+  </style>
 </head>
-<body>
-    <p>Redirecting to the new workspace. If nothing happens, <a href="/workspace/">open workspace</a>.</p>
+<body style="padding-top:var(--space-20);">
+  <nav class="navbar" id="navbar"><div class="container">
+    <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+    <ul class="navbar-nav">
+      <li><a href="auction.html">Live Auctions</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="sell-product.html">Sell</a></li>
+    </ul>
+    <div class="navbar-actions">
+      <a href="profile.html" class="btn btn-ghost btn-sm" id="profileBtn">Profile</a>
+      <a href="dashboard.html" class="btn btn-primary btn-sm" id="dashboardBtn">Dashboard</a>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" onclick="Auth.logout()" style="display:none;">Log out</button>
+    </div>
+  </div></nav>
+
+  <section class="dash-hero">
+    <div class="container">
+      <div>
+        <h1 id="greeting">Dashboard</h1>
+        <p class="dash-hero-welcome" id="subtitle">Welcome back</p>
+      </div>
+      <a href="sell-product.html" class="btn btn-primary btn-lg">+ New Listing</a>
+    </div>
+  </section>
+
+  <section style="padding:var(--space-4) 0 var(--space-16);">
+    <div class="container">
+      <div id="dashContent"><div class="flex-center" style="padding:2rem;"><div class="spinner"></div></div></div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--border-light);padding:var(--space-8) 0;background:var(--bg);">
+    <div class="container flex-between" style="gap:var(--space-4);"><a href="/" class="navbar-brand">Gavel<span>.</span></a><p class="text-muted text-sm">&copy; 2026 Gavel</p></div>
+  </footer>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let data = null;
+
+    function attachLogoBehavior() {
+      const logos = document.querySelectorAll('.navbar-brand');
+      const user = Auth.getUser();
+      logos.forEach(logo => {
+        // Update href for right-click/open in new tab
+        logo.href = user ? '/dashboard-home.html' : '/';
+        logo.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (user) {
+            window.location.href = '/dashboard-home.html';
+          } else {
+            window.location.href = '/';
+          }
+        });
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await Auth.init();
+      attachLogoBehavior();
+      if (!Auth.isLoggedIn()) { window.location.href = '/login.html'; return; }
+
+      window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
+      document.getElementById('logoutBtn').style.display = 'inline-flex';
+
+      const res = await api.get('/dashboard/summary');
+      if (!res || res.error) { UI.toast('Failed to load dashboard', 'error'); return; }
+      data = res;
+      renderDashboard();
+    });
+
+    function renderDashboard() {
+      const u = data.user;
+      const s = data.stats;
+
+      document.getElementById('greeting').textContent = `Hello, ${u.name || u.email}`;
+      const role = u.isSuperAdmin ? 'Super Admin' : u.isAdmin ? 'Admin' : u.role || 'Bidder';
+      document.getElementById('subtitle').textContent = `${role} · Trust Score: ${u.trustScore || 50}`;
+
+      let html = '';
+
+      html += `<div class="wallet-card reveal" style="margin-bottom:var(--space-6);">
+        <div>
+          <div class="wallet-label">Wallet Balance</div>
+          <div class="wallet-balance">${UI.formatPrice(u.walletBalance || 0)}</div>
+        </div>
+        <div class="wallet-actions">
+          <button class="btn btn-sm" onclick="addFunds()">Add Funds</button>
+        </div>
+      </div>`;
+
+      html += `<div class="stat-grid reveal reveal-delay-1">`;
+      html += statCard('Active Listings', s.activeListings, 'text-olive');
+      html += statCard('Pending Review', s.pendingListings, 'text-gold');
+      html += statCard('Sold', s.soldListings, 'text-olive');
+      html += statCard('Active Bids', s.activeBids, 'text-olive');
+      html += statCard('Auctions Won', s.won, 'text-olive');
+      html += statCard('Watchlist', s.watchlistCount, '');
+      if (u.isAdmin || u.isSuperAdmin) {
+        html += statCard('Total Users', s.totalUsers, 'text-gold');
+        html += statCard('Total Auctions', s.totalAuctions, 'text-gold');
+      }
+      html += `</div>`;
+
+      if (u.isAdmin || u.isSuperAdmin) {
+        html += `<div class="admin-panel reveal">
+          <h3>Admin Workspace</h3>
+          <div>`;
+        if (data.adminWorkspace) html += `<span class="badge badge-pending" style="margin-right:var(--space-3);">${data.adminWorkspace.assignedReviews} assigned review${data.adminWorkspace.assignedReviews !== 1 ? 's' : ''}</span>`;
+        html += `<a href="admin-dashboard.html" class="admin-link">Admin Dashboard</a>
+          <a href="admin-dashboard.html#pending" class="admin-link">Review Queue</a>`;
+        if (u.isSuperAdmin) html += `<a href="admin-dashboard.html#team" class="admin-link">Team Overview</a>`;
+        html += `</div></div>`;
+      }
+
+      if (data.listings && data.listings.length) {
+        html += `<div class="dash-section reveal">
+          <div class="dash-section-header"><h2>My Listings</h2><a href="my-products.html">View all</a></div>
+          <div style="display:flex;flex-direction:column;gap:var(--space-3);">`;
+        data.listings.slice(0, 5).forEach(l => {
+          const img = (l.images || [])[0] || '';
+          const statusBadge = l.status === 'active' ? '<span class="badge badge-live">Live</span>' :
+            l.status === 'pending_review' || l.status === 'under_review' ? '<span class="badge badge-pending">Pending</span>' :
+            l.status === 'rejected' ? '<span class="badge badge-closed">Rejected</span>' :
+            '<span class="badge badge-closed">Closed</span>';
+          html += `<div class="listing-item">
+            ${img ? `<img src="${img}" alt="${l.title}" onerror="this.style.display='none'">` : '<div style="width:56px;height:56px;border-radius:var(--radius-md);background:var(--sand);"></div>'}
+            <div class="listing-item-body">
+              <div class="listing-item-title">${l.title} ${statusBadge}</div>
+              <div class="listing-item-meta">${UI.formatPrice(l.currentBid)} · ${l.category || 'General'}</div>
+            </div>
+            <a href="item-detail.html?id=${l.id}" class="btn btn-ghost btn-sm">View</a>
+          </div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      if (data.recentBids && data.recentBids.length) {
+        html += `<div class="dash-section reveal">
+          <div class="dash-section-header"><h2>Recent Bids</h2></div>
+          <div style="display:flex;flex-direction:column;gap:var(--space-3);">`;
+        data.recentBids.slice(0, 5).forEach(b => {
+          html += `<div class="bid-item">
+            <div class="bid-item-left">
+              <div class="bid-item-title"><a href="item-detail.html?id=${b.auctionId}" style="color:var(--text-primary);">${b.title}</a></div>
+              <div class="bid-item-time">${UI.formatTimeShort(b.placedAt)}</div>
+            </div>
+            <div class="bid-item-amount">${UI.formatPrice(b.amount)}</div>
+          </div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      if (data.notifications && data.notifications.length) {
+        html += `<div class="dash-section reveal">
+          <div class="dash-section-header"><h2>Notifications</h2><button class="btn btn-ghost btn-sm" onclick="markAllRead()">Mark all read</button></div>
+          <div class="notif-list">`;
+        data.notifications.slice(0, 8).forEach(n => {
+          html += `<div class="notif-item ${n.read ? '' : 'unread'}">
+            <div class="notif-dot"></div>
+            <div class="notif-body">
+              <div class="notif-title">${n.title || 'Notification'}</div>
+              <div class="notif-msg">${n.message || ''}</div>
+              ${n.actionUrl ? `<a href="${n.actionUrl}" style="font-size:var(--text-xs);color:var(--olive);font-weight:600;">View details</a>` : ''}
+              <div class="notif-time">${n.createdAt ? UI.formatTimeShort(n.createdAt) : ''}</div>
+            </div>
+          </div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      document.getElementById('dashContent').innerHTML = html;
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+      }, { threshold: 0.1 });
+      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    }
+
+    function statCard(label, value, colorClass) {
+      return `<div class="stat-card"><div class="stat-card-label">${label}</div><div class="stat-card-value ${colorClass}">${value !== undefined ? value : '—'}</div></div>`;
+    }
+
+    async function addFunds() {
+      const amount = prompt('Enter amount to add (₹):', '1000');
+      if (!amount) return;
+      const num = Number(amount);
+      if (!num || num <= 0) { UI.toast('Invalid amount', 'error'); return; }
+      const res = await api.post('/deposit', { amount: num });
+      if (res?.success) {
+        UI.toast(`₹${num.toLocaleString('en-IN')} added!`, 'success');
+        const balEl = document.querySelector('.wallet-balance');
+        if (balEl) balEl.textContent = UI.formatPrice(res.newBalance);
+      } else {
+        UI.toast(res?.error || 'Deposit failed', 'error');
+      }
+    }
+
+    async function markAllRead() {
+      const res = await api.post('/notifications/read', {});
+      if (res?.success) {
+        document.querySelectorAll('.notif-item.unread').forEach(el => el.classList.remove('unread'));
+        UI.toast('All notifications marked as read', 'success');
+      }
+    }
+  </script>
 </body>
 </html>
