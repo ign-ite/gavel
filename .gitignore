@@ -20,11 +20,11 @@ Thumbs.db
 
 gavel-architecture-v3.html
 
-frontend/.next/
-frontend/node_modules/
-frontend/out/
-frontend/build/
+frontend/
+.next/
 
 *.tgz
 *.zip
 .vercel
+
+.codex/
