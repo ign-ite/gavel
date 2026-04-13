@@ -1,12 +1,274 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=/workspace/governance.html">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redirecting | Gavel</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="images/logo.png">
+  <style>
+    .admin-hero {
+      padding: var(--space-20) 0 var(--space-6);
+      background: linear-gradient(135deg, var(--forest) 0%, var(--olive-dark) 100%);
+      color: var(--parchment);
+    }
+    .admin-hero h1 { color: var(--parchment); font-size: var(--text-4xl); }
+    .admin-hero p { color: rgba(250,247,242,0.7); font-size: var(--text-lg); margin-top: var(--space-2); }
+
+    .admin-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-4);
+    }
+    .admin-stat {
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+      border-radius: var(--radius-xl); padding: var(--space-5);
+      transition: all var(--transition-slow);
+    }
+    .admin-stat:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .admin-stat-label { font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2); }
+    .admin-stat-value { font-family: var(--font-heading); font-size: var(--text-2xl); color: var(--ink); }
+
+    .admin-section { margin-top: var(--space-10); }
+    .admin-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); }
+    .admin-section-header h2 { font-size: var(--text-2xl); }
+
+    .review-card {
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+      border-radius: var(--radius-xl); padding: var(--space-5);
+      display: flex; align-items: center; gap: var(--space-4);
+      transition: all var(--transition); margin-bottom: var(--space-3);
+    }
+    .review-card:hover { box-shadow: var(--shadow-sm); }
+    .review-card img { width: 64px; height: 64px; border-radius: var(--radius-md); object-fit: cover; background: var(--sand); }
+    .review-card-body { flex: 1; min-width: 0; }
+    .review-card-title { font-size: var(--text-base); font-weight: 600; margin-bottom: 2px; }
+    .review-card-meta { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-2); }
+    .review-card-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+
+    .user-row {
+      display: grid; grid-template-columns: 40px 1fr auto auto auto;
+      gap: var(--space-4); align-items: center;
+      padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg);
+      background: var(--bg-raised); border: 1px solid var(--border-light);
+      margin-bottom: var(--space-2); font-size: var(--text-sm);
+    }
+    .user-row-avatar {
+      width: 36px; height: 36px; border-radius: var(--radius-full);
+      background: var(--sand); display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: var(--earth);
+    }
+    .user-row-name { font-weight: 600; }
+    .user-row-email { color: var(--text-secondary); font-size: var(--text-xs); }
+
+    .log-item {
+      padding: var(--space-3) 0; border-bottom: 1px solid var(--border-light);
+      font-size: var(--text-sm); display: flex; justify-content: space-between; gap: var(--space-4);
+    }
+    .log-item:last-child { border-bottom: none; }
+    .log-action { font-weight: 600; color: var(--text-primary); }
+    .log-details { color: var(--text-secondary); flex: 1; }
+    .log-time { color: var(--text-muted); font-size: var(--text-xs); white-space: nowrap; }
+
+    .admin-action-bar {
+      display: flex; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-6);
+    }
+
+    @media (max-width: 768px) {
+      .admin-grid { grid-template-columns: repeat(2, 1fr); }
+      .user-row { grid-template-columns: 36px 1fr auto; }
+      .user-row > :nth-child(4), .user-row > :nth-child(5) { display: none; }
+    }
+  </style>
 </head>
-<body>
-    <p>Redirecting to the unified workspace. If nothing happens, <a href="/workspace/governance.html">open workspace</a>.</p>
+<body style="padding-top:var(--space-20);">
+  <nav class="navbar" id="navbar"><div class="container">
+    <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+    <ul class="navbar-nav">
+      <li><a href="auction.html">Live Auctions</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="sell-product.html">Sell</a></li>
+    </ul>
+    <div class="navbar-actions">
+      <a href="dashboard.html" class="btn btn-ghost btn-sm">Dashboard</a>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" onclick="Auth.logout()" style="display:none;">Log out</button>
+    </div>
+  </div></nav>
+
+  <section class="admin-hero">
+    <div class="container">
+      <h1>Admin Dashboard</h1>
+      <p>Manage listings, review submissions, and monitor platform activity</p>
+    </div>
+  </section>
+
+  <section style="padding:var(--space-8) 0 var(--space-16);">
+    <div class="container">
+      <div id="adminContent"><div class="flex-center" style="padding:2rem;"><div class="spinner"></div></div></div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--border-light);padding:var(--space-8) 0;background:var(--bg);">
+    <div class="container flex-between" style="gap:var(--space-4);"><a href="/" class="navbar-brand">Gavel<span>.</span></a><p class="text-muted text-sm">&copy; 2026 Gavel</p></div>
+  </footer>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let pendingItems = [];
+    let teamData = [];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await Auth.init();
+      if (!Auth.isLoggedIn() || !Auth.isAdmin()) { window.location.href = '/dashboard.html'; return; }
+      document.getElementById('logoutBtn').style.display = 'inline-flex';
+      window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
+
+      const [stats, pending, users, logs] = await Promise.all([
+        api.get('/admin/stats'),
+        api.get('/admin/pending'),
+        api.get('/admin/users'),
+        api.get('/admin/logs')
+      ]);
+
+      if (Auth.isSuperAdmin()) {
+        const team = await api.get('/admin/team-overview');
+        if (team && !team.error) teamData = team;
+      }
+
+      renderAdmin(stats, pending, users, logs);
+    });
+
+    function renderAdmin(stats, pending, users, logs) {
+      let html = '';
+
+      html += `<div class="admin-grid reveal">`;
+      html += adminStat('Total Users', stats?.totalUsers || 0);
+      html += adminStat('Active Auctions', stats?.activeAuctions || 0);
+      html += adminStat('Pending Review', stats?.pendingCount || 0);
+      html += adminStat('Bids Today', stats?.totalBidsToday || 0);
+      html += adminStat('Total Volume', UI.formatPrice(stats?.totalVolume || 0));
+      html += adminStat('Admins', stats?.adminCount || 0);
+      html += `</div>`;
+
+      html += `<div class="admin-section" id="pending">`;
+      html += `<div class="admin-section-header"><h2>Review Queue</h2>`;
+      if (Auth.isSuperAdmin()) html += `<button class="btn btn-secondary btn-sm" onclick="assignAll()">Assign All Pending</button>`;
+      html += `</div>`;
+      html += `<div class="admin-action-bar">
+        <span class="text-muted text-sm">${pending?.length || 0} items awaiting review</span>
+      </div>`;
+
+      if (pending && pending.length) {
+        pendingItems = pending;
+        const fallbackImg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="%23ebe4d6"><rect width="64" height="64"/></svg>');
+        pending.forEach(item => {
+          const img = (item.images || [])[0] || '';
+          html += `<div class="review-card">
+            ${img ? `<img src="${img}" alt="${item.title}" onerror="this.src='${fallbackImg}'">` : '<div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--sand);"></div>'}
+            <div class="review-card-body">
+              <div class="review-card-title">${item.title}</div>
+              <div class="review-card-meta">${item.category || 'General'} · ${UI.formatPrice(item.currentBid)} · Seller: ${item.sellerName || item.sellerEmail || 'N/A'}</div>
+              <span class="badge ${item.status === 'rejected' ? 'badge-closed' : 'badge-pending'}">${item.status.replace('_', ' ')}</span>
+            </div>
+            <div class="review-card-actions">
+              <a href="item-detail.html?id=${item.id}" class="btn btn-sm btn-ghost">View</a>
+              ${item.status !== 'rejected' ? `<button class="btn btn-sm btn-primary" onclick="reviewItem('${item.id}', 'approve')">Approve</button>` : ''}
+              <button class="btn btn-sm btn-danger" onclick="reviewItem('${item.id}', 'reject')">Reject</button>
+            </div>
+          </div>`;
+        });
+      } else {
+        html += `<div class="empty-state"><h3>No items pending review</h3><p>All caught up!</p></div>`;
+      }
+      html += `</div>`;
+
+      if (teamData.length) {
+        html += `<div class="admin-section" id="team">`;
+        html += `<div class="admin-section-header"><h2>Team Overview</h2></div>`;
+        teamData.forEach(t => {
+          html += `<div class="user-row">
+            <div class="user-row-avatar">${(t.fullname || '?').charAt(0).toUpperCase()}</div>
+            <div><div class="user-row-name">${t.fullname || 'Unknown'}</div><div class="user-row-email">${t.email}</div></div>
+            <span class="badge ${t.isSuperAdmin ? 'badge-pending' : 'badge-approved'}">${t.isSuperAdmin ? 'Super Admin' : 'Admin'}</span>
+            <span class="text-sm text-muted">${t.assignedProducts} assigned · ${t.approvedProducts} approved</span>
+            ${Auth.isSuperAdmin() && !t.isSuperAdmin ? `<button class="btn btn-sm btn-ghost" style="color:var(--ember);" onclick="toggleAdmin('${t.id}', ${!t.isAdmin})">${t.isAdmin ? 'Revoke Admin' : 'Grant Admin'}</button>` : ''}
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      if (users && users.length) {
+        html += `<div class="admin-section">`;
+        html += `<div class="admin-section-header"><h2>Users</h2><span class="text-muted text-sm">${users.length} total</span></div>`;
+        users.slice(0, 20).forEach(u => {
+          html += `<div class="user-row">
+            <div class="user-row-avatar">${(u.fullname || u.email || '?').charAt(0).toUpperCase()}</div>
+            <div><div class="user-row-name">${u.fullname || 'Unknown'}</div><div class="user-row-email">${u.email}</div></div>
+            <span class="trust-score"><span class="trust-dot"></span> ${u.trustScore || 50}</span>
+            <span class="badge ${u.isAdmin || u.isSuperAdmin ? 'badge-approved' : 'badge-closed'}">${u.isSuperAdmin ? 'Super Admin' : u.isAdmin ? 'Admin' : u.role || 'Bidder'}</span>
+            ${Auth.isSuperAdmin() ? `<button class="btn btn-sm btn-ghost" style="color:var(--ember);" onclick="deleteUser('${u._id}')">Delete</button>` : ''}
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      if (logs && logs.length) {
+        html += `<div class="admin-section">`;
+        html += `<div class="admin-section-header"><h2>Audit Log</h2><span class="text-muted text-sm">Recent ${logs.length} entries</span></div>`;
+        logs.slice(0, 30).forEach(l => {
+          html += `<div class="log-item">
+            <span class="log-action">${l.action || '—'}</span>
+            <span class="log-details">${l.details || ''} ${l.userEmail ? `(${l.userEmail})` : ''}</span>
+            <span class="log-time">${l.createdAt ? UI.formatTimeShort(l.createdAt) : ''}</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      document.getElementById('adminContent').innerHTML = html;
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+      }, { threshold: 0.1 });
+      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    }
+
+    function adminStat(label, value) {
+      return `<div class="admin-stat"><div class="admin-stat-label">${label}</div><div class="admin-stat-value">${value}</div></div>`;
+    }
+
+    async function reviewItem(id, decision) {
+      const notes = decision === 'reject' ? prompt('Rejection reason:') : (prompt('Review notes (optional):') || 'Approved');
+      if (decision === 'reject' && !notes) return;
+      const res = await api.post('/admin/review-request', { auctionId: id, decision, reviewNotes: notes });
+      if (res?.success) { UI.toast(`Listing ${decision === 'approve' ? 'approved' : 'rejected'}`, 'success'); location.reload(); }
+      else UI.toast(res?.error || 'Review failed', 'error');
+    }
+
+    async function assignAll() {
+      const res = await api.post('/admin/assign-sell-requests', {});
+      if (res?.success) { UI.toast(`${res.assigned} items assigned`, 'success'); location.reload(); }
+      else UI.toast(res?.error || 'Assignment failed', 'error');
+    }
+
+    async function toggleAdmin(id, makeAdmin) {
+      const res = await api.post('/admin/set-admin', { id, isAdmin: makeAdmin });
+      if (res?.success) { UI.toast(`Admin ${makeAdmin ? 'granted' : 'revoked'}`, 'success'); location.reload(); }
+      else UI.toast(res?.error || 'Failed', 'error');
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Delete this user and all their data?')) return;
+      const res = await api.delete('/admin/users/' + id);
+      if (res?.success) { UI.toast('User deleted', 'success'); location.reload(); }
+      else UI.toast(res?.error || 'Delete failed', 'error');
+    }
+  </script>
 </body>
 </html>

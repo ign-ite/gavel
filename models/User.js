@@ -13,7 +13,7 @@ const UserSchema = new mongoose.Schema({
         city: { type: String, default: '' },
         country: { type: String, default: '' }
     },
-    trustScore: { type: Number, default: 100 },
+    trustScore: { type: Number, default: 50 },
     ratings: [{
         raterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         score: { type: Number },

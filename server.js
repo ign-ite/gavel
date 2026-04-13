@@ -593,13 +593,13 @@ async function closeAuction(auctionId) {
             // Phase 9: Trust Score Mechanic - successful transaction boosts both parties
             const sellerUser = await User.findOne({ email: item.sellerEmail });
             if (sellerUser) {
-                sellerUser.trustScore = Math.min(500, (sellerUser.trustScore || 100) + 5);
+                sellerUser.trustScore = Math.min(500, (sellerUser.trustScore || 50) + 5);
                 sellerUser.ratingsCount = (sellerUser.ratingsCount || 0) + 1;
                 await sellerUser.save();
             }
             const buyerUser = await User.findOne({ email: winnerObj.bidderEmail });
             if (buyerUser) {
-                buyerUser.trustScore = Math.min(500, (buyerUser.trustScore || 100) + 5);
+                buyerUser.trustScore = Math.min(500, (buyerUser.trustScore || 50) + 5);
                 buyerUser.ratingsCount = (buyerUser.ratingsCount || 0) + 1;
                 await buyerUser.save();
             }
@@ -824,7 +824,7 @@ app.post('/api/user/sync', async (req, res) => {
                 email: email.toLowerCase(),
                 fullname: fullname || 'New User',
                 role: role || 'bidder',
-                trustScore: 100,
+                trustScore: 50,
                 walletBalance: 0,
                 isSuperAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase()),
                 isAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase())
@@ -1836,7 +1836,7 @@ app.get('/api/profile', requireLogin, async (req, res) => {
             fullname: req.user.name,
             email: userEmail,
             role: req.user.role,
-            trustScore: dbUser.trustScore || 100,
+            trustScore: dbUser.trustScore || 50,
             ratingsCount: dbUser.ratingsCount || 0,
             activeListings,
             closedListings,

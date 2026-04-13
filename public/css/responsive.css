@@ -1,0 +1,58 @@
+@media (max-width: 1023px) {
+  .grid-4 { grid-template-columns: repeat(3, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .navbar-nav { display: none; }
+  .navbar-menu-btn { display: flex; }
+  .hero-split { flex-direction: column; }
+  .hero-image-col { order: -1; max-width: 100%; }
+  .hero-text-col { max-width: 100%; text-align: center; }
+  .hero-text-col .btn-group { justify-content: center; }
+  .search-bar { display: none; }
+}
+
+@media (max-width: 767px) {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  .container { padding: 0 var(--space-4); }
+  :root {
+    --text-6xl: 2.5rem; --text-5xl: 2rem; --text-4xl: 1.75rem;
+    --text-3xl: 1.5rem; --text-2xl: 1.25rem;
+  }
+  .navbar {
+    top: var(--space-2); width: calc(100% - var(--space-4));
+    padding: var(--space-2) var(--space-4);
+  }
+  .navbar-actions .btn span.hide-mobile { display: none; }
+  .hero { padding: var(--space-16) 0 var(--space-12) !important; }
+  .card-body { padding: var(--space-4); }
+  .modal { padding: var(--space-5); margin: var(--space-4); }
+  .section-header h2 { font-size: var(--text-2xl); }
+  .section-header p { font-size: var(--text-base); }
+  .btn-lg { padding: var(--space-3) var(--space-5); font-size: var(--text-sm); }
+  .feature-grid { grid-template-columns: 1fr !important; }
+  .product-row > * { width: 180px; }
+}
+
+@media (max-width: 639px) {
+  .mobile-stack { flex-direction: column; }
+  .mobile-full { width: 100%; }
+  .mobile-hide { display: none !important; }
+  .navbar .container { flex-wrap: wrap; gap: var(--space-3); }
+  .navbar-actions { width: 100%; justify-content: flex-end; }
+  .toast-container { left: var(--space-4); right: var(--space-4); }
+  .toast { min-width: auto; }
+}
+
+@media (hover: none) {
+  .btn:active { transform: scale(0.96); }
+  .card:hover { transform: none; box-shadow: var(--shadow-sm); }
+  .card:active { transform: scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+  .reveal-scale { opacity: 1; transform: none; }
+}

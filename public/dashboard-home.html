@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home — Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="css/dashboard-home.css">
+  <link rel="icon" href="images/logo.png">
+</head>
+<body style="padding-top:var(--space-20);">
+
+  <nav class="navbar" id="navbar">
+    <div class="container">
+      <a href="/" class="navbar-brand" id="logoLink">Gavel<span>.</span></a>
+      <ul class="navbar-nav">
+        <li><a href="auction.html">Live Auctions</a></li>
+        <li><a href="explore.html">Explore</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="sell-product.html">Sell</a></li>
+      </ul>
+      <div class="search-bar" style="flex:1; max-width:320px; margin:0 var(--space-4);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-muted);flex-shrink:0;margin-left:4px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" placeholder="Search auctions..." id="searchInput">
+        <button onclick="handleSearch()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+      </div>
+      <div class="navbar-actions">
+        <a href="login.html" class="btn btn-ghost btn-sm" id="loginBtn">Log in</a>
+        <a href="signup.html" class="btn btn-primary btn-sm" id="signupBtn">Get Started</a>
+        <a href="dashboard.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- GREETING HERO -->
+  <section class="greeting-hero">
+    <div class="container">
+      <div class="greeting-hero-inner">
+        <div class="greeting-left">
+          <h1 id="greetingText">Good morning, Rahul</h1>
+          <div class="campus-badge" id="campusBadge">IIT Delhi</div>
+          <p class="greeting-subline" id="watchlistSubline">3 auctions ending today you're watching</p>
+        </div>
+        <div class="greeting-right">
+          <div class="stat-pill" id="walletPill">
+            <div class="stat-pill-label">₹ Wallet</div>
+            <div class="stat-pill-value">₹0</div>
+          </div>
+          <div class="stat-pill" id="activeBidsPill">
+            <div class="stat-pill-label">Active Bids</div>
+            <div class="stat-pill-value">0</div>
+          </div>
+          <div class="stat-pill" id="itemsSoldPill">
+            <div class="stat-pill-label">Items Sold</div>
+            <div class="stat-pill-value">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN BANNER (only for admin/superadmin) -->
+  <div class="admin-banner hide" id="adminBanner">
+    <div class="container">
+      <a href="admin-dashboard.html">Admin workspace →</a>
+    </div>
+  </div>
+
+  <!-- AUCTION ACTIVITY STRIP -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Your Activity</h2>
+        <p>Items you're winning, outbid on, or watching</p>
+      </div>
+      <div class="activity-strip" id="activityStrip">
+        <!-- Skeleton loaders -->
+        <div class="activity-card skeleton"></div>
+        <div class="activity-card skeleton"></div>
+        <div class="activity-card skeleton"></div>
+        <div class="activity-card skeleton"></div>
+      </div>
+      <div class="empty-state hide" id="activityEmpty">
+        <h3>No activity yet</h3>
+        <p>Browse auctions to get started</p>
+        <a href="explore.html" class="btn btn-primary">Browse Auctions →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ENDING SOON -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2>⏰ Ending Soon</h2>
+        <p>Place your bids before time runs out</p>
+      </div>
+      <div class="ending-soon-strip" id="endingSoonStrip">
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RECOMMENDED FOR YOU -->
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="font-heading">Picked for you</h2>
+        <p>Based on your campus and bid history</p>
+      </div>
+      <div class="recommended-grid" id="recommendedGrid">
+        <div class="skeleton" style="height:300px;"></div>
+        <div class="skeleton" style="height:300px;"></div>
+        <div class="skeleton" style="height:300px;"></div>
+        <div class="skeleton" style="height:300px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAMPUS LEADERBOARD STRIP -->
+  <section class="leaderboard-section">
+    <div class="container">
+      <div class="leaderboard-inner">
+        <div class="leaderboard-left">
+          <h2>This week on <span id="campusName">IIT Delhi</span></h2>
+          <div class="leaderboard-list" id="leaderboardList">
+            <div class="leaderboard-row skeleton"></div>
+            <div class="leaderboard-row skeleton"></div>
+            <div class="leaderboard-row skeleton"></div>
+            <div class="leaderboard-row skeleton"></div>
+            <div class="leaderboard-row skeleton"></div>
+          </div>
+        </div>
+        <div class="leaderboard-right">
+          <div class="start-selling-card">
+            <h3>Turn your stuff into ₹₹₹</h3>
+            <p>List items in under 2 minutes. Reach thousands of students on campus.</p>
+            <a href="sell-product.html" class="btn btn-primary">Start Selling</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RECENTLY VIEWED -->
+  <section class="section hide" id="recentlyViewedSection">
+    <div class="container">
+      <div class="section-header">
+        <h2>Recently Viewed</h2>
+        <p>Items you've checked out recently</p>
+      </div>
+      <div class="recently-viewed-strip" id="recentlyViewedStrip">
+        <!-- populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="border-top:1px solid var(--border-light); padding:var(--space-10) 0; background:var(--bg);">
+    <div class="container">
+      <div style="display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:var(--space-8);" class="mobile-stack">
+        <div>
+          <a href="/" class="navbar-brand" style="margin-bottom:var(--space-3); display:inline-block;">Gavel<span>.</span></a>
+          <p class="text-muted text-sm" style="max-width:280px; line-height:1.7;">The trusted auction marketplace built for college students. Real-time bidding, campus rivalry, and verified sellers.</p>
+        </div>
+        <div>
+          <h4 style="font-size:var(--text-sm); font-weight:700; font-family:var(--font-body); margin-bottom:var(--space-4);">Marketplace</h4>
+          <a href="auction.html" class="text-muted text-sm" style="display:block; margin-bottom:var(--space-2);">Live Auctions</a>
+          <a href="explore.html" class="text-muted text-sm" style="display:block; margin-bottom:var(--space-2);">Explore</a>
+          <a href="sell-product.html" class="text-muted text-sm" style="display:block;">Sell an Item</a>
+        </div>
+        <div>
+          <h4 style="font-size:var(--text-sm); font-weight:700; font-family:var(--font-body); margin-bottom:var(--space-4);">Account</h4>
+          <a href="login.html" class="text-muted text-sm" style="display:block; margin-bottom:var(--space-2);">Log In</a>
+          <a href="signup.html" class="text-muted text-sm" style="display:block; margin-bottom:var(--space-2);">Sign Up</a>
+          <a href="profile.html" class="text-muted text-sm" style="display:block;">Profile</a>
+        </div>
+        <div>
+          <h4 style="font-size:var(--text-sm); font-weight:700; font-family:var(--font-body); margin-bottom:var(--space-4);">Legal</h4>
+          <a href="terms-and-conditions.html" class="text-muted text-sm" style="display:block; margin-bottom:var(--space-2);">Terms</a>
+          <a href="admin-handbook.html" class="text-muted text-sm" style="display:block;">Admin</a>
+        </div>
+      </div>
+      <div class="divider" style="margin-top:var(--space-10);"></div>
+      <p class="text-muted text-sm" style="text-align:center;">&copy; 2026 Gavel. Built for students, by students.</p>
+    </div>
+  </footer>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/dashboard-home.js"></script>
+  <script>
+    function handleSearch() {
+      const q = document.getElementById('searchInput').value.trim();
+      if (q) window.location.href = 'auction.html?q=' + encodeURIComponent(q);
+    }
+    document.getElementById('searchInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(); });
+  </script>
+</body>
+</html>

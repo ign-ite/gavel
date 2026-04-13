@@ -1,141 +1,186 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>My Portfolio | Gavel</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        .my-products-section {
-            padding: 60px 50px;
-            max-width: 1400px;
-            margin: 0 auto;
-            min-height: 80vh;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Products — Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="images/logo.png">
+  <style>
+    .my-hero {
+      padding: var(--space-20) 0 var(--space-6);
+      background: linear-gradient(180deg, var(--cream) 0%, var(--parchment) 100%);
+    }
+    .my-hero .container { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
+    .my-hero h1 { font-size: var(--text-4xl); margin: 0; }
 
-        .my-products-section h1 {
-            font-size: 2.2rem;
-            margin-bottom: 10px;
-            letter-spacing: -1px;
-        }
-        
-        .my-products-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 24px;
-            margin-top: 40px;
-        }
+    .filter-bar {
+      display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-6);
+    }
+    .filter-chip {
+      padding: var(--space-2) var(--space-4); border-radius: var(--radius-full);
+      font-size: var(--text-sm); font-weight: 500; cursor: pointer;
+      border: 1.5px solid var(--border); background: var(--bg);
+      color: var(--text-secondary); transition: all var(--transition);
+    }
+    .filter-chip:hover, .filter-chip.active {
+      border-color: var(--olive); background: var(--sage-light); color: var(--olive);
+    }
 
-        .my-product-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.2sease, border-color 0.2sease;
-        }
-        
-        .my-product-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(255,255,255,0.2);
-        }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-5);
+    }
 
-        .my-product-card img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .my-product-info {
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-        }
-
-        .my-product-info h3 {
-            margin: 0 0 12px 0;
-            font-size: 1.15rem;
-            font-weight: 600;
-        }
-
-        .my-product-status {
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .status-active { color: var(--neon-green); }
-        .status-closed { color: var(--text-secondary); }
-
-        .btn-withdraw {
-            background: rgba(255, 59, 48, 0.1);
-            color: var(--neon-red);
-            border: 1px solid rgba(255, 59, 48, 0.3);
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            text-transform: uppercase;
-            font-size: 0.85rem;
-            transition: all 0.2s;
-            width: 100%;
-            margin-top: auto;
-        }
-
-        .btn-withdraw:hover {
-            background: rgba(255, 59, 48, 0.2);
-            border-color: var(--neon-red);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 80px 20px;
-            grid-column: 1 / -1;
-            background: var(--glass-bg);
-            border-radius: 12px;
-            border: 1px dashed var(--border-color);
-        }
-
-        .empty-state p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            margin-bottom: 20px;
-        }
-    </style>
+    .product-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      transition: all var(--transition-slow);
+    }
+    .product-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); }
+    .product-card-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: var(--sand); }
+    .product-card-body { padding: var(--space-5); }
+    .product-card-title { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .product-card-meta { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-3); }
+    .product-card-price { font-family: var(--font-heading); font-size: var(--text-lg); color: var(--ink); }
+    .product-card-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+  </style>
 </head>
-<body>
-    <header>
-        <nav class="navbar">
-            <div class="logo">
-                <a href="/" style="text-decoration: none; display: flex; align-items: center; color: inherit;">
-                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Gavel</span>
-                </a>
+<body style="padding-top:var(--space-20);">
+  <nav class="navbar" id="navbar"><div class="container">
+    <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+    <ul class="navbar-nav">
+      <li><a href="auction.html">Live Auctions</a></li>
+      <li><a href="explore.html">Explore</a></li>
+      <li><a href="sell-product.html">Sell</a></li>
+    </ul>
+    <div class="navbar-actions">
+      <a href="dashboard.html" class="btn btn-primary btn-sm" id="dashboardBtn">Dashboard</a>
+      <button class="btn btn-ghost btn-sm" id="logoutBtn" onclick="Auth.logout()" style="display:none;">Log out</button>
+    </div>
+  </div></nav>
+
+  <section class="my-hero">
+    <div class="container">
+      <div>
+        <h1>My Listings</h1>
+        <p style="color:var(--text-secondary);margin-top:var(--space-2);">Manage your active and closed asset listings</p>
+      </div>
+      <a href="sell-product.html" class="btn btn-primary btn-lg">+ New Listing</a>
+    </div>
+  </section>
+
+  <section style="padding:var(--space-4) 0 var(--space-16);">
+    <div class="container">
+      <div class="filter-bar" id="filterBar">
+        <button class="filter-chip active" data-filter="all">All</button>
+        <button class="filter-chip" data-filter="active">Live</button>
+        <button class="filter-chip" data-filter="pending_review">Pending</button>
+        <button class="filter-chip" data-filter="under_review">Under Review</button>
+        <button class="filter-chip" data-filter="rejected">Rejected</button>
+        <button class="filter-chip" data-filter="closed">Closed</button>
+      </div>
+      <div id="productsContent"><div class="flex-center" style="padding:2rem;"><div class="spinner"></div></div></div>
+    </div>
+  </section>
+
+  <footer style="border-top:1px solid var(--border-light);padding:var(--space-8) 0;background:var(--bg);">
+    <div class="container flex-between" style="gap:var(--space-4);"><a href="/" class="navbar-brand">Gavel<span>.</span></a><p class="text-muted text-sm">&copy; 2026 Gavel</p></div>
+  </footer>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let allListings = [];
+    let currentFilter = 'all';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await Auth.init();
+      if (!Auth.isLoggedIn()) { window.location.href = '/login.html'; return; }
+      document.getElementById('logoutBtn').style.display = 'inline-flex';
+      window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
+
+      const listings = await api.get('/my-listings');
+      if (!listings || listings.error) { UI.toast('Failed to load listings', 'error'); return; }
+      allListings = listings;
+      renderListings();
+
+      document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          currentFilter = chip.dataset.filter;
+          renderListings();
+        });
+      });
+    });
+
+    function renderListings() {
+      const filtered = currentFilter === 'all' ? allListings : allListings.filter(l => l.status === currentFilter);
+
+      if (!filtered.length) {
+        document.getElementById('productsContent').innerHTML = `<div class="empty-state">
+          <h3>${currentFilter === 'all' ? 'No listings yet' : 'No ' + currentFilter.replace('_', ' ') + ' listings'}</h3>
+          <p><a href="sell-product.html">Create your first listing</a></p>
+        </div>`;
+        return;
+      }
+
+      const fallbackImg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" fill="%23ebe4d6"><rect width="400" height="300"/><text x="50%" y="50%" text-anchor="middle" fill="%238b7355" font-family="Georgia" font-size="20">No Image</text></svg>');
+
+      document.getElementById('productsContent').innerHTML = `<div class="product-grid">${filtered.map(l => {
+        const img = (l.images || [])[0] || '';
+        const statusBadge = l.status === 'active' ? '<span class="badge badge-live">Live</span>' :
+          l.status === 'pending_review' ? '<span class="badge badge-pending">Pending</span>' :
+          l.status === 'under_review' ? '<span class="badge badge-pending">Under Review</span>' :
+          l.status === 'rejected' ? '<span class="badge badge-closed">Rejected</span>' :
+          '<span class="badge badge-closed">Closed</span>';
+
+        const canEnd = l.status === 'active';
+        const canRemove = l.status === 'pending_review' || l.status === 'under_review' || l.status === 'rejected';
+
+        return `<div class="product-card reveal">
+          ${img ? `<img src="${img}" alt="${l.title}" class="product-card-img" onerror="this.onerror=null;this.src='${fallbackImg}';">` : `<div class="product-card-img" style="display:flex;align-items:center;justify-content:center;color:var(--earth);font-family:var(--font-heading);">No Image</div>`}
+          <div class="product-card-body">
+            <div class="product-card-title">${l.title} ${statusBadge}</div>
+            <div class="product-card-meta">${l.category || 'General'} · ${UI.formatTime(l.endTime)}</div>
+            <div class="product-card-price">${UI.formatPrice(l.currentBid)}</div>
+            <div class="product-card-actions">
+              <a href="item-detail.html?id=${l.id}" class="btn btn-sm btn-secondary">View</a>
+              ${canEnd ? `<button class="btn btn-sm btn-danger" onclick="endAuction('${l.id}')">End</button>` : ''}
+              ${canRemove ? `<button class="btn btn-sm btn-ghost" style="color:var(--ember);" onclick="removeItem('${l.id}')">Remove</button>` : ''}
             </div>
-            <ul class="nav-links"><!-- Populated by nav.js --></ul>
-        </nav>
-    </header>
+          </div>
+        </div>`;
+      }).join('')}</div>`;
 
-    <section class="my-products-section">
-        <h1>My Listed Markets</h1>
-        <p style="color: var(--text-secondary); margin-bottom: 20px;">Manage your active and closed asset listings.</p>
-        <div class="my-products-grid" id="my-products-list"></div>
-    </section>
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
+      }, { threshold: 0.1 });
+      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    }
 
-    <footer><p>&copy; 2026 Gavel Protocol. All rights reserved.</p></footer>
+    async function endAuction(id) {
+      if (!confirm('End this auction early?')) return;
+      const res = await api.post('/end-auction', { id });
+      if (res?.success) { UI.toast('Auction ended', 'success'); location.reload(); }
+      else UI.toast(res?.message || 'Failed to end auction', 'error');
+    }
 
-    <script src="js/nav.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/my_products.js"></script>
+    async function removeItem(id) {
+      if (!confirm('Remove this listing permanently?')) return;
+      const res = await api.post('/remove-item', { id });
+      if (res?.success) { UI.toast('Listing removed', 'success'); location.reload(); }
+      else UI.toast(res?.message || 'Failed to remove', 'error');
+    }
+  </script>
 </body>
 </html>

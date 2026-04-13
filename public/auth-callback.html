@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authenticating — Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--cream);
+    }
+    .auth-status {
+      text-align: center;
+      padding: var(--space-8);
+    }
+    .auth-status h2 {
+      font-family: var(--font-heading);
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-4);
+    }
+    .auth-status p {
+      color: var(--text-secondary);
+      font-size: var(--text-sm);
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-status">
+    <div class="spinner" style="margin:0 auto var(--space-4);"></div>
+    <h2 id="statusText">Authenticating…</h2>
+    <p id="statusDetail">Verifying your Google account</p>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    (async function() {
+      let accessToken = null;
+      let refreshToken = null;
+
+      const hash = window.location.hash;
+      if (hash) {
+        const params = new URLSearchParams(hash.substring(1));
+        accessToken = params.get('access_token');
+        refreshToken = params.get('refresh_token');
+      }
+
+      if (!accessToken) {
+        const qParams = new URLSearchParams(window.location.search);
+        accessToken = qParams.get('access_token');
+        refreshToken = qParams.get('refresh_token');
+      }
+
+      if (!accessToken) {
+        document.getElementById('statusText').textContent = 'Authentication failed';
+        document.getElementById('statusDetail').textContent = 'No access token received. Please try again.';
+        setTimeout(() => { window.location.href = '/login.html'; }, 2000);
+        return;
+      }
+
+      try {
+        const res = await api.post('/user/sync', { token: accessToken });
+
+        if (res && res.success) {
+          document.getElementById('statusText').textContent = 'Welcome, ' + (res.user.name || res.user.email) + '!';
+          document.getElementById('statusDetail').textContent = 'Redirecting to your dashboard…';
+          document.querySelector('.spinner').style.display = 'none';
+          // DASHBOARD-HOME ADDITION: redirect to dashboard-home.html
+          setTimeout(() => { window.location.href = '/dashboard-home.html'; }, 800);
+        } else {
+          throw new Error(res?.error || 'Sync failed');
+        }
+      } catch (err) {
+        document.getElementById('statusText').textContent = 'Authentication failed';
+        document.getElementById('statusDetail').textContent = err.message || 'Could not verify your account. Please try again.';
+        document.querySelector('.spinner').style.display = 'none';
+        setTimeout(() => { window.location.href = '/login.html'; }, 2500);
+      }
+    })();
+  </script>
+</body>
+</html>
