@@ -198,7 +198,7 @@
 
       document.getElementById('greeting').textContent = `Hello, ${u.name || u.email}`;
       const role = u.isSuperAdmin ? 'Super Admin' : u.isAdmin ? 'Admin' : u.role || 'Bidder';
-      document.getElementById('subtitle').textContent = `${role} · Trust Score: ${u.trustScore || 50}`;
+      document.getElementById('subtitle').textContent = `${role} · Trust Score: ${u.trustScore || 0}`;
 
       let html = '';
 

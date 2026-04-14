@@ -121,7 +121,7 @@
 
     function renderProfile(p, bids) {
       const initials = (p.name || p.email || '?').charAt(0).toUpperCase();
-      const trust = p.trustScore || 50;
+      const trust = p.trustScore || 0;
       const trustPct = Math.min(100, Math.max(0, trust));
       const role = p.isSuperAdmin ? 'Super Admin' : p.isAdmin ? 'Admin' : (p.role || 'Bidder');
 

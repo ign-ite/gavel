@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How Gavel Works</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="icon" href="images/logo.png">
+  <style>
+    .flow-hero {
+      padding: calc(var(--space-20) + var(--space-8)) 0 var(--space-12);
+      background:
+        radial-gradient(circle at top right, rgba(143,170,126,0.16), transparent 32%),
+        linear-gradient(180deg, var(--parchment) 0%, var(--cream) 100%);
+    }
+    .flow-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: var(--space-8);
+      align-items: start;
+    }
+    .flow-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
+    }
+    .flow-step {
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: var(--space-4);
+      margin-bottom: var(--space-5);
+      align-items: start;
+    }
+    .flow-step:last-child { margin-bottom: 0; }
+    .flow-step-num {
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-xl);
+      background: var(--olive);
+      color: var(--parchment);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: var(--text-lg);
+    }
+    .illustration-box {
+      min-height: 240px;
+      border-radius: var(--radius-2xl);
+      border: 1px solid var(--border-light);
+      background:
+        linear-gradient(145deg, rgba(92,107,79,0.08), rgba(196,93,62,0.08)),
+        var(--bg);
+      position: relative;
+      overflow: hidden;
+      padding: var(--space-6);
+    }
+    .illustration-box::before,
+    .illustration-box::after {
+      content: '';
+      position: absolute;
+      border-radius: var(--radius-full);
+      background: rgba(212,168,67,0.16);
+    }
+    .illustration-box::before {
+      width: 180px;
+      height: 180px;
+      right: -40px;
+      top: -40px;
+    }
+    .illustration-box::after {
+      width: 120px;
+      height: 120px;
+      left: -20px;
+      bottom: -20px;
+    }
+    @media (max-width: 900px) {
+      .flow-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar">
+    <div class="container">
+      <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+      <ul class="navbar-nav">
+        <li><a href="auction.html">Live Auctions</a></li>
+        <li><a href="explore.html">Explore</a></li>
+        <li><a href="how-it-works.html" style="color:var(--olive);background:rgba(92,107,79,0.08);">How It Works</a></li>
+        <li><a href="sell-product.html">Sell</a></li>
+      </ul>
+      <div class="navbar-actions">
+        <a href="login.html" class="btn btn-ghost btn-sm" id="loginBtn">Log in</a>
+        <a href="signup.html" class="btn btn-primary btn-sm" id="signupBtn">Get Started</a>
+        <a href="chats.html" class="btn btn-ghost btn-sm hide" id="messagesBtn">Messages</a>
+        <a href="dashboard-home.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <section class="flow-hero">
+      <div class="container">
+        <div class="flow-grid">
+          <div>
+            <span class="badge badge-approved" style="margin-bottom:var(--space-4);display:inline-flex;">Campus Marketplace Flow</span>
+            <h1 style="font-size:var(--text-5xl);margin-bottom:var(--space-4);">What Gavel is and exactly how it works</h1>
+            <p style="font-size:var(--text-lg);color:var(--text-secondary);max-width:640px;">
+              Gavel is a campus-first marketplace for auctions and direct product discovery. Students list products, admins verify them, buyers discover them through explore reels or the auction grid, then chat and complete the handoff on campus.
+            </p>
+          </div>
+          <div class="illustration-box">
+            <div class="flow-card" style="position:relative;z-index:1;">
+              <h3 style="font-size:var(--text-xl);margin-bottom:var(--space-3);">Platform loop</h3>
+              <p class="text-secondary" style="margin-bottom:var(--space-4);">Sell -> Review -> Discover -> Bid or chat -> Win -> Meet on campus -> Review each other.</p>
+              <div style="display:grid;gap:var(--space-3);">
+                <div class="tag">Seller uploads images and video</div>
+                <div class="tag">Admin verifies media and claims</div>
+                <div class="tag">Buyers watch reels or open detail page</div>
+                <div class="tag">Bids, auto-bids, and chat stay attached to the product</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section style="padding:var(--space-12) 0;">
+      <div class="container flow-grid">
+        <div class="flow-card">
+          <h2 style="margin-bottom:var(--space-5);">Selling on Gavel</h2>
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div>
+              <h3>Upload your listing</h3>
+              <p class="text-secondary">Add clear images, one verification video, price, description, condition, and specs. Your draft is saved so you can come back without losing progress.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <div>
+              <h3>Admin review</h3>
+              <p class="text-secondary">Admins verify that the images match the product, the content is safe, the category is correct, and the description is honest. Approvals need a completed checklist. Rejections require a written note.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <div>
+              <h3>Go live and track performance</h3>
+              <p class="text-secondary">Once approved, your product appears in explore, auctions, and personalized sections. You can track views and relist closed items.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-card">
+          <h2 style="margin-bottom:var(--space-5);">Buying and bidding</h2>
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div>
+              <h3>Discover products</h3>
+              <p class="text-secondary">Browse live auctions in the grid or scroll reels in Explore. Videos stay muted and properly oriented so you can focus on the product.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <div>
+              <h3>Open the product detail page</h3>
+              <p class="text-secondary">Use the media carousel, zoom on images, review description and specs, then place a bid or set a maximum auto-bid.</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <div>
+              <h3>Message the seller</h3>
+              <p class="text-secondary">Every chat thread is grouped by product, so you can ask for more photos, negotiate details, and schedule the campus meetup after the auction closes.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer></footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/site.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await Auth.init();
+      if (Auth.isLoggedIn()) {
+        document.getElementById('loginBtn')?.classList.add('hide');
+        document.getElementById('signupBtn')?.classList.add('hide');
+        document.getElementById('messagesBtn')?.classList.remove('hide');
+        document.getElementById('dashboardBtn')?.classList.remove('hide');
+      }
+    });
+  </script>
+</body>
+</html>

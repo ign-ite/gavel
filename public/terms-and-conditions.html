@@ -1,95 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms and Conditions | Gavel</title>
-    <link rel="stylesheet" href="css/style.css">
-    <style>
-        .terms-shell {
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 56px 20px 88px;
-        }
-
-        .terms-card {
-            background: rgba(189, 221, 252, 0.08);
-            border: 1px solid var(--border-color);
-            border-radius: 28px;
-            padding: 34px;
-            box-shadow: 0 24px 60px rgba(20, 28, 34, 0.18);
-        }
-
-        .terms-card h1,
-        .terms-card h2 {
-            font-family: var(--font-heading);
-            color: var(--text-primary);
-        }
-
-        .terms-card h1 {
-            margin: 0 0 12px;
-            font-size: clamp(2.2rem, 5vw, 3.2rem);
-        }
-
-        .terms-card h2 {
-            margin: 28px 0 10px;
-            font-size: 1.18rem;
-        }
-
-        .terms-card p,
-        .terms-card li {
-            color: var(--text-secondary);
-            line-height: 1.72;
-        }
-
-        .terms-card ul {
-            padding-left: 20px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms and Conditions | Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <style>
+    .legal-shell {
+      padding: calc(var(--space-20) + var(--space-8)) 0 var(--space-12);
+      background: linear-gradient(180deg, var(--parchment), var(--cream));
+    }
+    .legal-card {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8);
+      box-shadow: var(--shadow-md);
+    }
+    .legal-card h2 { margin-top: var(--space-8); }
+    .legal-card p,
+    .legal-card li { color: var(--text-secondary); line-height: 1.8; }
+    .legal-card ul { padding-left: 20px; margin-top: var(--space-3); }
+  </style>
 </head>
 <body>
-    <main class="terms-shell">
-        <article class="terms-card">
-            <h1>Terms and Conditions</h1>
-            <p>By listing, bidding, messaging, or using the wallet on Gavel, you agree to the terms below.</p>
+  <nav class="navbar" id="navbar">
+    <div class="container">
+      <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+      <ul class="navbar-nav">
+        <li><a href="auction.html">Live Auctions</a></li>
+        <li><a href="explore.html">Explore</a></li>
+        <li><a href="sell-product.html">Sell</a></li>
+      </ul>
+    </div>
+  </nav>
 
-            <h2>Seller Responsibilities</h2>
-            <ul>
-                <li>You must own the product or be authorized to sell it.</li>
-                <li>Images, video, category, and description must represent the real product accurately.</li>
-                <li>You must disclose notable wear, defects, missing accessories, and authenticity limitations.</li>
-                <li>Gavel may reject, pause, or remove listings that are incomplete, misleading, prohibited, or unsafe.</li>
-            </ul>
+  <main class="legal-shell">
+    <article class="legal-card">
+      <span class="badge badge-approved">Marketplace policy</span>
+      <h1 style="font-size:var(--text-5xl);margin-top:var(--space-4);">Terms and Conditions</h1>
+      <p style="margin-top:var(--space-4);">These rules govern listing, bidding, messaging, meetups, moderation, and wallet-backed auction activity on Gavel.</p>
 
-            <h2>Bid And Auction Rules</h2>
-            <ul>
-                <li>Bids are binding once submitted.</li>
-                <li>Wallet-backed bidding may place holds or deductions according to the active auction rules.</li>
-                <li>Closing times, reserve handling, anti-snipe extensions, and approval workflows are enforced by the platform.</li>
-                <li>Admins may trigger early-sell or moderation controls where platform policy allows it.</li>
-            </ul>
+      <h2>Seller responsibilities</h2>
+      <ul>
+        <li>You must own the item or have permission to sell it.</li>
+        <li>Your images, video, category, specs, and description must represent the real product accurately.</li>
+        <li>You must disclose damage, missing parts, authenticity issues, and included accessories.</li>
+        <li>Admins can reject, pause, or remove misleading, unsafe, prohibited, or incomplete listings.</li>
+      </ul>
 
-            <h2>Wallet And Payments</h2>
-            <ul>
-                <li>Wallet deposits, holds, refunds, and final bid outcomes are recorded as platform activity.</li>
-                <li>You are responsible for reviewing your own transaction and bidding history.</li>
-                <li>Suspicious wallet or bidding activity may be paused for review.</li>
-            </ul>
+      <h2>Buyer and bidding rules</h2>
+      <ul>
+        <li>Bids are binding once confirmed.</li>
+        <li>Auto-bid uses your chosen maximum and only charges you if you win.</li>
+        <li>Anti-snipe time extensions, reserve handling, and closing rules are enforced by the platform.</li>
+        <li>Outbid notices, chat records, and bid history are part of the transaction record.</li>
+      </ul>
 
-            <h2>Messaging And Conduct</h2>
-            <ul>
-                <li>Messages must stay relevant to the product, delivery, settlement, or required clarifications.</li>
-                <li>Harassment, impersonation, fraud attempts, or off-platform abuse are prohibited.</li>
-                <li>Gavel may restrict messaging access where misuse or policy violations are detected.</li>
-            </ul>
+      <h2>Messaging and meetups</h2>
+      <ul>
+        <li>Use chat for product questions, more photos, meetup planning, or post-auction coordination.</li>
+        <li>Harassment, spam, impersonation, fraud, and abusive off-platform behavior are prohibited.</li>
+        <li>Campus meetups should happen in safe public locations.</li>
+      </ul>
 
-            <h2>Moderation And Platform Rights</h2>
-            <ul>
-                <li>Gavel may update moderation standards, review workflows, and platform controls to protect users.</li>
-                <li>Admin review notes and handbook standards form part of the listing approval process.</li>
-                <li>Use of the platform is conditional on compliance with marketplace rules and applicable law.</li>
-            </ul>
-        </article>
-    </main>
+      <h2>Moderation and enforcement</h2>
+      <ul>
+        <li>Admins and super admins review listings using the moderation checklist and handbook standards.</li>
+        <li>Rejected listings must include a reason. Approved listings must pass every approval checklist item.</li>
+        <li>Accounts or listings may be limited or removed where there is abuse, fraud, or safety risk.</li>
+      </ul>
+    </article>
+  </main>
+
+  <footer></footer>
+
+  <script src="js/site.js"></script>
 </body>
 </html>

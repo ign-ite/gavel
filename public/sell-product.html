@@ -234,7 +234,8 @@
     <div class="navbar-actions">
       <a href="login.html" class="btn btn-ghost btn-sm" id="loginBtn">Log in</a>
       <a href="signup.html" class="btn btn-primary btn-sm" id="signupBtn">Get Started</a>
-      <a href="dashboard.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
+      <a href="chats.html" class="btn btn-ghost btn-sm hide" id="messagesBtn">Messages</a>
+      <a href="dashboard-home.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
     </div>
   </div></nav>
 
@@ -249,7 +250,7 @@
     <div class="container">
       <div class="sell-layout">
         <div class="sell-form-card reveal">
-          <form id="sell-form" enctype="multipart/form-data">
+          <form id="sell-form" enctype="multipart/form-data" novalidate>
 
             <div class="form-group">
               <label class="form-label">Asset Title</label>
@@ -260,10 +261,12 @@
               <div class="form-group">
                 <label class="form-label">Starting Price (₹)</label>
                 <input type="number" name="price" class="form-input" required placeholder="0" min="1">
+                <p class="form-hint" id="price-suggestion" style="margin-top:var(--space-2);">Add a realistic opening price. Similar items will be suggested here.</p>
               </div>
               <div class="form-group">
                 <label class="form-label">Reserve Price (₹) <span class="text-muted" style="font-weight:400;">— Optional</span></label>
                 <input type="number" name="reservePrice" class="form-input" placeholder="Hidden minimum">
+                <p class="form-hint" style="margin-top:var(--space-2);">Use this if you want a minimum selling threshold that buyers cannot see.</p>
               </div>
             </div>
 
@@ -280,6 +283,7 @@
                 <option value="Jewellery">Jewellery</option>
                 <option value="Antiques">Antiques</option>
               </select>
+              <p class="form-hint" style="margin-top:var(--space-2);">Pick the closest category so buyers and admins see the right context immediately.</p>
             </div>
 
             <div id="dynamic-fields" class="dyn-section">
@@ -293,9 +297,10 @@
                 <div class="upload-zone-icon">&#128247;</div>
                 <div class="upload-zone-text">Click or drag images here</div>
                 <div class="upload-zone-hint">3+ clear photos recommended. Front, back, close-up details, and any defects.</div>
-                <input type="file" id="images-input" name="images" accept="image/*" multiple required>
+                <input type="file" id="images-input" name="images" accept="image/*" multiple>
               </div>
               <div class="upload-thumbs" id="image-thumbs"></div>
+              <p class="form-hint" style="margin-top:var(--space-2);">Best-performing listings usually use 3 or more clear photos with close-ups and defect shots.</p>
             </div>
 
             <div class="form-group">
@@ -304,19 +309,22 @@
                 <div class="upload-zone-icon">&#127909;</div>
                 <div class="upload-zone-text">Click or drag a video here</div>
                 <div class="upload-zone-hint">Short 360° walkaround showing condition, packaging, and ownership markers (min 2s).</div>
-                <input type="file" id="video-input" name="video" accept="video/*" required>
+                <input type="file" id="video-input" name="video" accept="video/*">
               </div>
               <div class="video-preview" id="video-preview" style="display:none;"></div>
+              <p class="form-hint" style="margin-top:var(--space-2);">Show the full product in one steady sweep. Audio is not important; visual proof is.</p>
             </div>
 
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Auction End Time</label>
                 <input type="datetime-local" name="endTime" class="form-input" required>
+                <p class="form-hint" style="margin-top:var(--space-2);">Choose when the listing should stop accepting bids.</p>
               </div>
               <div class="form-group">
-                <label class="form-label">Bid Increment (₹)</label>
-                <input type="number" name="increment" class="form-input" min="1" step="1" value="500" required>
+                <label class="form-label">Bid Increment (₹) <span class="text-muted" style="font-weight:400;">— Optional</span></label>
+                <input type="number" name="increment" class="form-input" min="1" step="1" value="500">
+                <p class="form-hint" style="margin-top:var(--space-2);">Leave this as default or clear it if you want Gavel to use the standard increment.</p>
               </div>
             </div>
 
@@ -352,6 +360,7 @@
             </div>
 
             <div class="submit-section">
+              <button type="button" class="btn btn-secondary btn-lg" id="preview-btn">Preview Listing</button>
               <button type="submit" class="btn btn-primary btn-lg" id="submit-btn" disabled>Submit For Review</button>
               <span class="text-muted text-sm" id="submit-hint">Complete all checks above to enable submission</span>
             </div>
@@ -398,6 +407,7 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/site.js"></script>
   <script>
     const categoryConfigs = {
       "Electronics": [
@@ -457,8 +467,12 @@
     const submitBtn = document.getElementById('submit-btn');
     const submitHint = document.getElementById('submit-hint');
     const progressFill = document.getElementById('progress-fill');
+    const previewBtn = document.getElementById('preview-btn');
+    const priceSuggestion = document.getElementById('price-suggestion');
+    const draftKey = 'gavel_sell_draft_v2';
 
     let imageFiles = [];
+    let similarListings = [];
 
     window.addEventListener('scroll', () => {
       document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20);
@@ -499,6 +513,41 @@
         return `<div class="upload-thumb"><img src="${url}" alt="Preview ${i+1}"><button type="button" class="upload-thumb-remove" onclick="removeImage(${i})">&times;</button></div>`;
       }).join('');
       updateProgress();
+    }
+
+    function persistDraft() {
+      const draft = {
+        title: form.title.value,
+        price: form.price.value,
+        reservePrice: form.reservePrice.value,
+        category: catSelect.value,
+        endTime: form.endTime.value,
+        increment: form.increment.value,
+        description: document.getElementById('base-description').value,
+        checklist: Object.fromEntries(checks.map(id => [id, document.getElementById(id).checked]))
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    }
+
+    function restoreDraft() {
+      try {
+        const draft = JSON.parse(localStorage.getItem(draftKey) || 'null');
+        if (!draft) return;
+        form.title.value = draft.title || '';
+        form.price.value = draft.price || '';
+        form.reservePrice.value = draft.reservePrice || '';
+        form.endTime.value = draft.endTime || '';
+        form.increment.value = draft.increment || '500';
+        document.getElementById('base-description').value = draft.description || '';
+        if (draft.category) {
+          catSelect.value = draft.category;
+          catSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        Object.entries(draft.checklist || {}).forEach(([id, checked]) => {
+          const field = document.getElementById(id);
+          if (field) field.checked = Boolean(checked);
+        });
+      } catch (error) {}
     }
 
     document.getElementById('video-dropzone').addEventListener('click', () => videoInput.click());
@@ -547,6 +596,7 @@
         </div>
       `).join('');
       updateProgress();
+      suggestPrice();
     });
 
     document.getElementById('tips-link').addEventListener('click', (e) => {
@@ -570,6 +620,9 @@
     });
 
     form.addEventListener('input', updateProgress);
+    form.addEventListener('input', persistDraft);
+    form.addEventListener('change', persistDraft);
+    setInterval(persistDraft, 30000);
 
     function updateProgress() {
       const title = form.title.value.trim();
@@ -604,10 +657,80 @@
       submitHint.style.display = canSubmit ? 'none' : 'inline';
     }
 
+    async function loadSimilarListings() {
+      const res = await api.get('/auctions?status=active,closed&limit=50');
+      similarListings = Array.isArray(res) ? res : [];
+      suggestPrice();
+    }
+
+    function suggestPrice() {
+      const category = catSelect.value;
+      if (!category || !similarListings.length) return;
+      const related = similarListings
+        .filter(item => item.category === category && Number(item.currentBid || item.startingPrice || 0) > 0)
+        .map(item => Number(item.winningBid || item.currentBid || item.startingPrice || 0))
+        .sort((a, b) => a - b);
+      if (!related.length) {
+        priceSuggestion.textContent = 'Add a realistic opening price. Similar items will be suggested here.';
+        return;
+      }
+      const low = related[Math.max(0, Math.floor(related.length * 0.2) - 1)] || related[0];
+      const high = related[Math.min(related.length - 1, Math.floor(related.length * 0.8))] || related[related.length - 1];
+      priceSuggestion.textContent = `Similar ${category.toLowerCase()} items are listing around ${UI.formatPrice(low)} to ${UI.formatPrice(high)}.`;
+    }
+
+    function validateForm() {
+      if (!form.title.value.trim()) return 'Title is required.';
+      if (!form.price.value || Number(form.price.value) <= 0) return 'Starting price must be greater than zero.';
+      if (!catSelect.value) return 'Category is required.';
+      if (!imageFiles.length) return 'Upload at least one image.';
+      if (!(videoInput.files && videoInput.files[0])) return 'Upload a verification video.';
+      if (!form.endTime.value) return 'Auction end time is required.';
+      if (!document.getElementById('base-description').value.trim()) return 'Description is required.';
+      if (!checks.every(id => document.getElementById(id).checked)) return 'Complete the seller checklist before submitting.';
+      return '';
+    }
+
+    function buildPreviewHtml() {
+      const specs = Array.from(document.querySelectorAll('.dyn-input'))
+        .filter(input => input.value.trim())
+        .map(input => `<tr><td style="padding:8px 12px;border-bottom:1px solid var(--border-light);font-weight:600;">${input.dataset.label}</td><td style="padding:8px 12px;border-bottom:1px solid var(--border-light);">${input.value.trim()}</td></tr>`)
+        .join('');
+      const imageThumbsHtml = imageFiles.length
+        ? imageFiles.slice(0, 4).map(file => `<img src="${URL.createObjectURL(file)}" alt="" style="width:88px;height:88px;border-radius:12px;object-fit:cover;">`).join('')
+        : '<p class="text-muted text-sm">No images selected yet.</p>';
+      return `
+        <h3 style="margin-bottom:var(--space-4);">Listing Preview</h3>
+        <div style="display:grid;gap:var(--space-4);">
+          <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;">${imageThumbsHtml}</div>
+          <div>
+            <p class="text-muted text-sm">Title</p>
+            <h2 style="font-size:var(--text-2xl);">${form.title.value.trim() || 'Untitled listing'}</h2>
+          </div>
+          <div style="display:flex;gap:var(--space-4);flex-wrap:wrap;">
+            <span class="tag">${catSelect.value || 'Category pending'}</span>
+            <strong>${UI.formatPrice(form.price.value || 0)}</strong>
+          </div>
+          <p style="color:var(--text-secondary);white-space:pre-wrap;">${document.getElementById('base-description').value.trim() || 'Add description to see the preview.'}</p>
+          ${specs ? `<table style="width:100%;border-collapse:collapse;background:var(--bg);border-radius:16px;overflow:hidden;">${specs}</table>` : ''}
+        </div>
+        <button class="btn btn-primary" style="margin-top:var(--space-5);width:100%;" onclick="UI.closeModal()">Close Preview</button>
+      `;
+    }
+
+    previewBtn.addEventListener('click', () => {
+      UI.showModal(buildPreviewHtml());
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      if (submitBtn.disabled) return;
+      const validationMessage = validateForm();
+      if (validationMessage) {
+        UI.toast(validationMessage, 'error');
+        updateProgress();
+        return;
+      }
 
       const specs = {};
       document.querySelectorAll('.dyn-input').forEach(input => {
@@ -625,7 +748,7 @@
       formData.append('description', document.getElementById('base-description').value.trim());
       formData.append('specifications', JSON.stringify(specs));
       formData.append('endTime', form.endTime.value);
-      formData.append('increment', form.increment.value);
+      if (form.increment.value) formData.append('increment', form.increment.value);
       formData.append('checklist', JSON.stringify({
         ownershipConfirmed: document.getElementById('check-ownership').checked,
         authenticityStatement: document.getElementById('check-authenticity').checked,
@@ -646,9 +769,18 @@
 
       try {
         const res = await api.upload('/auctions/sell', formData);
+        if (res === null) {
+          // null means 401 — session expired
+          UI.toast('Session expired. Please log in again.', 'error');
+          setTimeout(() => { window.location.href = '/login.html'; }, 1500);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit For Review';
+          return;
+        }
         if (res && res.success) {
           UI.toast('Listing submitted for review!', 'success');
-          setTimeout(() => { window.location.href = '/my-products.html'; }, 1500);
+          localStorage.removeItem(draftKey);
+          setTimeout(() => { window.location.href = res.redirectUrl || '/my-products.html'; }, 1500);
         } else {
           UI.toast(res?.error || res?.message || 'Submission failed. Please try again.', 'error');
           submitBtn.disabled = false;
@@ -663,7 +795,7 @@
 
     function showConfirmModal() {
       return new Promise((resolve) => {
-        const backdrop = UI.showModal(`
+        UI.showModal(`
           <h3>Confirm Submission</h3>
           <p style="color:var(--text-secondary);line-height:1.7;margin-bottom:var(--space-4);">Your listing will be sent to the review queue. Please confirm that the product details, media, and category are accurate.</p>
           <div class="checklist-item">
@@ -671,18 +803,28 @@
             <label for="modal-confirm-check" style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.6;cursor:pointer;">I agree to the <a href="/terms-and-conditions.html" target="_blank" style="color:var(--olive);font-weight:600;">Terms &amp; Conditions</a> and confirm this listing is accurate.</label>
           </div>
           <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
-            <button class="btn btn-ghost" onclick="UI.closeModal();resolve(false);" style="flex:1;">Cancel</button>
+            <button class="btn btn-ghost" id="modal-cancel-btn" style="flex:1;">Cancel</button>
             <button class="btn btn-primary" id="modal-agree-btn" style="flex:1;">Agree &amp; Submit</button>
           </div>
         `);
 
         const agreeBtn = document.getElementById('modal-agree-btn');
-        agreeBtn.disabled = true;
-        document.getElementById('modal-confirm-check').addEventListener('change', (e) => {
-          agreeBtn.disabled = !e.target.checked;
+        const cancelBtn = document.getElementById('modal-cancel-btn');
+        const confirmCheck = document.getElementById('modal-confirm-check');
+
+        // Agree button enabled by default — one less friction point
+        agreeBtn.disabled = false;
+
+        confirmCheck.addEventListener('change', (e) => {
+          agreeBtn.disabled = false; // already enabled, kept for safety
         });
+
+        cancelBtn.addEventListener('click', () => {
+          UI.closeModal();
+          resolve(false);
+        });
+
         agreeBtn.addEventListener('click', () => {
-          if (!document.getElementById('modal-confirm-check').checked) return;
           UI.closeModal();
           resolve(true);
         });
@@ -696,6 +838,12 @@
         setTimeout(() => { window.location.href = '/login.html'; }, 1500);
         return;
       }
+      document.getElementById('loginBtn')?.classList.add('hide');
+      document.getElementById('signupBtn')?.classList.add('hide');
+      document.getElementById('messagesBtn')?.classList.remove('hide');
+      document.getElementById('dashboardBtn')?.classList.remove('hide');
+      restoreDraft();
+      loadSimilarListings();
       updateProgress();
     });
   </script>

@@ -210,7 +210,7 @@
           html += `<div class="user-row">
             <div class="user-row-avatar">${(u.fullname || u.email || '?').charAt(0).toUpperCase()}</div>
             <div><div class="user-row-name">${u.fullname || 'Unknown'}</div><div class="user-row-email">${u.email}</div></div>
-            <span class="trust-score"><span class="trust-dot"></span> ${u.trustScore || 50}</span>
+            <span class="trust-score"><span class="trust-dot"></span> ${u.trustScore || 0}</span>
             <span class="badge ${u.isAdmin || u.isSuperAdmin ? 'badge-approved' : 'badge-closed'}">${u.isSuperAdmin ? 'Super Admin' : u.isAdmin ? 'Admin' : u.role || 'Bidder'}</span>
             ${Auth.isSuperAdmin() ? `<button class="btn btn-sm btn-ghost" style="color:var(--ember);" onclick="deleteUser('${u._id}')">Delete</button>` : ''}
           </div>`;

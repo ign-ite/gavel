@@ -50,7 +50,7 @@
 
         const [summaryRes, chatsRes] = await Promise.allSettled([
             fetch('/api/dashboard/summary'),
-            fetch('/api/my-chats/list')
+            fetch('/api/chat/my-chats/list')
         ]);
 
         if (summaryRes.status !== 'fulfilled' || !summaryRes.value.ok) {
@@ -66,6 +66,7 @@
         hydrateChrome();
         renderView();
         bindActions();
+        if (state.summary && state.summary.notifications) showAssignmentPopups(state.summary.notifications);
     }
 
     function hydrateChrome() {
@@ -308,8 +309,9 @@
 
         return '<div class="workspace-chat-list">' + items.map(function(item) {
             var preview = item.lastMessage && item.lastMessage.message ? item.lastMessage.message : 'No messages yet.';
+            var image = item.image ? '<img src="' + escapeAttribute(item.image) + '" alt="" style="width:56px;height:56px;border-radius:14px;object-fit:cover;">' : '<div class="workspace-chat-avatar">' + escapeHtml((item.otherName || 'C').charAt(0).toUpperCase()) + '</div>';
             return '<article class="workspace-chat-card">' +
-                '<div class="workspace-chat-avatar">' + escapeHtml((item.otherName || 'C').charAt(0).toUpperCase()) + '</div>' +
+                image +
                 '<div class="workspace-chat-main">' +
                     '<div class="workspace-chat-head">' +
                         '<div><span class="workspace-item-title">' + escapeHtml(item.otherName || 'Counterparty') + '</span><div class="workspace-item-meta">' + escapeHtml(item.auctionTitle) + '</div></div>' +
@@ -399,8 +401,9 @@
             return '<article class="workspace-card">' +
                 '<span class="workspace-item-title">' + escapeHtml(item.title) + '</span>' +
                 '<div class="workspace-item-meta">' + escapeHtml(item.category || 'General') + ' · Seller: ' + escapeHtml(item.sellerEmail || '') + '</div>' +
-                '<div class="workspace-review-media">' + mediaThumbs + (item.videoUrl ? '<span class="workspace-review-video">Video attached</span>' : '') + '</div>' +
-                '<div class="workspace-item-meta" style="margin-top:8px;">' + escapeHtml((item.description || '').slice(0, 180)) + '</div>' +
+                '<div class="workspace-review-media">' + mediaThumbs + (item.video ? '<span class="workspace-review-video">Video attached</span>' : '') + '</div>' +
+                '<div class="workspace-item-meta" style="margin-top:8px;">' + escapeHtml(item.description || 'No description provided.') + '</div>' +
+                '<div class="workspace-item-meta" style="margin-top:8px;">Specs: ' + escapeHtml(JSON.stringify(item.specifications || {})) + '</div>' +
                 '<div class="workspace-review-checklist">' + checklist + '</div>' +
                 '<div class="workspace-actions">' +
                     '<a class="workspace-inline-button" href="/item-detail.html?id=' + encodeURIComponent(item.id) + '">View Lot</a>' +
@@ -438,7 +441,7 @@
                             : '<div class="workspace-item-meta" style="margin-top:6px;">No pending products under this reviewer.</div>';
                         return '<tr>' +
                             '<td><span class="workspace-item-title">' + escapeHtml(admin.fullname) + '</span><div class="workspace-item-meta">' + escapeHtml(admin.email) + '</div>' + assignedItems + '</td>' +
-                            '<td>' + (admin.isSuperAdmin ? '<span class="workspace-pill success">Super Admin</span>' : '<span class="workspace-pill">Admin</span>') + '</td>' +
+                            '<td>' + (admin.isSuperAdmin ? '<span class="workspace-pill success">Super Admin</span>' : '<span class="workspace-pill">Admin</span>') + (admin.online ? '<div class="workspace-item-meta" style="margin-top:6px;color:#1db954;">Online now</div>' : '<div class="workspace-item-meta" style="margin-top:6px;">Offline</div>') + '</td>' +
                             '<td>' + Number(admin.assignedCount || 0).toLocaleString('en-IN') + '</td>' +
                             '<td>' + Number(admin.approvedCount || 0).toLocaleString('en-IN') + '</td>' +
                             '<td>' + Number(admin.rejectedCount || 0).toLocaleString('en-IN') + '</td>' +
@@ -593,7 +596,12 @@
         const res = await fetch('/api/admin/review-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: state.reviewDraft.id, decision: state.reviewDraft.decision, notes: notes, rejectionReason: rejectionReason, moderationChecklist: checklistState })
+            body: JSON.stringify({
+                auctionId: state.reviewDraft.id,
+                decision: state.reviewDraft.decision,
+                reviewNotes: state.reviewDraft.decision === 'reject' ? rejectionReason : notes,
+                moderationChecklist: checklistState
+            })
         });
         const data = await res.json().catch(function() { return {}; });
         if (!res.ok) {
@@ -627,7 +635,7 @@
             window.alert(data.error || 'Failed to auto assign requests.');
             return;
         }
-        window.alert('Assigned ' + Number(data.assignedCount || 0).toLocaleString('en-IN') + ' requests.');
+        window.alert('Assigned ' + Number(data.assigned || 0).toLocaleString('en-IN') + ' requests.');
         window.location.reload();
     }
 
@@ -736,6 +744,24 @@
 
     function emptyMarkup(message) {
         return '<div class="workspace-empty">' + escapeHtml(message) + '</div>';
+    }
+
+    function showAssignmentPopups(notifications) {
+        var assigned = (notifications || []).filter(function(item) {
+            return item.type === 'sell_request_assigned' && !item.read;
+        }).slice(0, 3);
+        if (!assigned.length) return;
+        var container = document.createElement('div');
+        container.style.cssText = 'position:fixed;top:18px;right:18px;z-index:400;display:grid;gap:12px;';
+        container.innerHTML = assigned.map(function(item, index) {
+            return '<div style="min-width:280px;max-width:340px;background:#101418;color:#fff;padding:14px 16px;border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);">' +
+                '<div style="font-weight:700;">New assigned product</div>' +
+                '<div style="margin-top:4px;font-size:0.92rem;opacity:0.86;">' + escapeHtml(item.message || '') + '</div>' +
+                '<div style="margin-top:8px;font-size:0.78rem;opacity:0.7;">Pending tally: ' + Number(state.summary.adminWorkspace && state.summary.adminWorkspace.pendingTally || 0).toLocaleString('en-IN') + '</div>' +
+            '</div>';
+        }).join('');
+        document.body.appendChild(container);
+        setTimeout(function() { container.remove(); }, 6000);
     }
 
     function renderError(message) {

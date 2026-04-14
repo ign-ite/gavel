@@ -163,6 +163,27 @@
     </div>
   </section>
 
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Profile & Activity</h2>
+        <p>Streaks, rank, spending, and saved searches</p>
+      </div>
+      <div id="gamificationGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);"></div>
+      <div style="margin-top:var(--space-8);" id="savedSearchesPanel"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Bid Wars</h2>
+        <p>Most active auctions in the last 30 minutes</p>
+      </div>
+      <div id="bidWarsGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-4);"></div>
+    </div>
+  </section>
+
   <!-- FOOTER -->
   <footer style="border-top:1px solid var(--border-light); padding:var(--space-10) 0; background:var(--bg);">
     <div class="container">
@@ -200,6 +221,7 @@
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/dashboard-home.js"></script>
+  <script src="js/site.js"></script>
   <script>
     function handleSearch() {
       const q = document.getElementById('searchInput').value.trim();

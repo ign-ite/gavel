@@ -35,7 +35,10 @@ let user = null;
 
     // Fetch recommended auctions
     const campus = user.college || 'IIT Delhi';
-    const recommended = await api.get(`/auctions?campus=${encodeURIComponent(campus)}&limit=8`);
+    let recommended = await api.get(`/auctions?campus=${encodeURIComponent(campus)}&limit=8`);
+    if (!recommended || !recommended.length) {
+        recommended = await api.get('/auctions?limit=8');
+    }
     renderRecommended(recommended, campus);
 
     // Fetch campus leaderboard
@@ -44,6 +47,10 @@ let user = null;
 
     // Load recently viewed
     loadRecentlyViewed();
+    renderGamification(profile, user);
+    renderSavedSearches(stateSafe(user.savedSearches || []));
+    const wars = await api.get('/bids/wars/active');
+    renderBidWars(wars || []);
     document.getElementById('loginBtn')?.classList.add('hide');
     document.getElementById('signupBtn')?.classList.add('hide');
     document.getElementById('messagesBtn')?.classList.remove('hide');
@@ -60,6 +67,10 @@ let user = null;
     // Update watchlist subline
     updateWatchlistSubline(watchlist);
 })();
+
+function stateSafe(value) {
+    return Array.isArray(value) ? value : value || [];
+}
 
 function updateGreeting(user) {
     const hour = new Date().getHours();
@@ -178,7 +189,11 @@ function renderActivityStrip(bids, watchlist) {
 
 function renderEndingSoon(auctions) {
     const container = document.getElementById('endingSoonStrip');
-    if (!container || !auctions || !auctions.length) return;
+    if (!container) return;
+    if (!auctions || !auctions.length) {
+        container.innerHTML = '<div class="empty-state" style="padding:var(--space-6);"><h3>No live auctions yet</h3><p>Ending-soon items will appear here automatically.</p></div>';
+        return;
+    }
     container.innerHTML = '';
     auctions.forEach(auction => {
         const card = UI.renderAuctionCard(auction);
@@ -198,7 +213,11 @@ function renderEndingSoon(auctions) {
 
 function renderRecommended(auctions, campus) {
     const container = document.getElementById('recommendedGrid');
-    if (!container || !auctions || !auctions.length) return;
+    if (!container) return;
+    if (!auctions || !auctions.length) {
+        container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><h3>No recommendations yet</h3><p>Browse explore to build your feed.</p></div>';
+        return;
+    }
     container.innerHTML = '';
     auctions.forEach(auction => {
         const card = UI.renderAuctionCard(auction);
@@ -275,6 +294,58 @@ function renderLeaderboard(leaderboard, campus) {
         `;
         container.appendChild(row);
     });
+}
+
+function renderGamification(profile, user) {
+    const container = document.getElementById('gamificationGrid');
+    if (!container) return;
+    const cards = [
+        { label: 'Bidding streak', value: profile?.stats?.auctionsWon || 0, hint: 'wins this month' },
+        { label: 'Campus rank', value: profile?.college ? `Top ${Math.max(1, profile.stats?.auctionsWon || 0)}` : 'Unranked', hint: profile?.college || 'Set your campus' },
+        { label: 'Profile complete', value: `${profile?.stats?.watchlistCount !== undefined ? Math.min(100, ((Number(Boolean(profile.college)) + Number(Boolean(profile.bio)) + Number(Boolean(profile.avatar)) + Number(Boolean(profile.location?.city))) / 4) * 100) : 0}%`, hint: 'Add hostel block for better replies' },
+        { label: 'Trust score', value: user?.trustScore || 0, hint: 'starts at 0' }
+    ];
+    container.innerHTML = cards.map((card) => `
+        <div class="card" style="padding:var(--space-5);">
+            <p class="text-muted text-sm">${card.label}</p>
+            <h3 style="font-size:var(--text-3xl);margin-top:var(--space-2);">${card.value}</h3>
+            <p class="text-muted text-sm" style="margin-top:var(--space-2);">${card.hint}</p>
+        </div>
+    `).join('');
+}
+
+async function renderSavedSearches() {
+    const panel = document.getElementById('savedSearchesPanel');
+    if (!panel) return;
+    const searches = await api.get('/saved-searches');
+    panel.innerHTML = `
+        <div class="card" style="padding:var(--space-5);">
+            <div class="flex-between" style="margin-bottom:var(--space-4);">
+                <div>
+                    <h3>Saved searches</h3>
+                    <p class="text-muted text-sm">Get notified when matching items are listed.</p>
+                </div>
+                <a href="/explore.html" class="btn btn-ghost btn-sm">Add search</a>
+            </div>
+            ${(searches || []).length ? searches.map(search => `<div class="tag" style="margin-right:8px;margin-bottom:8px;">${search.query || 'Any'} ${search.category ? '· ' + search.category : ''} ${search.maxPrice ? '· under ' + UI.formatPrice(search.maxPrice) : ''}</div>`).join('') : '<p class="text-muted text-sm">No saved searches yet.</p>'}
+        </div>
+    `;
+}
+
+function renderBidWars(wars) {
+    const grid = document.getElementById('bidWarsGrid');
+    if (!grid) return;
+    if (!wars.length) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><h3>No bid wars right now</h3></div>';
+        return;
+    }
+    grid.innerHTML = wars.slice(0, 6).map((war) => `
+        <a href="/item-detail.html?id=${war.id}" class="card" style="padding:var(--space-5);text-decoration:none;">
+            <span class="badge badge-rivalry">${war.recentBids} bids / 30m</span>
+            <h3 style="margin-top:var(--space-3);">${war.title}</h3>
+            <p class="price" style="margin-top:var(--space-2);">${UI.formatPrice(war.currentBid)}</p>
+        </a>
+    `).join('');
 }
 
 function loadRecentlyViewed() {

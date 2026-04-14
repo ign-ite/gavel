@@ -10,284 +10,649 @@
   <link rel="stylesheet" href="css/responsive.css">
   <link rel="icon" href="images/logo.png">
   <style>
-    /* Fix: remove dark gradient overlay on the bid panel card */
-    .detail-bid-card > div:first-child::after { display: none !important; }
-    .detail-bid-card { overflow: visible !important; }
-    .detail-bid-card:hover { transform: none !important; box-shadow: var(--shadow-sm) !important; }
-    @media (max-width:1023px) { .detail-grid { grid-template-columns: 1fr !important; } }
+    .detail-shell {
+      padding: calc(var(--space-20) + var(--space-6)) 0 var(--space-12);
+    }
+    .detail-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 380px;
+      gap: var(--space-8);
+      align-items: start;
+    }
+    .detail-media-card,
+    .detail-side-card,
+    .detail-section-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      box-shadow: var(--shadow-sm);
+    }
+    .detail-media-card {
+      padding: var(--space-6);
+    }
+    .detail-media-stage {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: var(--space-4);
+      align-items: start;
+    }
+    .detail-media-thumbs {
+      display: grid;
+      gap: var(--space-3);
+      max-height: 560px;
+      overflow: auto;
+    }
+    .detail-thumb {
+      width: 96px;
+      height: 96px;
+      border-radius: var(--radius-lg);
+      border: 2px solid transparent;
+      overflow: hidden;
+      cursor: pointer;
+      background: var(--bg);
+    }
+    .detail-thumb.active { border-color: var(--olive); }
+    .detail-thumb img,
+    .detail-thumb video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .detail-main-media {
+      background: #fff;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-light);
+      min-height: 520px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-4);
+      position: relative;
+      overflow: hidden;
+    }
+    .detail-main-media img,
+    .detail-main-media video {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+    .detail-main-media img.zooming {
+      transform: scale(1.9);
+      cursor: zoom-in;
+    }
+    .detail-side-card {
+      padding: var(--space-6);
+      position: sticky;
+      top: calc(var(--space-20) + var(--space-4));
+    }
+    .detail-price-block {
+      padding: var(--space-5);
+      background: var(--bg);
+      border-radius: var(--radius-xl);
+      margin: var(--space-5) 0;
+    }
+    .detail-actions {
+      display: grid;
+      gap: var(--space-3);
+    }
+    .detail-inline-actions {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      margin-top: var(--space-4);
+    }
+    .detail-section-card {
+      margin-top: var(--space-6);
+      padding: var(--space-6);
+    }
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: var(--space-4);
+    }
+    .spec-table td {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: top;
+    }
+    .spec-table td:first-child {
+      width: 220px;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+    .bid-history-list {
+      display: grid;
+      gap: var(--space-3);
+      margin-top: var(--space-5);
+    }
+    .bid-history-row {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--bg);
+      border: 1px solid var(--border-light);
+    }
+    .seller-badge {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+    .seller-badge strong { color: var(--text-primary); }
+    .moderation-card {
+      margin-top: var(--space-5);
+      padding: var(--space-5);
+      background: var(--bg);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-xl);
+    }
+    .moderation-checklist {
+      display: grid;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+    .moderation-checklist label {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: var(--space-3);
+      align-items: start;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+    .moderation-actions {
+      display: grid;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+    @media (max-width: 1180px) {
+      .detail-layout { grid-template-columns: 1fr; }
+      .detail-side-card { position: static; }
+      .detail-media-stage { grid-template-columns: 88px 1fr; }
+    }
+    @media (max-width: 780px) {
+      .detail-media-stage { grid-template-columns: 1fr; }
+      .detail-media-thumbs {
+        grid-auto-flow: column;
+        grid-auto-columns: 88px;
+      }
+      .detail-main-media { min-height: 360px; }
+    }
   </style>
 </head>
-<body style="padding-top:var(--space-20);">
-  <nav class="navbar" id="navbar"><div class="container">
-    <a href="/" class="navbar-brand">Gavel<span>.</span></a>
-    <ul class="navbar-nav">
-      <li><a href="auction.html">Live Auctions</a></li>
-      <li><a href="explore.html">Explore</a></li>
-      <li><a href="sell-product.html">Sell</a></li>
-    </ul>
-    <div class="navbar-actions">
-      <a href="login.html" class="btn btn-ghost btn-sm" id="loginBtn">Log in</a>
-      <a href="signup.html" class="btn btn-primary btn-sm" id="signupBtn">Get Started</a>
-      <a href="chats.html" class="btn btn-ghost btn-sm hide" id="messagesBtn">Messages</a>
-      <a href="my-products.html" class="btn btn-ghost btn-sm hide" id="myListingsBtn">My Listings</a>
-      <a href="dashboard-home.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
+<body>
+  <nav class="navbar" id="navbar">
+    <div class="container">
+      <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+      <ul class="navbar-nav">
+        <li><a href="auction.html">Live Auctions</a></li>
+        <li><a href="explore.html">Explore</a></li>
+        <li><a href="sell-product.html">Sell</a></li>
+      </ul>
+      <div class="navbar-actions">
+        <a href="login.html" class="btn btn-ghost btn-sm" id="loginBtn">Log in</a>
+        <a href="signup.html" class="btn btn-primary btn-sm" id="signupBtn">Get Started</a>
+        <a href="chats.html" class="btn btn-ghost btn-sm hide" id="messagesBtn">Messages</a>
+        <a href="dashboard-home.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
+      </div>
     </div>
-  </div></nav>
+  </nav>
 
-  <section style="padding:var(--space-8) 0; background:var(--bg);">
+  <main class="detail-shell">
     <div class="container">
       <div id="detailContent" class="flex-center" style="min-height:400px;"><div class="spinner"></div></div>
     </div>
-  </section>
+  </main>
 
-  <footer style="border-top:1px solid var(--border-light);padding:var(--space-8) 0;background:var(--bg);margin-top:var(--space-12);">
-    <div class="container flex-between" style="gap:var(--space-4);"><a href="/" class="navbar-brand">Gavel<span>.</span></a><p class="text-muted text-sm">&copy; 2026 Gavel</p></div>
-  </footer>
+  <footer></footer>
   <div class="toast-container" id="toastContainer"></div>
 
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/site.js"></script>
   <script>
     let auction = null;
+    let bidsCache = [];
+    let mediaItems = [];
+    let activeMediaIndex = 0;
     let ws = null;
-    let countdownInterval = null;
-
-    function trackRecentlyViewed(auction) {
-        const key = 'gavel_recently_viewed';
-        const maxItems = 10;
-        let items = JSON.parse(localStorage.getItem(key) || '[]');
-        items = items.filter(item => item.id !== auction._id);
-        items.unshift({ id: auction._id, name: auction.title, image: auction.images?.[0] || '', bid: auction.currentBid || 0 });
-        if (items.length > maxItems) items = items.slice(0, maxItems);
-        localStorage.setItem(key, JSON.stringify(items));
-    }
 
     document.addEventListener('DOMContentLoaded', async () => {
       await Auth.init();
       window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
-
-      const user = Auth.getUser();
-      if (user) {
+      if (Auth.isLoggedIn()) {
         document.getElementById('loginBtn')?.classList.add('hide');
         document.getElementById('signupBtn')?.classList.add('hide');
         document.getElementById('messagesBtn')?.classList.remove('hide');
-        document.getElementById('myListingsBtn')?.classList.remove('hide');
         document.getElementById('dashboardBtn')?.classList.remove('hide');
       }
 
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
-      if (!id) { window.location.href = '/auction.html'; return; }
+      const id = new URLSearchParams(window.location.search).get('id');
+      if (!id) {
+        window.location.href = '/auction.html';
+        return;
+      }
 
       const data = await api.get('/auction/' + id);
-      if (!data || data.message) { document.getElementById('detailContent').innerHTML = '<div class="empty-state"><h3>Auction not found</h3><p><a href="auction.html">Browse auctions</a></p></div>'; return; }
+      if (!data || data.message) {
+        document.getElementById('detailContent').innerHTML = '<div class="empty-state"><h3>Auction not found</h3><p><a href="auction.html">Browse auctions</a></p></div>';
+        return;
+      }
+
       auction = data;
-      trackRecentlyViewed(auction);
+      mediaItems = [
+        ...(auction.images || []).map((src) => ({ type: 'image', src })),
+        ...(auction.video ? [{ type: 'video', src: auction.video }] : [])
+      ];
       renderDetail();
+      await loadBidHistory();
       connectWS(id);
     });
 
-    function renderClosedBlock(a) {
-      const u = Auth.getUser();
-      const winnerLine = a.winnerName
-        ? `<p class="text-sm" style="margin-top:var(--space-2);">Won by ${a.winnerName} at ${UI.formatPrice(a.winningBid)}</p>`
-        : '<p class="text-muted text-sm" style="margin-top:var(--space-2);">No bids placed</p>';
-
-      let chatBtn = '';
-      if (u && a.winnerEmail && (u.email === a.sellerEmail || u.email === a.winnerEmail)) {
-        const withEmail = u.email === a.sellerEmail ? a.winnerEmail : a.sellerEmail;
-        const label = u.email === a.sellerEmail ? 'Message Buyer' : 'Message Seller';
-        chatBtn = `<a href="/chat.html?auction=${a.id}&with=${withEmail}" class="btn btn-primary btn-sm" style="margin-top:var(--space-3);width:100%;display:block;">${label}</a>`;
-      }
-
-      return `<div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;"><p style="font-weight:600;">Auction Ended</p>${winnerLine}${chatBtn}</div>`;
-    }
-
     function renderDetail() {
-      const a = auction;
-      const u = Auth.getUser();
-      const isSeller = u && u.email === a.sellerEmail;
-      const imgs = a.images || [];
-      const mainImg = imgs[0] || '';
-      const fallback = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="450" fill="%23ebe4d6"><rect width="600" height="450"/><text x="50%" y="50%" text-anchor="middle" fill="%238b7355" font-family="Georgia" font-size="20">No Image</text></svg>');
-      const isUrgent = UI.isUrgent(a.endTime);
-      const timerClass = isUrgent ? 'timer timer-urgent' : 'timer';
-      const minBid = (a.currentBid || 0) + (a.increment || 500);
+      const currentUser = Auth.getUser();
+      const isSeller = currentUser && currentUser.email === auction.sellerEmail;
+      const isWinner = currentUser && currentUser.email === auction.winnerEmail;
+      const isAdmin = currentUser && (currentUser.isAdmin || currentUser.isSuperAdmin);
+      const canModerate = isAdmin && ['pending_review', 'under_review', 'rejected'].includes(auction.status);
+      const minBid = Number(auction.currentBid || 0) + Number(auction.increment || 500);
+      const specsRows = Object.entries(auction.specifications || {}).map(([key, value]) => `<tr><td>${key}</td><td>${value}</td></tr>`).join('');
 
       document.getElementById('detailContent').innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 400px;gap:var(--space-8);align-items:start;" class="detail-grid">
-          <div>
-            <div style="border-radius:var(--radius-2xl);overflow:hidden;background:var(--sand);margin-bottom:var(--space-4);position:relative;">
-              ${mainImg ? `<img id="mainImage" src="${mainImg}" alt="${a.title}" style="width:100%;aspect-ratio:4/3;object-fit:cover;" onerror="this.onerror=null;this.src='${fallback}';">` : '<div style="width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:var(--earth);">No Image</div>'}
-              ${a.hasRivalry ? '<span class="badge badge-rivalry" style="position:absolute;top:1rem;right:1rem;">Campus Rivalry</span>' : ''}
-              ${a.status === 'active' ? '<span class="badge badge-live" style="position:absolute;top:1rem;left:1rem;">Live</span>' : ''}
-            </div>
-            ${imgs.length > 1 ? `<div style="display:flex;gap:var(--space-2);overflow-x:auto;">${imgs.map((im, i) => `<img src="${im}" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-md);cursor:pointer;border:2px solid ${i === 0 ? 'var(--olive)' : 'transparent'};" onclick="document.getElementById('mainImage').src='${im}';this.parentElement.querySelectorAll('img').forEach(x=>x.style.borderColor='transparent');this.style.borderColor='var(--olive)';" onerror="this.style.display='none'">`).join('')}</div>` : ''}
-            ${a.video ? `<div style="margin-top:var(--space-4);"><video controls style="width:100%;border-radius:var(--radius-lg);background:#000;"><source src="${a.video}" type="video/mp4">Your browser does not support video.</video></div>` : ''}
-            <div style="margin-top:var(--space-6);">
-              <h2 style="font-size:var(--text-2xl);margin-bottom:var(--space-3);">Description</h2>
-              <p style="color:var(--text-secondary);line-height:1.8;white-space:pre-wrap;">${a.description || 'No description provided.'}</p>
-            </div>
-            <div style="margin-top:var(--space-6);">
-              <h3 style="font-size:var(--text-lg);margin-bottom:var(--space-4);">Bid History</h3>
-              <div id="bidHistory" style="padding:var(--space-4);"><div class="spinner"></div></div>
-            </div>
-          </div>
-
-          <div style="position:sticky;top:5rem;">
-            <div class="card detail-bid-card" style="border-radius:var(--radius-2xl);">
-              <div class="card-body" style="padding:var(--space-6);">
-                <h1 style="font-size:var(--text-2xl);margin-bottom:var(--space-3);">${a.title}</h1>
-                <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4);flex-wrap:wrap;">
-                  <span class="tag">${a.category || 'General'}</span>
-                  ${a.bidCount ? `<span class="text-muted text-sm">${a.bidCount} bid${a.bidCount !== 1 ? 's' : ''}</span>` : ''}
-                </div>
-
-                <div style="background:var(--cream);border-radius:var(--radius-lg);padding:var(--space-5);margin-bottom:var(--space-5);">
-                  <p class="text-muted text-sm" style="margin-bottom:var(--space-1);">Current Bid</p>
-                  <p class="price" style="font-size:var(--text-4xl);" id="currentBidDisplay">${UI.formatPrice(a.currentBid)}</p>
-                  ${a.endTime ? `<div style="margin-top:var(--space-3);"><span class="${timerClass}" id="timerDisplay" data-countdown="${a.endTime}">${UI.formatTime(a.endTime)}</span></div>` : ''}
-                </div>
-
-                <div class="flex-between" style="margin-bottom:var(--space-3);font-size:var(--text-xs);color:var(--text-muted);">
-                  <span>Min bid: ${UI.formatPrice(minBid)}</span>
-                  <span>Increment: ${UI.formatPrice(a.increment || 500)}</span>
-                </div>
-
-                ${a.status === 'active' ? `
-                <div id="bidForm">
-                  ${isSeller ? `
-                  <div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-3);text-align:center;margin-bottom:var(--space-3);">
-                    <p class="text-sm text-muted">This is your listing</p>
-                  </div>
-                  <button class="btn btn-danger btn-sm" style="width:100%;" onclick="endAuctionEarly()">End Auction Early</button>
-                  ` : `
-                  <div class="form-group">
-                    <label class="form-label">Your Bid</label>
-                    <input class="form-input" type="number" id="bidAmount" min="${minBid}" step="${a.increment || 500}" placeholder="${minBid}" value="${minBid}">
-                  </div>
-                  <button class="btn btn-primary btn-lg" style="width:100%;" onclick="placeBid()">Place Bid</button>
-                  <div style="margin-top:var(--space-4);border-top:1px solid var(--border-light);padding-top:var(--space-4);">
-                    <p class="text-sm" style="font-weight:600;margin-bottom:var(--space-2);">Auto-Bid</p>
-                    <div class="form-group" style="margin-bottom:var(--space-3);">
-                      <input class="form-input" type="number" id="autoBidMax" placeholder="Max amount" min="${minBid}">
-                    </div>
-                    <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="setAutoBid()">Set Auto-Bid</button>
-                  </div>
-                  `}
-                </div>
-                ` : a.status === 'closed' ? renderClosedBlock(a) : `<div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;"><p style="font-weight:600;">${a.status === 'pending_review' ? 'Pending Review' : a.status === 'under_review' ? 'Under Review' : a.status === 'rejected' ? 'Rejected' : a.status}</p></div>`}
-
-                <div style="margin-top:var(--space-4);display:flex;gap:var(--space-2);">
-                  <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="toggleWatchlist()" id="watchlistBtn">♡ Watchlist</button>
-                </div>
-
-                <div style="margin-top:var(--space-4);padding-top:var(--space-4);border-top:1px solid var(--border-light);">
-                  <p class="text-sm" style="margin-bottom:var(--space-1);"><strong>Seller:</strong> ${a.sellerName || 'Unknown'}</p>
-                  ${a.sellerCollege ? `<p class="text-muted text-sm">${a.sellerCollege}${a.sellerCampusVerified ? ' ✓' : ''}</p>` : ''}
-                  <div class="trust-score" style="margin-top:var(--space-1);"><span class="trust-dot"></span> Trust: ${a.sellerTrustScore || 50}</div>
-                </div>
+        <div class="detail-layout">
+          <section>
+            <div class="detail-media-card">
+              <div class="detail-media-stage">
+                <div class="detail-media-thumbs" id="mediaThumbs"></div>
+                <div class="detail-main-media" id="mainMedia"></div>
               </div>
             </div>
-          </div>
-        </div>`;
 
-      if (a.endTime) {
-        countdownInterval = setInterval(() => {
-          const el = document.getElementById('timerDisplay');
-          if (el) { el.textContent = UI.formatTime(a.endTime); el.className = UI.isUrgent(a.endTime) ? 'timer timer-urgent' : 'timer'; }
+            <div class="detail-section-card">
+              <h2>Description</h2>
+              <p style="margin-top:var(--space-4);white-space:pre-wrap;color:var(--text-secondary);line-height:1.8;">${auction.description || 'No description provided.'}</p>
+              <h2 style="margin-top:var(--space-8);">Specifications</h2>
+              ${specsRows ? `<table class="spec-table">${specsRows}</table>` : '<p class="text-muted" style="margin-top:var(--space-4);">No specs provided.</p>'}
+            </div>
+
+            <div class="detail-section-card">
+              <h2>Bid history timeline</h2>
+              <canvas id="bidGraph" width="960" height="260" style="width:100%;height:260px;margin-top:var(--space-4);background:var(--bg);border-radius:var(--radius-xl);"></canvas>
+              <div id="bidHistoryList" class="bid-history-list"></div>
+            </div>
+          </section>
+
+          <aside class="detail-side-card">
+            <span class="tag">${auction.category || 'General'}</span>
+            <h1 style="font-size:var(--text-3xl);margin-top:var(--space-3);">${auction.title}</h1>
+            <div class="seller-badge" style="margin-top:var(--space-3);">
+              <strong>${auction.sellerName || 'Unknown seller'}</strong>
+              <span>Trust ${auction.sellerTrustScore || 0}</span>
+              <span>Views ${auction.viewCount || 0}</span>
+            </div>
+
+            <div class="detail-price-block">
+              <p class="text-muted text-sm">Current bid</p>
+              <p style="font-size:var(--text-4xl);font-family:var(--font-heading);" id="currentBidDisplay">${UI.formatPrice(auction.currentBid)}</p>
+              <p class="text-muted text-sm" style="margin-top:var(--space-3);" id="timerDisplay">${auction.endTime ? UI.formatTime(auction.endTime) : ''}</p>
+              <p class="text-muted text-sm" style="margin-top:var(--space-2);">Minimum next bid: ${UI.formatPrice(minBid)}</p>
+            </div>
+
+            ${auction.status === 'active' && !isSeller ? `
+              <div class="detail-actions">
+                <div class="form-group">
+                  <label class="form-label">Your bid</label>
+                  <input class="form-input" type="number" id="bidAmount" min="${minBid}" step="${auction.increment || 500}" value="${minBid}">
+                </div>
+                <button class="btn btn-primary btn-lg" onclick="confirmBid()">Place Bid</button>
+                <div class="form-group">
+                  <label class="form-label">Auto-bid maximum</label>
+                  <input class="form-input" type="number" id="autoBidMax" min="${minBid}" placeholder="Set your maximum">
+                </div>
+                <button class="btn btn-secondary" onclick="confirmAutoBid()">Set Auto-Bid</button>
+              </div>
+            ` : ''}
+
+            ${auction.status === 'closed' ? `
+              <div class="detail-actions">
+                ${isWinner ? `<a class="btn btn-primary btn-lg" href="/winner-confirmation.html?id=${auction.id}">You won. Continue</a>` : ''}
+                ${(isWinner || isSeller) ? `<a class="btn btn-secondary" href="/receipt.html?id=${auction.id}">Open receipt</a>` : ''}
+                ${(isWinner || isSeller) ? `<button class="btn btn-ghost" onclick="leaveReview()">Leave a review</button>` : ''}
+              </div>
+            ` : ''}
+
+            ${isSeller ? `<button class="btn btn-secondary" style="width:100%;" onclick="endAuctionEarly()">End Auction Early</button>` : ''}
+
+            <div class="detail-inline-actions">
+              <a href="chat.html?auction=${auction.id}&with=${encodeURIComponent(auction.sellerEmail || '')}" class="btn btn-ghost btn-sm">Message seller</a>
+              <button class="btn btn-ghost btn-sm" onclick="reportListing()">Report listing</button>
+              <button class="btn btn-ghost btn-sm" onclick="blockSeller()">Block user</button>
+            </div>
+            ${canModerate ? `
+              <div class="moderation-card">
+                <p class="text-muted text-sm">Moderation checklist</p>
+                <div class="moderation-checklist">
+                  <label><input type="checkbox" data-mod-check="clearMediaOnly"><span>Images and video are clear, usable, and match the product.</span></label>
+                  <label><input type="checkbox" data-mod-check="noFacesVisible"><span>No faces, personal identity details, or unrelated people appear in the media.</span></label>
+                  <label><input type="checkbox" data-mod-check="noSexualContent"><span>No sexual or explicit content appears in the listing.</span></label>
+                  <label><input type="checkbox" data-mod-check="noViolenceOrHarm"><span>No violent, unsafe, or harmful content appears in the listing.</span></label>
+                  <label><input type="checkbox" data-mod-check="categoryAndClaimsVerified"><span>Title, category, description, and specs match the actual product.</span></label>
+                </div>
+                <div class="moderation-actions">
+                  <textarea id="moderationNote" class="form-textarea" placeholder="Optional approval note or required rejection reason."></textarea>
+                  <button class="btn btn-primary" onclick="submitModeration('approve')">Approve Product</button>
+                  <button class="btn btn-danger" onclick="submitModeration('reject')">Reject Product</button>
+                </div>
+              </div>
+            ` : ''}
+          </aside>
+        </div>
+      `;
+
+      renderMedia();
+      if (auction.endTime) {
+        setInterval(() => {
+          const timer = document.getElementById('timerDisplay');
+          if (timer) timer.textContent = UI.formatTime(auction.endTime);
         }, 1000);
       }
+    }
 
-      loadBidHistory(a.id);
+    function renderMedia() {
+      const thumbs = document.getElementById('mediaThumbs');
+      const main = document.getElementById('mainMedia');
+      if (!thumbs || !main) return;
+
+      if (!mediaItems.length) {
+        main.innerHTML = '<p class="text-muted">No media available.</p>';
+        return;
+      }
+
+      thumbs.innerHTML = mediaItems.map((item, index) => `
+        <button type="button" class="detail-thumb ${index === activeMediaIndex ? 'active' : ''}" onclick="selectMedia(${index})">
+          ${item.type === 'video' ? `<video src="${item.src}" muted playsinline></video>` : `<img src="${item.src}" alt="">`}
+        </button>
+      `).join('');
+
+      const current = mediaItems[activeMediaIndex];
+      if (current.type === 'video') {
+        main.innerHTML = `<video controls muted playsinline src="${current.src}" style="background:#000;"></video>`;
+      } else {
+        main.innerHTML = `<img id="mainImage" src="${current.src}" alt="${auction.title}">`;
+        const image = main.querySelector('img');
+        image.addEventListener('mousemove', handleZoom);
+        image.addEventListener('mouseleave', resetZoom);
+      }
+    }
+
+    function selectMedia(index) {
+      activeMediaIndex = index;
+      renderMedia();
+    }
+
+    function handleZoom(event) {
+      const image = event.currentTarget;
+      const rect = image.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      image.classList.add('zooming');
+      image.style.transformOrigin = `${x}% ${y}%`;
+    }
+
+    function resetZoom() {
+      const image = document.getElementById('mainImage');
+      if (!image) return;
+      image.classList.remove('zooming');
+      image.style.transformOrigin = 'center center';
+    }
+
+    async function loadBidHistory() {
+      const res = await api.get('/bids/' + auction.id);
+      bidsCache = Array.isArray(res?.bids) ? res.bids : [];
+      renderBidHistory();
+    }
+
+    function renderBidHistory() {
+      const list = document.getElementById('bidHistoryList');
+      if (!list) return;
+      if (!bidsCache.length) {
+        list.innerHTML = '<p class="text-muted">No bids yet.</p>';
+        drawBidGraph();
+        return;
+      }
+
+      list.innerHTML = bidsCache
+        .slice()
+        .reverse()
+        .map((bid) => `
+          <div class="bid-history-row">
+            <div>
+              <strong>${bid.bidderName}</strong>
+              <p class="text-muted text-sm">${new Date(bid.placedAt).toLocaleString('en-IN')}</p>
+            </div>
+            <strong>${UI.formatPrice(bid.amount)}</strong>
+          </div>
+        `)
+        .join('');
+      drawBidGraph();
+    }
+
+    function drawBidGraph() {
+      const canvas = document.getElementById('bidGraph');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#faf7f2';
+      ctx.fillRect(0, 0, width, height);
+
+      if (!bidsCache.length) {
+        ctx.fillStyle = '#7a6e5e';
+        ctx.font = '16px sans-serif';
+        ctx.fillText('No bid data available yet.', 24, 40);
+        return;
+      }
+
+      const amounts = bidsCache.map((bid) => Number(bid.amount));
+      const min = Math.min(...amounts);
+      const max = Math.max(...amounts);
+      const padding = 40;
+      ctx.strokeStyle = '#d4c9b5';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padding, height - padding);
+      ctx.lineTo(width - padding, height - padding);
+      ctx.moveTo(padding, padding);
+      ctx.lineTo(padding, height - padding);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#5c6b4f';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      bidsCache.forEach((bid, index) => {
+        const x = padding + ((width - padding * 2) * index) / Math.max(1, bidsCache.length - 1);
+        const normalized = (Number(bid.amount) - min) / Math.max(1, max - min);
+        const y = height - padding - normalized * (height - padding * 2);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    function confirmBid() {
+      const amount = Number(document.getElementById('bidAmount').value);
+      if (!amount) {
+        UI.toast('Enter a bid amount.', 'error');
+        return;
+      }
+      UI.showModal(`
+        <h3>Confirm your bid</h3>
+        <p style="margin-top:var(--space-3);color:var(--text-secondary);">You'll be charged ${UI.formatPrice(amount)} only if you win this auction.</p>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+          <button class="btn btn-ghost" style="flex:1;" onclick="UI.closeModal()">Cancel</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="placeBid(${amount})">Confirm Bid</button>
+        </div>
+      `);
+    }
+
+    async function placeBid(amount) {
+      UI.closeModal();
+      const res = await api.post('/bids/' + auction.id, { bidAmount: amount });
+      if (!res?.success) {
+        UI.toast(res?.message || 'Bid failed.', 'error');
+        return;
+      }
+      document.getElementById('currentBidDisplay').textContent = UI.formatPrice(res.newBid);
+      auction.currentBid = res.newBid;
+      document.getElementById('bidAmount').value = res.newBid + Number(auction.increment || 500);
+      await loadBidHistory();
+      UI.toast(res.message || 'Bid placed.', 'success');
+    }
+
+    function confirmAutoBid() {
+      const amount = Number(document.getElementById('autoBidMax').value);
+      if (!amount) {
+        UI.toast('Enter your auto-bid maximum.', 'error');
+        return;
+      }
+      UI.showModal(`
+        <h3>Set auto-bid</h3>
+        <p style="margin-top:var(--space-3);color:var(--text-secondary);">You'll be charged ${UI.formatPrice(amount)} only if you win. Gavel will bid up to your maximum automatically.</p>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+          <button class="btn btn-ghost" style="flex:1;" onclick="UI.closeModal()">Cancel</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="setAutoBid(${amount})">Confirm Auto-Bid</button>
+        </div>
+      `);
+    }
+
+    async function setAutoBid(amount) {
+      UI.closeModal();
+      const res = await api.post('/bids/auto-bid', { listingId: auction.id, maxAmount: amount });
+      if (!res?.success) {
+        UI.toast(res?.message || 'Auto-bid failed.', 'error');
+        return;
+      }
+      UI.toast(res.message || 'Auto-bid set.', 'success');
+      await loadBidHistory();
     }
 
     async function endAuctionEarly() {
-      if (!confirm('End this auction now? This cannot be undone.')) return;
       const res = await api.post('/auctions/end-auction', { id: auction.id });
-      if (res?.success) { UI.toast('Auction ended.', 'success'); setTimeout(() => location.reload(), 1500); }
-      else UI.toast(res?.message || 'Failed to end auction', 'error');
-    }
-
-    async function loadBidHistory(auctionId) {
-      const bids = await api.get('/bids/' + auctionId);
-      const el = document.getElementById('bidHistory');
-      if (!bids || !bids.bids || !bids.bids.length) { el.innerHTML = '<p class="text-muted text-sm">No bids yet.</p>'; return; }
-      el.innerHTML = `<div style="display:flex;flex-direction:column;gap:var(--space-2);">${bids.bids.map(b => `
-        <div class="flex-between" style="padding:var(--space-2) var(--space-3);background:var(--cream);border-radius:var(--radius-md);">
-          <span class="text-sm" style="font-weight:500;">${b.bidderName}</span>
-          <span class="price price-small">${UI.formatPrice(b.amount)}</span>
-        </div>`).join('')}</div>`;
-    }
-
-    async function placeBid() {
-      const user = Auth.getUser();
-      if (!user) { UI.toast('Please log in to bid', 'error'); window.location.href = '/login.html'; return; }
-      const amount = Number(document.getElementById('bidAmount').value);
-      if (!amount) { UI.toast('Enter a bid amount', 'error'); return; }
-      const res = await api.post('/bids/' + auction.id, { bidAmount: amount });
       if (res?.success) {
-        UI.toast(res.message || 'Bid placed!', 'success');
-        auction.currentBid = res.newBid;
-        auction.bidCount = res.bidCount;
-        document.getElementById('currentBidDisplay').textContent = UI.formatPrice(res.newBid);
-        const minBid = res.newBid + (auction.increment || 500);
-        document.getElementById('bidAmount').value = minBid;
-        document.getElementById('bidAmount').min = minBid;
-        loadBidHistory(auction.id);
-      } else {
-        UI.toast(res?.message || 'Bid failed', 'error');
+        UI.toast('Auction ended.', 'success');
+        window.location.reload();
       }
     }
 
-    async function setAutoBid() {
-      const user = Auth.getUser();
-      if (!user) { UI.toast('Please log in', 'error'); return; }
-      const maxAmount = Number(document.getElementById('autoBidMax').value);
-      if (!maxAmount) { UI.toast('Enter max amount', 'error'); return; }
-      const res = await api.post('/bids/auto-bid', { listingId: auction.id, maxAmount });
-      if (res?.success) { UI.toast(res.message, 'success'); } else { UI.toast(res?.message || 'Auto-bid failed', 'error'); }
+    function reportListing() {
+      UI.showModal(`
+        <h3>Report listing</h3>
+        <p style="margin-top:var(--space-3);color:var(--text-secondary);">Categories: fake item, wrong description, spam.</p>
+        <div style="display:grid;gap:10px;margin-top:var(--space-5);">
+          <button class="btn btn-ghost" onclick="submitReport('fake item')">Fake item</button>
+          <button class="btn btn-ghost" onclick="submitReport('wrong description')">Wrong description</button>
+          <button class="btn btn-ghost" onclick="submitReport('spam')">Spam</button>
+        </div>
+      `);
     }
 
-    async function toggleWatchlist() {
-      const user = Auth.getUser();
-      if (!user) { UI.toast('Please log in', 'error'); return; }
-      const res = await api.post('/watchlist/toggle', { auctionId: auction.id });
-      if (res?.success) {
-        const btn = document.getElementById('watchlistBtn');
-        btn.textContent = res.added ? '♥ Watching' : '♡ Watchlist';
-        UI.toast(res.added ? 'Added to watchlist' : 'Removed from watchlist', 'info');
+    function blockSeller() {
+      api.post('/block-user', { email: auction.sellerEmail }).then(() => {
+        const key = 'gavel_blocked_users';
+        const blocked = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!blocked.includes(auction.sellerEmail)) blocked.push(auction.sellerEmail);
+        localStorage.setItem(key, JSON.stringify(blocked));
+        UI.toast('Seller blocked from your explore feed.', 'success');
+      });
+    }
+
+    async function submitReport(category) {
+      await api.post('/auctions/report', { auctionId: auction.id, category });
+      UI.closeModal();
+      UI.toast('Report submitted.', 'success');
+    }
+
+    function leaveReview() {
+      UI.showModal(`
+        <h3>Leave a review</h3>
+        <div class="form-group" style="margin-top:var(--space-4);">
+          <label class="form-label">Score</label>
+          <input id="reviewScore" class="form-input" type="number" min="1" max="5" value="5">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Comment</label>
+          <textarea id="reviewComment" class="form-textarea" placeholder="How did the transaction go?"></textarea>
+        </div>
+        <button class="btn btn-primary" style="margin-top:var(--space-4);width:100%;" onclick="submitReview()">Submit review</button>
+      `);
+    }
+
+    async function submitReview() {
+      const score = Number(document.getElementById('reviewScore').value);
+      const comment = document.getElementById('reviewComment').value.trim();
+      const res = await api.post('/reviews/' + auction.id, { score, comment });
+      if (!res?.success) {
+        UI.toast(res?.error || 'Failed to save review.', 'error');
+        return;
       }
+      UI.closeModal();
+      UI.toast('Review submitted.', 'success');
     }
 
-    function connectWS(auctionId) {
-      const token = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('jwt_token='))?.split('=')[1] || '';
-      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      ws = new WebSocket(`${proto}://${window.location.host}/ws?auctionId=${auctionId}&token=${token}`);
-      ws.onmessage = (e) => {
+    async function submitModeration(decision) {
+      const checks = Array.from(document.querySelectorAll('[data-mod-check]')).reduce((acc, input) => {
+        acc[input.dataset.modCheck] = Boolean(input.checked);
+        return acc;
+      }, {});
+      const note = document.getElementById('moderationNote')?.value.trim() || '';
+
+      if (decision === 'approve' && !Object.values(checks).every(Boolean)) {
+        UI.toast('Complete every moderation checklist item before approval.', 'error');
+        return;
+      }
+      if (decision === 'reject' && !note) {
+        UI.toast('Write a rejection reason before rejecting.', 'error');
+        return;
+      }
+
+      const res = await api.post('/admin/review-request', {
+        auctionId: auction.id,
+        decision,
+        reviewNotes: note,
+        moderationChecklist: checks
+      });
+      if (!res?.success) {
+        UI.toast(res?.error || 'Failed to save moderation decision.', 'error');
+        return;
+      }
+      UI.toast(decision === 'approve' ? 'Product approved.' : 'Product rejected.', 'success');
+      setTimeout(() => window.location.reload(), 800);
+    }
+
+    function connectWS(id) {
+      const token = document.cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith('jwt_token='))?.split('=')[1] || '';
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${protocol}://${location.host}/ws?token=${encodeURIComponent(token)}`);
+      ws.addEventListener('open', () => {
+        ws.send(JSON.stringify({ type: 'watch', itemId: String(id) }));
+      });
+      ws.addEventListener('message', async (event) => {
         try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === 'bid_update' && auction) {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'bid_update') {
             auction.currentBid = msg.newBid;
-            auction.bidCount = msg.bidCount;
-            const el = document.getElementById('currentBidDisplay');
-            if (el) { el.textContent = UI.formatPrice(msg.newBid); el.classList.add('animate-bid'); setTimeout(() => el.classList.remove('animate-bid'), 500); }
-            const minBid = msg.newBid + (auction.increment || 500);
-            const input = document.getElementById('bidAmount');
-            if (input) { input.value = minBid; input.min = minBid; }
-            loadBidHistory(auction.id);
+            const bidEl = document.getElementById('currentBidDisplay');
+            if (bidEl) bidEl.textContent = UI.formatPrice(msg.newBid);
+            await loadBidHistory();
           }
-          if (msg.type === 'auction_closed') {
-            UI.toast('Auction has ended!', 'info');
-            setTimeout(() => location.reload(), 2000);
-          }
-          if (msg.type === 'snipe:extended') {
-            UI.toast('Anti-snipe: time extended by 3 min!', 'info');
-            if (auction) auction.endTime = msg.newEndTime;
-          }
-        } catch (e) {}
-      };
+        } catch (error) {}
+      });
     }
   </script>
 </body>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bid Wars | Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+  <nav class="navbar" id="navbar"><div class="container"><a href="/" class="navbar-brand">Gavel<span>.</span></a></div></nav>
+  <main style="padding:calc(var(--space-20) + var(--space-8)) 0 var(--space-16);">
+    <div class="container">
+      <div class="section-header">
+        <h1>Bid Wars</h1>
+        <p>Auctions with the most bids in the last 30 minutes.</p>
+      </div>
+      <div id="warsGrid" class="grid grid-3" style="margin-top:var(--space-6);gap:var(--space-4);"></div>
+    </div>
+  </main>
+  <footer></footer>
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/site.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const wars = await api.get('/bids/wars/active');
+      const grid = document.getElementById('warsGrid');
+      if (!wars || !wars.length) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><h3>No active bid wars</h3></div>';
+        return;
+      }
+      grid.innerHTML = wars.map((item) => `
+        <a href="/item-detail.html?id=${item.id}" class="card" style="padding:var(--space-6);text-decoration:none;">
+          <span class="badge badge-rivalry">Hot</span>
+          <h3 style="margin-top:var(--space-4);">${item.title}</h3>
+          <p style="margin-top:var(--space-3);">${item.recentBids} recent bids</p>
+          <p class="price" style="margin-top:var(--space-2);">₹${Number(item.currentBid || 0).toLocaleString('en-IN')}</p>
+        </a>
+      `).join('');
+    });
+  </script>
+</body>
+</html>

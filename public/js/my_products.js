@@ -161,6 +161,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             actionsHtml = `
                 <a href="/item-detail.html?id=${item.id}" class="btn-primary" style="display:block; text-align:center; padding:10px; font-size:0.85rem; margin-bottom:10px; width:100%;">Monitor Market</a>
                 <button onclick="endAuction('${item.id}')" class="btn-withdraw">Early Close Market</button>
+                <button onclick="lowerPrice('${item.id}', ${Math.max(1, Math.floor((item.currentBid || item.startingPrice || 0) * 0.9))})"
+                    style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--border-color); background:transparent;
+                           color:var(--text-secondary); font-weight:600; cursor:pointer; border-radius:8px; font-size:0.85rem; transition: background 0.2s;">
+                    Lower Price 10%
+                </button>
                 ${item.bidCount === 0 ? `
                 <button onclick="withdrawItem('${item.id}')"
                     style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--border-color); background:transparent;
@@ -171,6 +176,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             actionsHtml = `
                 ${item.winnerName ? `
                 <a href="/chat.html?auction=${item.id}" class="btn-primary" style="display:block; text-align:center; padding:10px; font-size:0.85rem; width:100%;">Open Encrypted Channel</a>` : ''}
+                <button onclick="relistItem('${item.id}')" style="width:100%; margin-top:8px; padding:10px; border:1px solid var(--border-color); background:transparent;
+                           color:var(--text-secondary); font-weight:600; cursor:pointer; border-radius:8px; font-size:0.85rem; transition: background 0.2s;">
+                    Relist Item
+                </button>
             `;
         }
 
@@ -183,7 +192,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="my-product-info">
                 <h3>${item.title}</h3>
                 <p style="margin-bottom:16px; color:var(--text-secondary); font-size:0.85rem;">
-                    Volume: ${item.bidCount || 0} trade${item.bidCount !== 1 ? 's' : ''}${item.assignedAdminEmail ? ` · Reviewer: ${item.assignedAdminEmail}` : ''}${item.rejectionReason ? ` · ${item.rejectionReason}` : ''}${item.earlySellActive ? ' · Closing fast' : ''}
+                    Volume: ${item.bidCount || 0} trade${item.bidCount !== 1 ? 's' : ''} · Views: ${item.viewCount || 0}${item.assignedAdminEmail ? ` · Reviewer: ${item.assignedAdminEmail}` : ''}${item.rejectionReason ? ` · ${item.rejectionReason}` : ''}${item.earlySellActive ? ' · Closing fast' : ''}
                 </p>
                 ${timeHtml}
                 ${winnerHtml}
@@ -247,6 +256,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch(e) {}
     };
 
+    window.lowerPrice = async (id, suggestedPrice) => {
+        const value = prompt("Enter the new starting price", suggestedPrice);
+        if (!value) return;
+        try {
+            const res = await fetch('/api/auctions/update-price', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, newPrice: Number(value) })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.message || 'Failed to update price.');
+                return;
+            }
+            loadMyProducts();
+        } catch(e) {
+            alert('Failed to update price.');
+        }
+    };
+
     window.showWinnerContact = async (auctionId) => {
         const el = document.getElementById(`winner-contact-${auctionId}`);
         if (el.style.display === 'block') { el.style.display = 'none'; return; }
@@ -262,6 +291,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch(e) {
             el.textContent     = 'Error loading contact.';
             el.style.display   = 'block';
+        }
+    };
+
+    window.relistItem = async (id) => {
+        if (!confirm("Relist this item for review?")) return;
+        try {
+            const res = await fetch('/api/auctions/relist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.message || 'Failed to relist.');
+                return;
+            }
+            loadMyProducts();
+        } catch(e) {
+            alert('Failed to relist.');
         }
     };
 

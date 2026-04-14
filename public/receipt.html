@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transaction Receipt | Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+  <nav class="navbar" id="navbar"><div class="container"><a href="/" class="navbar-brand">Gavel<span>.</span></a></div></nav>
+  <main style="padding:calc(var(--space-20) + var(--space-8)) 0 var(--space-16);">
+    <div class="container" style="max-width:820px;">
+      <div class="card" id="receiptCard" style="padding:var(--space-8);border-radius:var(--radius-2xl);">
+        <h1 style="font-size:var(--text-4xl);">Transaction receipt</h1>
+        <p class="text-muted" style="margin-top:var(--space-3);">Loading…</p>
+      </div>
+      <button class="btn btn-secondary" onclick="window.print()" style="margin-top:var(--space-4);">Print receipt</button>
+    </div>
+  </main>
+  <footer></footer>
+  <script src="js/api.js"></script>
+  <script src="js/site.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const id = new URLSearchParams(window.location.search).get('id');
+      const receipt = await api.get('/receipt/' + id);
+      if (!receipt) return;
+      document.getElementById('receiptCard').innerHTML = `
+        <h1 style="font-size:var(--text-4xl);">Transaction receipt</h1>
+        <table class="spec-table" style="margin-top:var(--space-6);width:100%;border-collapse:collapse;">
+          <tr><td style="padding:12px 0;font-weight:600;">Item</td><td>${receipt.title}</td></tr>
+          <tr><td style="padding:12px 0;font-weight:600;">Final price</td><td>₹${Number(receipt.finalPrice || 0).toLocaleString('en-IN')}</td></tr>
+          <tr><td style="padding:12px 0;font-weight:600;">Seller</td><td>${receipt.sellerEmail}</td></tr>
+          <tr><td style="padding:12px 0;font-weight:600;">Buyer</td><td>${receipt.winnerEmail}</td></tr>
+          <tr><td style="padding:12px 0;font-weight:600;">Date</td><td>${new Date(receipt.date).toLocaleString('en-IN')}</td></tr>
+          <tr><td style="padding:12px 0;font-weight:600;">Meetup</td><td>${receipt.meetupSchedule?.proposedSlot || 'Not scheduled yet'}</td></tr>
+        </table>
+      `;
+    });
+  </script>
+</body>
+</html>

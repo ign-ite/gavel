@@ -143,23 +143,6 @@
     .card-watch-btn.watched { color: var(--gold); }
     .card-watch-btn svg { width: 16px; height: 16px; }
 
-    .card-mute-btn {
-      position: absolute;
-      top: var(--space-3);
-      left: var(--space-3);
-      width: 28px; height: 28px;
-      border-radius: var(--radius-full);
-      border: none;
-      background: rgba(0,0,0,0.4);
-      color: var(--parchment);
-      cursor: pointer;
-      z-index: 3;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.2s;
-    }
-    .card-mute-btn:hover { background: rgba(0,0,0,0.6); }
-    .card-mute-btn svg { width: 14px; height: 14px; }
-
     .feed-empty {
       text-align: center;
       padding: var(--space-16) var(--space-6);
@@ -224,8 +207,12 @@
     .scroll-feed-item {
       position: absolute;
       inset: 0;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: minmax(320px, 520px) minmax(320px, 420px);
+      justify-content: center;
+      align-items: stretch;
+      gap: var(--space-6);
+      padding: calc(var(--space-16) + var(--space-4)) var(--space-6) var(--space-6);
       transition: transform 300ms ease-out, opacity 300ms ease-out;
     }
     .scroll-feed-item.above { transform: translateY(-100%); opacity: 0; }
@@ -233,17 +220,32 @@
     .scroll-feed-item.below { transform: translateY(100%); opacity: 0; }
 
     .sfi-media {
-      flex: 1;
+      display: flex;
+      flex-direction: column;
       position: relative;
       overflow: hidden;
       background: var(--ink);
+      border-radius: var(--radius-2xl);
+      min-height: 0;
+      padding: var(--space-4);
+    }
+    .sfi-media-frame {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      min-height: 0;
     }
     .sfi-media img,
     .sfi-media video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
       display: block;
+      border-radius: var(--radius-xl);
     }
     .sfi-media video { cursor: default; }
     .sfi-media .gradient-placeholder {
@@ -255,10 +257,7 @@
     }
 
     .sfi-info {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      padding: var(--space-8) var(--space-5) var(--space-5);
-      background: linear-gradient(transparent, rgba(44,36,23,0.9));
+      margin-top: var(--space-4);
       color: var(--parchment);
     }
     .sfi-info .sfi-title {
@@ -293,25 +292,120 @@
     .sfi-info .sfi-actions .btn:hover { background: var(--olive-dark); }
 
     .sfi-side {
-      position: absolute;
-      right: var(--space-3);
-      bottom: 160px;
       display: flex;
-      flex-direction: column;
       align-items: center;
-      gap: var(--space-5);
-      z-index: 5;
+      gap: var(--space-4);
+      margin-top: var(--space-4);
     }
     .sfi-side-btn {
-      display: flex; flex-direction: column;
-      align-items: center; gap: 4px;
+      display: inline-flex; align-items: center; gap: 8px;
       color: var(--parchment); font-size: var(--text-xs);
       cursor: pointer; background: none; border: none;
       transition: transform 0.2s;
+      padding: 10px 14px;
+      border-radius: var(--radius-full);
+      background: rgba(255,255,255,0.08);
     }
     .sfi-side-btn:hover { transform: scale(1.15); }
     .sfi-side-btn svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
     .sfi-side-label { font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+
+    .sfi-panel {
+      background: #12100c;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-2xl);
+      color: var(--parchment);
+      padding: var(--space-6);
+      overflow: auto;
+    }
+    .sfi-panel h3 { color: var(--parchment); margin-bottom: var(--space-2); }
+    .sfi-specs {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: var(--space-4);
+    }
+    .sfi-specs td {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: var(--text-sm);
+      vertical-align: top;
+    }
+    .sfi-specs td:first-child {
+      color: rgba(255,255,255,0.7);
+      width: 36%;
+      font-weight: 600;
+    }
+    .feed-chat-panel {
+      position: fixed;
+      top: calc(var(--space-20) + var(--space-2));
+      right: var(--space-4);
+      width: min(360px, calc(100vw - 24px));
+      height: calc(100vh - var(--space-20) - var(--space-6));
+      background: rgba(18,16,12,0.97);
+      color: var(--parchment);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-2xl);
+      box-shadow: var(--shadow-xl);
+      z-index: 260;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .feed-chat-panel.open { display: flex; }
+    .feed-chat-header,
+    .feed-chat-composer {
+      padding: var(--space-4);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .feed-chat-composer {
+      border-bottom: 0;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      gap: var(--space-3);
+      align-items: flex-end;
+    }
+    .feed-chat-body {
+      flex: 1;
+      overflow: auto;
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .feed-chat-bubble {
+      max-width: 85%;
+      padding: 10px 12px;
+      border-radius: 16px;
+      font-size: var(--text-sm);
+      line-height: 1.5;
+    }
+    .feed-chat-bubble.mine {
+      align-self: flex-end;
+      background: var(--olive);
+    }
+    .feed-chat-bubble.theirs {
+      align-self: flex-start;
+      background: rgba(255,255,255,0.08);
+    }
+    .feed-chat-composer textarea {
+      flex: 1;
+      resize: none;
+      min-height: 44px;
+      max-height: 120px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: var(--parchment);
+      padding: 12px 14px;
+    }
+    .feed-chat-composer button {
+      border: none;
+      border-radius: 14px;
+      background: var(--olive);
+      color: var(--parchment);
+      padding: 12px 16px;
+      cursor: pointer;
+    }
 
     @keyframes timerPulse {
       0%, 100% { opacity: 1; }
@@ -320,6 +414,14 @@
 
     @media (max-width: 1023px) {
       .explore-grid { grid-template-columns: repeat(3, 1fr); }
+      .scroll-feed-item {
+        grid-template-columns: 1fr;
+        padding-right: var(--space-4);
+      }
+      .feed-chat-panel {
+        width: calc(100vw - 24px);
+        right: 12px;
+      }
     }
     @media (max-width: 767px) {
       .explore-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
@@ -344,7 +446,8 @@
       </button>
       <a href="login.html" class="btn btn-ghost btn-sm" id="loginBtn">Log in</a>
       <a href="signup.html" class="btn btn-primary btn-sm" id="signupBtn">Get Started</a>
-      <a href="dashboard.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
+      <a href="chats.html" class="btn btn-ghost btn-sm hide" id="messagesBtn">Messages</a>
+      <a href="dashboard-home.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
     </div>
   </div></nav>
 
@@ -361,6 +464,14 @@
         <button class="explore-tab" data-filter="ending">Ending Soon</button>
         <button class="explore-tab" data-filter="highbids">High Stakes</button>
       </div>
+      <select id="conditionFilter" class="form-select" style="max-width:180px;">
+        <option value="">All Conditions</option>
+        <option value="New">New</option>
+        <option value="Like New">Like New</option>
+        <option value="Good">Good</option>
+        <option value="Fair">Fair</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" id="saveSearchBtn">Notify me</button>
     </div>
   </div>
 
@@ -381,6 +492,17 @@
     </div>
     <div class="scroll-feed-track" id="feedTrack"></div>
   </div>
+  <div class="feed-chat-panel" id="feedChatPanel">
+    <div class="feed-chat-header">
+      <div class="text-muted text-sm" id="feedChatProduct">Product chat</div>
+      <strong id="feedChatWith">Seller</strong>
+    </div>
+    <div class="feed-chat-body" id="feedChatBody"></div>
+    <div class="feed-chat-composer">
+      <textarea id="feedChatInput" rows="1" placeholder="Need more images? Ask while you keep scrolling."></textarea>
+      <button type="button" id="feedChatSend">Send</button>
+    </div>
+  </div>
 
   <div class="toast-container" id="toastContainer"></div>
 
@@ -388,18 +510,24 @@
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/watchlist-drawer.js"></script>
+  <script src="js/site.js"></script>
   <script>
     let allAuctions = [];
     let filtered = [];
     let currentFilter = 'all';
     let searchTerm = '';
-    let isMuted = true;
     let feedIndex = 0;
     let feedOpen = false;
     let savedScrollY = 0;
     let ws = null;
     let touchStartY = 0;
     let touchStartTime = 0;
+    let wheelLocked = false;
+    let activeChatAuctionId = null;
+    let activeChatOtherEmail = null;
+    let activeConversationKey = null;
+    let myEmail = null;
+    let conditionFilter = '';
 
     const watchlistIds = {
       get() { try { return JSON.parse(localStorage.getItem('gavel_watchlist') || '[]'); } catch { return []; } },
@@ -426,8 +554,15 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
       await Auth.init();
+      myEmail = Auth.getUser()?.email || null;
       attachLogoBehavior();
       window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
+      if (Auth.isLoggedIn()) {
+        document.getElementById('loginBtn')?.classList.add('hide');
+        document.getElementById('signupBtn')?.classList.add('hide');
+        document.getElementById('messagesBtn')?.classList.remove('hide');
+        document.getElementById('dashboardBtn')?.classList.remove('hide');
+      }
 
       const res = await api.get('/auctions');
       if (!res || res.error) { UI.toast('Failed to load auctions', 'error'); return; }
@@ -459,13 +594,22 @@
 
       document.getElementById('feedBack').addEventListener('click', closeFeed);
       document.getElementById('feedClose').addEventListener('click', closeFeed);
+      document.getElementById('feedChatSend').addEventListener('click', sendFeedChatMessage);
+      document.getElementById('saveSearchBtn').addEventListener('click', saveCurrentSearch);
+      document.getElementById('conditionFilter').addEventListener('change', (e) => {
+        conditionFilter = e.target.value;
+        applyFilter();
+        renderGrid();
+      });
       document.addEventListener('keydown', handleFeedKey);
       window.addEventListener('popstate', e => { if (feedOpen && !e.state?.feed) closeFeed(); });
     });
 
     function applyFilter() {
-      let items = allAuctions.filter(a => a.status === 'active');
+      const blockedUsers = JSON.parse(localStorage.getItem('gavel_blocked_users') || '[]');
+      let items = allAuctions.filter(a => a.status === 'active' && !blockedUsers.includes(a.sellerEmail));
       if (searchTerm) items = items.filter(a => a.title.toLowerCase().includes(searchTerm) || (a.category || '').toLowerCase().includes(searchTerm));
+      if (conditionFilter) items = items.filter(a => (a.condition || '').toLowerCase() === conditionFilter.toLowerCase());
       switch (currentFilter) {
         case 'videos': items = items.filter(a => a.video); break;
         case 'live': items = items.filter(a => a.endTime && new Date(a.endTime) > new Date()); break;
@@ -506,7 +650,6 @@
           <div class="explore-card" data-idx="${i}" data-id="${a.id}">
             <div class="explore-card-media">
               ${mediaHTML}
-              ${hasVideo ? `<button class="card-mute-btn" data-mute><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg></button>` : ''}
               <button class="card-watch-btn ${isWatched ? 'watched' : ''}" data-watch="${a.id}">
                 <svg viewBox="0 0 24 24" fill="${isWatched ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </button>
@@ -539,19 +682,6 @@
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           toggleWatchlistBtn(btn);
-        });
-      });
-      document.querySelectorAll('.card-mute-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const card = btn.closest('.explore-card');
-          const video = card?.querySelector('video');
-          if (!video) return;
-          isMuted = !isMuted;
-          video.muted = isMuted;
-          btn.innerHTML = isMuted
-            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>'
-            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
         });
       });
     }
@@ -607,20 +737,22 @@
       document.body.style.overflow = 'hidden';
       renderFeedItem();
       connectWS(filtered[feedIndex]?.id);
-      history.pushState({ feed: true }, '', `/explore?item=${filtered[feedIndex]?.id}`);
+      history.pushState({ feed: true }, '', `/explore.html?item=${filtered[feedIndex]?.id}`);
 
       const track = document.getElementById('feedTrack');
       track.addEventListener('touchstart', onTouchStart, { passive: true });
       track.addEventListener('touchend', onTouchEnd, { passive: true });
+      track.addEventListener('wheel', onFeedWheel, { passive: false });
     }
 
     function closeFeed() {
       feedOpen = false;
       disconnectWS();
       document.getElementById('scrollFeed').classList.remove('open');
+      document.getElementById('feedChatPanel').classList.remove('open');
       document.body.style.overflow = '';
       window.scrollTo(0, savedScrollY);
-      history.pushState({}, '', '/explore');
+      history.pushState({}, '', '/explore.html');
     }
 
     function renderFeedItem() {
@@ -631,14 +763,17 @@
       const hasVideo = !!a.video;
       const isUrgent = UI.isUrgent(a.endTime);
       const isWatched = watchlistIds.has(a.id);
+      const specs = Object.entries(a.specifications || {})
+        .map(([key, value]) => `<tr><td>${key}</td><td>${value}</td></tr>`)
+        .join('');
 
       let mediaHTML;
       if (hasVideo) {
-        mediaHTML = `<video src="${a.video}" loop muted playsinline onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"></video>
+        mediaHTML = `<div class="sfi-media-frame"><video src="${a.video}" loop muted playsinline onerror="this.style.display='none';this.parentElement.nextElementSibling.style.display='flex';"></video></div>
           <div class="gradient-placeholder" style="display:none;">${(a.title || '').slice(0, 30)}</div>`;
       } else {
         mediaHTML = img
-          ? `<img src="${img}" alt="${a.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div class="gradient-placeholder" style="display:none;">${(a.title || '').slice(0, 30)}</div>`
+          ? `<div class="sfi-media-frame"><img src="${img}" alt="${a.title}" onerror="this.style.display='none';this.parentElement.nextElementSibling.style.display='flex';"></div><div class="gradient-placeholder" style="display:none;">${(a.title || '').slice(0, 30)}</div>`
           : `<div class="gradient-placeholder">${(a.title || '').slice(0, 30)}</div>`;
       }
 
@@ -657,27 +792,40 @@
                 <span>${a.bidCount || 0} bids</span>
                 ${a.endTime ? `<span class="timer-pill ${isUrgent ? 'urgent' : ''}" data-countdown="${a.endTime}">${UI.formatTime(a.endTime)}</span>` : ''}
               </div>
-              <div class="sfi-actions">
-                <a href="item-detail.html?id=${a.id}" class="btn btn-sm" onclick="event.stopPropagation();">Place Bid</a>
-              </div>
             </div>
             <div class="sfi-side">
               <button class="sfi-side-btn" id="feedWatchBtn" data-id="${a.id}">
                 <svg viewBox="0 0 24 24" fill="${isWatched ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span class="sfi-side-label">${isWatched ? 'Saved' : 'Save'}</span>
               </button>
-              <a href="item-detail.html?id=${a.id}" class="sfi-side-btn" onclick="event.stopPropagation();">
+              <button type="button" class="sfi-side-btn" id="feedChatBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                 <span class="sfi-side-label">Chat</span>
+              </button>
+              <a href="item-detail.html?id=${a.id}" class="sfi-side-btn" onclick="event.stopPropagation();">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                <span class="sfi-side-label">Open</span>
               </a>
             </div>
           </div>
+          <aside class="sfi-panel">
+            <p class="text-muted text-sm" style="margin-bottom:var(--space-2);">Product details</p>
+            <h3 style="font-size:var(--text-3xl);">${a.title}</h3>
+            <p style="font-size:var(--text-2xl);color:var(--gold-light);margin-top:var(--space-2);">${UI.formatPrice(a.currentBid)}</p>
+            <p style="margin-top:var(--space-4);color:rgba(255,255,255,0.76);line-height:1.8;">${a.description || 'Seller has not added a description yet.'}</p>
+            ${specs ? `<table class="sfi-specs">${specs}</table>` : '<p class="text-muted text-sm" style="margin-top:var(--space-4);">No specs added yet.</p>'}
+            <div style="margin-top:var(--space-5);display:grid;gap:var(--space-3);">
+              <div class="tag">Seller: ${a.sellerName || 'Unknown'}</div>
+              <div class="tag">Trust score: ${a.sellerTrustScore || 0}</div>
+              <div class="tag">Views: ${a.viewCount || 0}</div>
+            </div>
+          </aside>
         </div>`;
 
       document.getElementById('feedCounter').textContent = `${feedIndex + 1} / ${filtered.length}`;
 
       const video = track.querySelector('video');
-      if (video) { video.muted = isMuted; video.play().catch(() => {}); }
+      if (video) { video.muted = true; video.defaultMuted = true; video.play().catch(() => {}); }
 
       document.getElementById('feedWatchBtn')?.addEventListener('click', async () => {
         const btn = document.getElementById('feedWatchBtn');
@@ -696,6 +844,8 @@
         btn.querySelector('svg').setAttribute('fill', nowWatched ? 'currentColor' : 'none');
         btn.querySelector('.sfi-side-label').textContent = nowWatched ? 'Saved' : 'Save';
       });
+
+      document.getElementById('feedChatBtn')?.addEventListener('click', () => openFeedChat(a));
 
       startCountdowns();
     }
@@ -716,7 +866,7 @@
         disconnectWS();
         renderFeedItem();
         connectWS(filtered[feedIndex]?.id);
-        history.replaceState({ feed: true }, '', `/explore?item=${filtered[feedIndex]?.id}`);
+        history.replaceState({ feed: true }, '', `/explore.html?item=${filtered[feedIndex]?.id}`);
       }, 280);
     }
 
@@ -739,6 +889,76 @@
       }
     }
 
+    function onFeedWheel(e) {
+      if (!feedOpen) return;
+      e.preventDefault();
+      if (wheelLocked) return;
+      const delta = e.deltaY;
+      if (Math.abs(delta) < 24) return;
+      wheelLocked = true;
+      if (delta > 0) goToFeedItem(feedIndex + 1);
+      else goToFeedItem(feedIndex - 1);
+      setTimeout(() => { wheelLocked = false; }, 320);
+    }
+
+    async function openFeedChat(auction) {
+      if (!Auth.isLoggedIn()) {
+        UI.toast('Log in to message sellers.', 'error');
+        return;
+      }
+      const panel = document.getElementById('feedChatPanel');
+      panel.classList.add('open');
+      document.getElementById('feedChatProduct').textContent = auction.title;
+      document.getElementById('feedChatWith').textContent = auction.sellerName || 'Seller';
+      activeChatAuctionId = auction.id;
+      activeChatOtherEmail = auction.sellerEmail;
+
+      const res = await api.get(`/chat/${auction.id}?with=${encodeURIComponent(auction.sellerEmail)}`);
+      const body = document.getElementById('feedChatBody');
+      if (!res || res.message) {
+        body.innerHTML = '<div class="feed-chat-bubble theirs">Unable to load this conversation right now.</div>';
+        return;
+      }
+      activeConversationKey = res.conversationKey;
+      body.innerHTML = (res.messages || []).map(msg => {
+        const cls = msg.senderEmail === myEmail ? 'mine' : 'theirs';
+        return `<div class="feed-chat-bubble ${cls}">${msg.message}</div>`;
+      }).join('') || '<div class="feed-chat-bubble theirs">Start the conversation with the seller.</div>';
+      body.scrollTop = body.scrollHeight;
+    }
+
+    async function sendFeedChatMessage() {
+      if (!activeChatAuctionId || !activeChatOtherEmail) return;
+      const input = document.getElementById('feedChatInput');
+      const text = input.value.trim();
+      if (!text) return;
+      const res = await api.post(`/chat/${activeChatAuctionId}`, { message: text, recipientEmail: activeChatOtherEmail });
+      if (!res?.success) {
+        UI.toast(res?.message || 'Failed to send message', 'error');
+        return;
+      }
+      const body = document.getElementById('feedChatBody');
+      body.insertAdjacentHTML('beforeend', `<div class="feed-chat-bubble mine">${text}</div>`);
+      body.scrollTop = body.scrollHeight;
+      input.value = '';
+    }
+
+    async function saveCurrentSearch() {
+      if (!Auth.isLoggedIn()) {
+        UI.toast('Log in to save searches.', 'error');
+        return;
+      }
+      const payload = {
+        query: document.getElementById('exploreSearch').value.trim(),
+        category: currentFilter === 'all' ? '' : currentFilter,
+        condition: conditionFilter,
+        notify: true
+      };
+      const res = await api.post('/saved-searches', payload);
+      if (res?.success) UI.toast('Saved search created. You will be notified for matches.', 'success');
+      else UI.toast('Could not save search.', 'error');
+    }
+
     // ── WEBSOCKET ──
     function connectWS(auctionId) {
       disconnectWS();
@@ -746,6 +966,14 @@
       const token = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('jwt_token='))?.split('=')[1] || '';
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
       ws = new WebSocket(`${proto}://${window.location.host}/ws?auctionId=${auctionId}&token=${token}`);
+      ws.onopen = () => {
+        try {
+          ws.send(JSON.stringify({ type: 'watch', itemId: String(auctionId) }));
+          if (activeConversationKey) {
+            ws.send(JSON.stringify({ type: 'join_chat', conversationKey: activeConversationKey, email: myEmail }));
+          }
+        } catch {}
+      };
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
@@ -755,6 +983,11 @@
           }
           if (msg.type === 'auction_closed') {
             UI.toast('Auction has ended!', 'info');
+          }
+          if (msg.type === 'chat_msg' && msg.conversationKey === activeConversationKey && msg.senderEmail !== myEmail) {
+            const body = document.getElementById('feedChatBody');
+            body.insertAdjacentHTML('beforeend', `<div class="feed-chat-bubble theirs">${msg.message}</div>`);
+            body.scrollTop = body.scrollHeight;
           }
         } catch {}
       };

@@ -69,6 +69,20 @@
       border-radius: 0 0 var(--radius-2xl) var(--radius-2xl);
       padding: var(--space-4) var(--space-5); display: flex; gap: var(--space-3); align-items: flex-end;
     }
+    .chat-quickbar {
+      display:flex;
+      gap:var(--space-2);
+      flex-wrap:wrap;
+      margin-bottom:var(--space-4);
+    }
+    .chat-quickbar button {
+      border:1px solid var(--border-light);
+      background:var(--bg-raised);
+      border-radius:999px;
+      padding:8px 12px;
+      cursor:pointer;
+      font-size:var(--text-xs);
+    }
     .chat-input-bar textarea {
       flex: 1; border: 1.5px solid var(--border); border-radius: var(--radius-lg);
       padding: var(--space-3) var(--space-4); font-family: var(--font-body); font-size: var(--text-sm);
@@ -134,7 +148,15 @@
         </div>
 
         <div class="chat-input-bar">
-          <textarea id="msgInput" rows="1" placeholder="Type a message…" maxlength="2000"></textarea>
+          <div style="width:100%;">
+            <div class="chat-quickbar">
+              <button type="button" onclick="setQuickMessage('Can you share more images?')">Ask for more images</button>
+              <button type="button" onclick="setQuickMessage('Can you share more details about the condition?')">Ask condition</button>
+              <button type="button" onclick="scheduleMeetup('Today 5:00 PM', 'Campus cafe')">Suggest 5 PM</button>
+              <button type="button" onclick="scheduleMeetup('Tomorrow 11:00 AM', 'Library gate')">Suggest tomorrow</button>
+            </div>
+            <textarea id="msgInput" rows="1" placeholder="Type a message…" maxlength="2000"></textarea>
+          </div>
           <button class="send-btn" id="sendBtn" title="Send">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
           </button>
@@ -152,6 +174,7 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/site.js"></script>
   <script>
     let chatData = null;
     let myEmail = null;
@@ -162,6 +185,7 @@
     const params = new URLSearchParams(window.location.search);
     const auctionId = params.get('auction');
     const otherEmailParam = params.get('with');
+    const prefill = params.get('prefill');
 
     document.addEventListener('DOMContentLoaded', async () => {
       await Auth.init();
@@ -179,6 +203,10 @@
 
       const input = document.getElementById('msgInput');
       const sendBtn = document.getElementById('sendBtn');
+      if (prefill) {
+        input.value = prefill;
+        input.dispatchEvent(new Event('input'));
+      }
 
       sendBtn.addEventListener('click', sendMessage);
       input.addEventListener('keydown', (e) => {
@@ -203,6 +231,23 @@
       document.getElementById('otherAvatar').textContent = (chatData.otherName || '?').charAt(0).toUpperCase();
 
       renderMessages(chatData.messages || []);
+    }
+
+    function setQuickMessage(text) {
+      const input = document.getElementById('msgInput');
+      input.value = text;
+      input.focus();
+      input.dispatchEvent(new Event('input'));
+    }
+
+    async function scheduleMeetup(slot, location) {
+      const res = await api.post(`/meetup/${auctionId}`, { slot, location, notes: '' });
+      if (!res?.success) {
+        UI.toast(res?.error || 'Failed to suggest meetup', 'error');
+        return;
+      }
+      setQuickMessage(`Meetup suggestion: ${slot} at ${location}. Does that work for you?`);
+      UI.toast('Meetup suggestion saved.', 'success');
     }
 
     async function sendMessage() {

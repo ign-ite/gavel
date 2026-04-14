@@ -81,7 +81,7 @@
       <ul class="navbar-nav">
         <li><a href="auction.html">Live Auctions</a></li>
         <li><a href="explore.html">Explore</a></li>
-        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="how-it-works.html">How It Works</a></li>
         <li><a href="sell-product.html">Sell</a></li>
       </ul>
       <div class="search-bar" style="flex:1; max-width:320px; margin:0 var(--space-4);">
@@ -158,6 +158,24 @@
     </div>
   </section>
 
+  <section style="padding:var(--space-12) 0; background:var(--cream);">
+    <div class="container">
+      <div class="section-header flex-between" style="align-items:flex-end;">
+        <div class="reveal">
+          <h2>Picked for you</h2>
+          <p>Products loaded from the live marketplace based on what is trending right now</p>
+        </div>
+        <a href="explore.html" class="btn btn-ghost reveal reveal-delay-1">Open explore →</a>
+      </div>
+      <div class="product-row reveal" id="pickedRow" style="margin-top:var(--space-6);">
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+        <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- HOW IT WORKS -->
   <section id="how-it-works" style="padding:var(--space-16) 0; background:var(--cream);">
     <div class="container" style="max-width:960px;">
@@ -181,6 +199,9 @@
           <h3 style="font-size:var(--text-xl); margin-bottom:var(--space-2);">Win & Connect</h3>
           <p class="text-secondary text-sm">Win auctions, chat with sellers, and build your trust score with every transaction.</p>
         </div>
+      </div>
+      <div style="margin-top:var(--space-8);text-align:center;" class="reveal reveal-delay-2">
+        <a href="how-it-works.html" class="btn btn-primary">See the full buyer and seller flow</a>
       </div>
     </div>
   </section>
@@ -217,7 +238,7 @@
           </div>
           <div>
             <h3 style="font-size:var(--text-base); margin-bottom:var(--space-1);">Trust Score</h3>
-            <p class="text-secondary text-sm">Every transaction builds your reputation. Start at 50, grow to 500 — visible on every listing.</p>
+            <p class="text-secondary text-sm">Every transaction builds your reputation. Start at 0 and grow to 500 as you buy and sell responsibly.</p>
           </div>
         </div>
         <div class="feature-item reveal reveal-delay-1">
@@ -300,6 +321,7 @@
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/feed.js"></script>
+  <script src="js/site.js"></script>
   <script>
     function handleSearch() {
       const q = document.getElementById('searchInput').value.trim();
@@ -391,7 +413,7 @@
             </p>
             <div class="hero-cta-reveal btn-group" style="display:flex;gap:var(--space-3);flex-wrap:wrap;">
               <a href="explore.html" class="btn btn-lg" style="background:var(--forest);color:var(--gold);">Browse Auctions</a>
-              <a href="dashboard.html" class="btn btn-lg" style="background:transparent;color:var(--forest);border:1.5px solid var(--forest);">My Dashboard</a>
+              <a href="dashboard-home.html" class="btn btn-lg" style="background:transparent;color:var(--forest);border:1.5px solid var(--forest);">My Dashboard</a>
             </div>
           `;
         }
@@ -405,7 +427,7 @@
       }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
       document.querySelectorAll('.reveal, .reveal-scale').forEach(el => observer.observe(el));
 
-      const auctions = await api.get('/auctions');
+      const auctions = await api.get('/auctions?sort=endingSoon&limit=12');
       if (auctions && auctions.length) {
         // Hero card — load from server data
         const feat = auctions[0];
@@ -431,6 +453,20 @@
         if (liveRow) {
           liveRow.innerHTML = auctions.slice(0, 8).map(a => UI.renderAuctionCard(a)).join('');
         }
+
+        const pickedRow = document.getElementById('pickedRow');
+        if (pickedRow) {
+          const picked = [...auctions]
+            .sort((a, b) => (b.bidCount || 0) - (a.bidCount || 0) || (new Date(a.endTime) - new Date(b.endTime)))
+            .slice(0, 8);
+          pickedRow.innerHTML = picked.map(a => UI.renderAuctionCard(a)).join('');
+        }
+      } else {
+        const fallback = '<div class="empty-state" style="padding:var(--space-8);width:100%;"><h3>Nothing live yet</h3><p>Products will appear here as soon as sellers go live.</p></div>';
+        const liveRow = document.getElementById('liveRow');
+        const pickedRow = document.getElementById('pickedRow');
+        if (liveRow) liveRow.innerHTML = fallback;
+        if (pickedRow) pickedRow.innerHTML = fallback;
       }
 
       // If user is logged in, add personalized sections (regardless of auctions)
@@ -453,10 +489,6 @@
                 <a href="watchlist.html" class="quick-action-card">
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 15-8-4V7l8-4 8 4v4l-8 4Z"/><path d="M9.5 9.5 12 11l2.5-1.5M12 11v5"/></svg>
                   <span>Watchlist</span>
-                </a>
-                <a href="workspace/messages.html" class="quick-action-card">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  <span>Messages</span>
                 </a>
               </div>
             </div>

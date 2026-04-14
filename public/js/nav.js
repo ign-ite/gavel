@@ -100,7 +100,7 @@
 
     if (user) {
         try {
-            const res = await fetch('/api/my-chats/list');
+            const res = await fetch('/api/chat/my-chats/list');
             const chats = await res.json();
             const total = chats.reduce((sum, chat) => sum + (chat.unread || 0), 0);
             const messageLink = Array.from(sidebar.querySelectorAll('a')).find((anchor) => anchor.getAttribute('href') === '/workspace/messages.html');
