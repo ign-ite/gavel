@@ -1,4 +1,5 @@
 /* DASHBOARD-HOME ADDITION */
+let user = null;
 (async function() {
     // Auth guard
     await Auth.init();
@@ -6,7 +7,7 @@
         window.location.href = '/login.html';
         return;
     }
-    const user = Auth.getUser();
+    user = Auth.getUser();
     if (!user) return;
 
     // Update logo link based on auth state
