@@ -8,38 +8,126 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/animations.css">
   <link rel="stylesheet" href="css/responsive.css">
+  <style>
+    .receipt-shell { padding: calc(var(--space-20) + var(--space-8)) 0 var(--space-16); }
+    .receipt-grid { display:grid; gap:var(--space-6); }
+    .receipt-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8);
+      box-shadow: var(--shadow-sm);
+    }
+    .receipt-summary {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--space-4);
+      margin-top: var(--space-6);
+    }
+    .receipt-pill {
+      padding: var(--space-4);
+      border-radius: var(--radius-xl);
+      background: var(--bg);
+      border: 1px solid var(--border-light);
+    }
+    .receipt-table { width:100%; border-collapse: collapse; margin-top:var(--space-4); }
+    .receipt-table td { padding: 12px 0; border-bottom:1px solid var(--border-light); vertical-align: top; }
+    .receipt-table td:first-child { width:220px; color:var(--text-secondary); font-weight:600; }
+  </style>
 </head>
 <body>
   <nav class="navbar" id="navbar"><div class="container"><a href="/" class="navbar-brand">Gavel<span>.</span></a></div></nav>
-  <main style="padding:calc(var(--space-20) + var(--space-8)) 0 var(--space-16);">
-    <div class="container" style="max-width:820px;">
-      <div class="card" id="receiptCard" style="padding:var(--space-8);border-radius:var(--radius-2xl);">
-        <h1 style="font-size:var(--text-4xl);">Transaction receipt</h1>
-        <p class="text-muted" style="margin-top:var(--space-3);">Loading…</p>
+  <main class="receipt-shell">
+    <div class="container" style="max-width:960px;">
+      <div id="receiptRoot" class="receipt-grid">
+        <div class="receipt-card"><div class="spinner"></div></div>
       </div>
-      <button class="btn btn-secondary" onclick="window.print()" style="margin-top:var(--space-4);">Print receipt</button>
     </div>
   </main>
   <footer></footer>
   <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
   <script src="js/site.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
+      await Auth.init();
       const id = new URLSearchParams(window.location.search).get('id');
       const receipt = await api.get('/receipt/' + id);
-      if (!receipt) return;
-      document.getElementById('receiptCard').innerHTML = `
-        <h1 style="font-size:var(--text-4xl);">Transaction receipt</h1>
-        <table class="spec-table" style="margin-top:var(--space-6);width:100%;border-collapse:collapse;">
-          <tr><td style="padding:12px 0;font-weight:600;">Item</td><td>${receipt.title}</td></tr>
-          <tr><td style="padding:12px 0;font-weight:600;">Final price</td><td>₹${Number(receipt.finalPrice || 0).toLocaleString('en-IN')}</td></tr>
-          <tr><td style="padding:12px 0;font-weight:600;">Seller</td><td>${receipt.sellerEmail}</td></tr>
-          <tr><td style="padding:12px 0;font-weight:600;">Buyer</td><td>${receipt.winnerEmail}</td></tr>
-          <tr><td style="padding:12px 0;font-weight:600;">Date</td><td>${new Date(receipt.date).toLocaleString('en-IN')}</td></tr>
-          <tr><td style="padding:12px 0;font-weight:600;">Meetup</td><td>${receipt.meetupSchedule?.proposedSlot || 'Not scheduled yet'}</td></tr>
-        </table>
+      if (!receipt || receipt.error) {
+        document.getElementById('receiptRoot').innerHTML = '<div class="receipt-card"><h2>Receipt unavailable</h2><p class="text-muted" style="margin-top:var(--space-3);">This transaction could not be loaded.</p></div>';
+        return;
+      }
+      const myEmail = Auth.getUser()?.email || '';
+      const isBuyer = myEmail === receipt.winnerEmail;
+      const canDispute = [receipt.sellerEmail, receipt.winnerEmail].includes(myEmail);
+      const deliveryConfirmed = Boolean(receipt.settlement?.deliveryConfirmedAt);
+
+      document.getElementById('receiptRoot').innerHTML = `
+        <section class="receipt-card">
+          <span class="badge ${deliveryConfirmed ? 'badge-approved' : 'badge-pending'}">${deliveryConfirmed ? 'Delivered' : 'In progress'}</span>
+          <h1 style="font-size:var(--text-4xl);margin-top:var(--space-4);">Transaction receipt</h1>
+          <p class="text-muted" style="margin-top:var(--space-3);">Wallet-backed settlement for ${receipt.title}. The secured amount has already moved through Gavel, and the remaining amount should only be completed after delivery.</p>
+          <div class="receipt-summary">
+            <div class="receipt-pill"><p class="text-muted text-sm">Final price</p><strong style="font-size:var(--text-2xl);">${UI.formatPrice(receipt.finalPrice || 0)}</strong></div>
+            <div class="receipt-pill"><p class="text-muted text-sm">Secured in wallet</p><strong style="font-size:var(--text-2xl);">${UI.formatPrice(receipt.settlement?.securedAmount || 0)}</strong></div>
+            <div class="receipt-pill"><p class="text-muted text-sm">Remaining on delivery</p><strong style="font-size:var(--text-2xl);">${UI.formatPrice(receipt.settlement?.remainingAmount || 0)}</strong></div>
+          </div>
+        </section>
+
+        <section class="receipt-card">
+          <h2>Settlement details</h2>
+          <table class="receipt-table">
+            <tr><td>Item</td><td>${receipt.title}</td></tr>
+            <tr><td>Seller</td><td>${receipt.seller?.name || 'Seller'} · ${receipt.sellerEmail}${receipt.seller?.phoneNumber ? ` · ${receipt.seller.phoneNumber}` : ''}</td></tr>
+            <tr><td>Buyer</td><td>${receipt.buyer?.name || 'Buyer'} · ${receipt.winnerEmail}${receipt.buyer?.phoneNumber ? ` · ${receipt.buyer.phoneNumber}` : ''}</td></tr>
+            <tr><td>Receipt date</td><td>${new Date(receipt.date).toLocaleString('en-IN')}</td></tr>
+            <tr><td>Meetup</td><td>${receipt.meetupSchedule?.proposedSlot || 'Not scheduled yet'}${receipt.meetupSchedule?.location ? ` at ${receipt.meetupSchedule.location}` : ''}</td></tr>
+            <tr><td>Seller wallet credited</td><td>${receipt.settlement?.sellerWalletCredited ? `Yes, on ${new Date(receipt.settlement.creditedAt).toLocaleString('en-IN')}` : 'Pending'}</td></tr>
+            <tr><td>Delivery status</td><td>${deliveryConfirmed ? `Confirmed by ${receipt.settlement.releasedByEmail || 'buyer'} on ${new Date(receipt.settlement.deliveryConfirmedAt).toLocaleString('en-IN')}` : 'Awaiting delivery code confirmation'}</td></tr>
+            <tr><td>Dispute status</td><td>${receipt.dispute?.status === 'open' ? 'Open' : receipt.dispute?.status === 'resolved' ? 'Resolved' : 'No dispute'}</td></tr>
+          </table>
+          <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-6);">
+            ${isBuyer && !deliveryConfirmed ? `<button class="btn btn-primary" onclick="confirmDelivery()">Enter delivery code</button>` : ''}
+            ${canDispute ? `<a class="btn btn-secondary" href="/dispute-center.html?id=${receipt.id}">Open dispute portal</a>` : ''}
+            <a class="btn btn-ghost" href="/chat.html?auction=${receipt.id}&with=${encodeURIComponent(isBuyer ? receipt.sellerEmail : receipt.winnerEmail)}">Open post-sale chat</a>
+            <button class="btn btn-ghost" onclick="window.print()">Print receipt</button>
+          </div>
+        </section>
       `;
     });
+
+    function confirmDelivery() {
+      UI.showModal(`
+        <h3>Confirm delivery</h3>
+        <p style="margin-top:var(--space-3);color:var(--text-secondary);">Enter the 6 digit delivery code given by the seller at handoff.</p>
+        <div class="form-group" style="margin-top:var(--space-4);">
+          <label class="form-label">Delivery code</label>
+          <input id="receiptDeliveryCode" class="form-input" type="text" inputmode="numeric" maxlength="6" placeholder="123456">
+        </div>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+          <button class="btn btn-ghost" onclick="UI.closeModal()" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary" onclick="submitDeliveryCode()" style="flex:1;">Confirm</button>
+        </div>
+      `);
+    }
+
+    async function submitDeliveryCode() {
+      const id = new URLSearchParams(window.location.search).get('id');
+      const code = String(document.getElementById('receiptDeliveryCode')?.value || '').replace(/\D/g, '').slice(0, 6);
+      if (code.length !== 6) {
+        UI.toast('Enter a valid 6 digit code.', 'error');
+        return;
+      }
+      const res = await api.post('/delivery/' + id + '/confirm', { code });
+      if (!res?.success) {
+        UI.toast(res?.error || 'Could not confirm delivery.', 'error');
+        return;
+      }
+      UI.closeModal();
+      UI.toast('Delivery confirmed.', 'success');
+      window.location.reload();
+    }
   </script>
 </body>
 </html>

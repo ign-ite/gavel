@@ -301,6 +301,13 @@
               <p style="font-size:var(--text-4xl);font-family:var(--font-heading);" id="currentBidDisplay">${UI.formatPrice(auction.currentBid)}</p>
               <p class="text-muted text-sm" style="margin-top:var(--space-3);" id="timerDisplay">${auction.endTime ? UI.formatTime(auction.endTime) : ''}</p>
               <p class="text-muted text-sm" style="margin-top:var(--space-2);">Minimum next bid: ${UI.formatPrice(minBid)}</p>
+              ${auction.status === 'closed' ? `
+                <div style="display:grid;gap:8px;margin-top:var(--space-4);padding-top:var(--space-4);border-top:1px solid var(--border-light);">
+                  <p class="text-muted text-sm">Secured from buyer wallet: ${UI.formatPrice(auction.settlement?.securedAmount || 0)}</p>
+                  <p class="text-muted text-sm">Remaining to settle after delivery: ${UI.formatPrice(auction.settlement?.remainingAmount || 0)}</p>
+                  ${(auction.settlement?.deliveryCode && isSeller) ? `<p class="text-muted text-sm">Delivery code to share at handoff: <strong style="color:var(--text-primary);">${auction.settlement.deliveryCode}</strong></p>` : ''}
+                </div>
+              ` : ''}
             </div>
 
             ${auction.status === 'active' && !isSeller ? `
@@ -322,6 +329,8 @@
               <div class="detail-actions">
                 ${isWinner ? `<a class="btn btn-primary btn-lg" href="/winner-confirmation.html?id=${auction.id}">You won. Continue</a>` : ''}
                 ${(isWinner || isSeller) ? `<a class="btn btn-secondary" href="/receipt.html?id=${auction.id}">Open receipt</a>` : ''}
+                ${isWinner ? `<button class="btn btn-secondary" onclick="confirmDelivery()">Confirm delivery with code</button>` : ''}
+                ${(isWinner || isSeller) ? `<a class="btn btn-ghost" href="/dispute-center.html?id=${auction.id}">Open dispute portal</a>` : ''}
                 ${(isWinner || isSeller) ? `<button class="btn btn-ghost" onclick="leaveReview()">Leave a review</button>` : ''}
               </div>
             ` : ''}
@@ -491,23 +500,56 @@
         UI.toast('Enter a bid amount.', 'error');
         return;
       }
+      const agreementKey = `gavel_bid_agreement_${auction.id}`;
+      const hasAcceptedAgreement = localStorage.getItem(agreementKey) === 'true';
+      const requiresAgreement = !hasAcceptedAgreement;
       UI.showModal(`
         <h3>Confirm your bid</h3>
         <p style="margin-top:var(--space-3);color:var(--text-secondary);">You'll be charged ${UI.formatPrice(amount)} only if you win this auction.</p>
+        ${requiresAgreement ? `
+          <label style="display:grid;grid-template-columns:20px 1fr;gap:var(--space-3);margin-top:var(--space-4);font-size:var(--text-sm);color:var(--text-secondary);">
+            <input type="checkbox" id="bidAgreementCheck">
+            <span>I agree to participate in this bidding seriously. If I win, I will not back off. Backing off can lead to penalties and account removal.</span>
+          </label>
+        ` : ''}
         <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
           <button class="btn btn-ghost" style="flex:1;" onclick="UI.closeModal()">Cancel</button>
-          <button class="btn btn-primary" style="flex:1;" onclick="placeBid(${amount})">Confirm Bid</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="placeBid(${amount}, ${requiresAgreement})">Confirm Bid</button>
         </div>
       `);
     }
 
-    async function placeBid(amount) {
+    async function placeBid(amount, requiresAgreement = false) {
+      if (requiresAgreement) {
+        const agreed = document.getElementById('bidAgreementCheck')?.checked;
+        if (!agreed) {
+          UI.toast('You must accept the bidding agreement before placing your first bid on this product.', 'error');
+          return;
+        }
+      }
       UI.closeModal();
-      const res = await api.post('/bids/' + auction.id, { bidAmount: amount });
+      const me = await api.get('/me');
+      if (!String(me?.user?.phoneNumber || '').trim()) {
+        const saved = await Site.ensurePhoneNumber({ force: true });
+        if (!saved) {
+          UI.toast('Phone number is required before bidding.', 'error');
+          return;
+        }
+      }
+      const res = await api.post('/bids/' + auction.id, { bidAmount: amount, bidAgreement: true });
       if (!res?.success) {
+        if (res?.requiresPhoneNumber) {
+          UI.toast('Add your phone number before bidding.', 'error');
+          return;
+        }
+        if (res?.requiresBidAgreement) {
+          UI.toast('Accept the bidding agreement before placing your first bid on this product.', 'error');
+          return;
+        }
         UI.toast(res?.message || 'Bid failed.', 'error');
         return;
       }
+      localStorage.setItem(`gavel_bid_agreement_${auction.id}`, 'true');
       document.getElementById('currentBidDisplay').textContent = UI.formatPrice(res.newBid);
       auction.currentBid = res.newBid;
       document.getElementById('bidAmount').value = res.newBid + Number(auction.increment || 500);
@@ -521,23 +563,53 @@
         UI.toast('Enter your auto-bid maximum.', 'error');
         return;
       }
+      const agreementKey = `gavel_bid_agreement_${auction.id}`;
+      const hasAcceptedAgreement = localStorage.getItem(agreementKey) === 'true';
+      const requiresAgreement = !hasAcceptedAgreement;
       UI.showModal(`
         <h3>Set auto-bid</h3>
         <p style="margin-top:var(--space-3);color:var(--text-secondary);">You'll be charged ${UI.formatPrice(amount)} only if you win. Gavel will bid up to your maximum automatically.</p>
+        ${requiresAgreement ? `
+          <label style="display:grid;grid-template-columns:20px 1fr;gap:var(--space-3);margin-top:var(--space-4);font-size:var(--text-sm);color:var(--text-secondary);">
+            <input type="checkbox" id="autoBidAgreementCheck">
+            <span>I agree to participate in this bidding seriously. If I win, I will not back off. Backing off can lead to penalties and account removal.</span>
+          </label>
+        ` : ''}
         <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
           <button class="btn btn-ghost" style="flex:1;" onclick="UI.closeModal()">Cancel</button>
-          <button class="btn btn-primary" style="flex:1;" onclick="setAutoBid(${amount})">Confirm Auto-Bid</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="setAutoBid(${amount}, ${requiresAgreement})">Confirm Auto-Bid</button>
         </div>
       `);
     }
 
-    async function setAutoBid(amount) {
+    async function setAutoBid(amount, requiresAgreement = false) {
+      if (requiresAgreement && !document.getElementById('autoBidAgreementCheck')?.checked) {
+        UI.toast('You must accept the bidding agreement before your first bid on this product.', 'error');
+        return;
+      }
+      const me = await api.get('/me');
+      if (!String(me?.user?.phoneNumber || '').trim()) {
+        const saved = await Site.ensurePhoneNumber({ force: true });
+        if (!saved) {
+          UI.toast('Phone number is required before auto-bidding.', 'error');
+          return;
+        }
+      }
       UI.closeModal();
-      const res = await api.post('/bids/auto-bid', { listingId: auction.id, maxAmount: amount });
+      const res = await api.post('/bids/auto-bid', { listingId: auction.id, maxAmount: amount, bidAgreement: requiresAgreement });
       if (!res?.success) {
+        if (res?.requiresPhoneNumber) {
+          UI.toast('Phone number is required before auto-bidding.', 'error');
+          return;
+        }
+        if (res?.requiresBidAgreement) {
+          UI.toast('Accept the bidding agreement before setting auto-bid on this product.', 'error');
+          return;
+        }
         UI.toast(res?.message || 'Auto-bid failed.', 'error');
         return;
       }
+      localStorage.setItem(`gavel_bid_agreement_${auction.id}`, 'true');
       UI.toast(res.message || 'Auto-bid set.', 'success');
       await loadBidHistory();
     }
@@ -603,6 +675,37 @@
       }
       UI.closeModal();
       UI.toast('Review submitted.', 'success');
+    }
+
+    function confirmDelivery() {
+      UI.showModal(`
+        <h3>Confirm delivery</h3>
+        <p style="margin-top:var(--space-3);color:var(--text-secondary);">Enter the 6 digit handoff code shared by the seller. This marks the product as delivered and increases trust for both sides.</p>
+        <div class="form-group" style="margin-top:var(--space-4);">
+          <label class="form-label">Delivery code</label>
+          <input id="deliveryCodeInput" class="form-input" type="text" inputmode="numeric" maxlength="6" placeholder="123456">
+        </div>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+          <button class="btn btn-ghost" style="flex:1;" onclick="UI.closeModal()">Cancel</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="submitDeliveryCode()">Confirm</button>
+        </div>
+      `);
+    }
+
+    async function submitDeliveryCode() {
+      const code = String(document.getElementById('deliveryCodeInput')?.value || '').replace(/\D/g, '').slice(0, 6);
+      if (code.length !== 6) {
+        UI.toast('Enter the 6 digit delivery code.', 'error');
+        return;
+      }
+      const res = await api.post('/delivery/' + auction.id + '/confirm', { code });
+      if (!res?.success) {
+        UI.toast(res?.error || 'Could not confirm delivery.', 'error');
+        return;
+      }
+      UI.closeModal();
+      UI.toast('Delivery confirmed.', 'success');
+      setTimeout(() => window.location.reload(), 600);
     }
 
     async function submitModeration(decision) {

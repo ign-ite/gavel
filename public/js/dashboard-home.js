@@ -1,373 +1,271 @@
-/* DASHBOARD-HOME ADDITION */
 let user = null;
-(async function() {
-    // Auth guard
+let profileState = null;
+
+(async function initDashboardHome() {
     await Auth.init();
     if (!Auth.isLoggedIn()) {
         window.location.href = '/login.html';
         return;
     }
+
     user = Auth.getUser();
     if (!user) return;
 
-    // Update logo link based on auth state
     const logoLink = document.getElementById('logoLink');
     if (logoLink) logoLink.href = '/dashboard-home.html';
 
-    // Update greeting with time of day
     updateGreeting(user);
-
-    // Fetch profile data
-    const profile = await api.get('/profile');
-    if (profile) {
-        updateStats(profile);
-        updateCampusBadge(profile);
-    }
-
-    // Fetch bids for activity strip
-    const bids = await api.get('/my-bids');
-    const watchlist = getWatchlist();
-    renderActivityStrip(bids, watchlist);
-
-    // Fetch ending soon auctions
-    const endingSoon = await api.get('/auctions?sort=endingSoon&limit=6');
-    renderEndingSoon(endingSoon);
-
-    // Fetch recommended auctions
-    const campus = user.college || 'IIT Delhi';
-    let recommended = await api.get(`/auctions?campus=${encodeURIComponent(campus)}&limit=8`);
-    if (!recommended || !recommended.length) {
-        recommended = await api.get('/auctions?limit=8');
-    }
-    renderRecommended(recommended, campus);
-
-    // Fetch campus leaderboard
-    const leaderboard = await fetchCampusLeaderboard(campus);
-    renderLeaderboard(leaderboard, campus);
-
-    // Load recently viewed
-    loadRecentlyViewed();
-    renderGamification(profile, user);
-    renderSavedSearches(stateSafe(user.savedSearches || []));
-    const wars = await api.get('/bids/wars/active');
-    renderBidWars(wars || []);
     document.getElementById('loginBtn')?.classList.add('hide');
     document.getElementById('signupBtn')?.classList.add('hide');
     document.getElementById('messagesBtn')?.classList.remove('hide');
     document.getElementById('myListingsBtn')?.classList.remove('hide');
     document.getElementById('dashboardBtn')?.classList.remove('hide');
-    // Show admin banner if admin
     if (user.isAdmin || user.isSuperAdmin) {
-        document.getElementById('adminBanner').classList.remove('hide');
+        document.getElementById('adminBanner')?.classList.remove('hide');
     }
 
-    // Start live timers
-    UI.startCountdowns();
+    const [profile, bids, endingSoon] = await Promise.all([
+        api.get('/dashboard/summary'),
+        api.get('/my-bids'),
+        api.get('/auctions?sort=endingSoon&limit=6&lightweight=1')
+    ]);
 
-    // Update watchlist subline
-    updateWatchlistSubline(watchlist);
+    profileState = profile || {};
+    updateStats(profileState?.me || profileState?.user || {});
+    updateCampusBadge(profileState?.me || profileState?.user || {});
+    updateWatchlistSubline(profileState?.watchlist || []);
+    renderActivityStrip(bids || []);
+    renderEndingSoon((endingSoon || []).slice(0, 4));
+    const endingIds = new Set((endingSoon || []).slice(0, 4).map((item) => String(item.id)));
+    const recommended = (endingSoon || []).filter((item) => !endingIds.has(String(item.id))).slice(0, 4);
+    renderRecommended(recommended);
+    loadRecentlyViewed();
+    UI.startCountdowns();
 })();
 
-function stateSafe(value) {
-    return Array.isArray(value) ? value : value || [];
-}
-
-function updateGreeting(user) {
+function updateGreeting(currentUser) {
     const hour = new Date().getHours();
     let greeting = 'Good evening';
     if (hour < 12) greeting = 'Good morning';
     else if (hour < 17) greeting = 'Good afternoon';
-    const name = user.name ? user.name.split(' ')[0] : user.email.split('@')[0];
+    const name = currentUser.name ? currentUser.name.split(' ')[0] : currentUser.email.split('@')[0];
     const el = document.getElementById('greetingText');
     if (el) el.textContent = `${greeting}, ${name}`;
 }
 
-function updateStats(profile) {
+function updateStats(summaryUser) {
+    const stats = profileState?.stats || {};
     const walletEl = document.getElementById('walletPill');
     const activeBidsEl = document.getElementById('activeBidsPill');
     const itemsSoldEl = document.getElementById('itemsSoldPill');
-    if (walletEl) {
-        walletEl.querySelector('.stat-pill-value').textContent = UI.formatPrice(profile.walletBalance || 0);
-    }
-    if (activeBidsEl) {
-        activeBidsEl.querySelector('.stat-pill-value').textContent = profile.stats?.activeBids || 0;
-    }
-    if (itemsSoldEl) {
-        itemsSoldEl.querySelector('.stat-pill-value').textContent = profile.stats?.closedListings || 0;
-    }
+    if (walletEl) walletEl.querySelector('.stat-pill-value').textContent = UI.formatPrice(summaryUser.walletBalance || 0);
+    if (activeBidsEl) activeBidsEl.querySelector('.stat-pill-value').textContent = stats.activeBids || 0;
+    if (itemsSoldEl) itemsSoldEl.querySelector('.stat-pill-value').textContent = stats.soldListings || stats.closedListings || 0;
 }
 
-function updateCampusBadge(profile) {
+function updateCampusBadge(summaryUser) {
     const badge = document.getElementById('campusBadge');
-    if (badge && profile.college) {
-        badge.textContent = profile.college;
+    if (!badge) return;
+    const college = String(summaryUser.college || '').trim();
+    if (!college) {
+        badge.classList.add('hide');
+        badge.textContent = '';
+        return;
     }
-}
-
-function getWatchlist() {
-    const watchlist = localStorage.getItem('gavel_watchlist');
-    return watchlist ? JSON.parse(watchlist) : [];
+    badge.textContent = college;
+    badge.classList.remove('hide');
 }
 
 function updateWatchlistSubline(watchlist) {
     const subline = document.getElementById('watchlistSubline');
     if (!subline) return;
-    const today = new Date().toDateString();
-    // For demo, just count watchlist length
-    const count = watchlist.length;
-    subline.textContent = `${count} auctions ending today you're watching`;
+    const count = Array.isArray(watchlist) ? watchlist.length : 0;
+    if (!count) {
+        subline.textContent = 'No watched auctions yet. Explore listings and save the ones you want to track.';
+        return;
+    }
+    subline.textContent = `${count} watched auction${count !== 1 ? 's' : ''} ready for quick follow-up.`;
 }
 
-function renderActivityStrip(bids, watchlist) {
+function renderActivityStrip(bids) {
     const container = document.getElementById('activityStrip');
     const empty = document.getElementById('activityEmpty');
-    if (!container) return;
+    if (!container || !empty) return;
 
-    // Clear skeletons
     container.innerHTML = '';
-    
-    if (!bids || !bids.length) {
-        // Show empty state
+    const items = (Array.isArray(bids) ? bids : [])
+        .filter((bid) => bid.auctionStatus === 'active' || bid.auctionStatus === 'closed')
+        .slice(0, 4);
+
+    if (!items.length) {
         empty.classList.remove('hide');
         return;
     }
 
-    // Group bids by winning, outbid
-    const winning = [];
-    const outbid = [];
-    // This is simplistic; you'd need to compare with auction's current highest bidder
-    // For now, assume outbid if bid amount < auction currentBid (but we don't have currentBid)
-    // We'll just show all bids as winning for demo
-    bids.forEach(bid => {
-        if (bid.auctionStatus === 'active') {
-            // Determine if user is highest bidder (need auction data)
-            // Placeholder
-            winning.push(bid);
-        } else if (bid.auctionStatus === 'closed' && bid.winnerEmail !== user.email) {
-            outbid.push(bid);
-        }
-    });
+    empty.classList.add('hide');
+    items.forEach((item) => {
+        const isClosed = item.auctionStatus === 'closed';
+        const isWinningClosed = isClosed && item.winnerEmail === user.email;
+        const statusClass = isWinningClosed || !isClosed ? 'winning' : 'outbid';
+        const label = isWinningClosed ? 'Won' : isClosed ? 'Closed' : 'Live';
+        const meta = isWinningClosed
+            ? 'You won this auction. Open the receipt or continue the handoff.'
+            : isClosed
+                ? 'This auction closed. Open the item to review the result.'
+                : `Last bid: ${new Date(item.placedAt).toLocaleString('en-IN')}`;
+        const actionText = isWinningClosed ? 'Continue handoff' : 'Open item';
+        const href = isWinningClosed ? `/winner-confirmation.html?id=${item.auctionId}` : `/item-detail.html?id=${item.auctionId}`;
 
-    // Combine with watchlist items (need to fetch auction details)
-    const activityItems = [...winning.slice(0, 3), ...outbid.slice(0, 3)];
-    if (activityItems.length === 0 && watchlist.length === 0) {
-        empty.classList.remove('hide');
-        return;
-    }
-
-    // Render activity cards
-    activityItems.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'activity-card';
-        if (outbid.includes(item)) {
-            card.classList.add('outbid');
-            card.innerHTML = `
-                <div class="outbid-badge">Outbid</div>
-                <div class="activity-card-img" style="background:var(--sand);"></div>
-                <div class="activity-card-title">${item.auctionTitle || 'Auction'}</div>
-                <div class="activity-card-price">${UI.formatPrice(item.currentBid)}</div>
-                <button class="btn btn-sm btn-primary bid-again-btn">Bid Again</button>
-            `;
-            card.querySelector('.bid-again-btn').addEventListener('click', () => {
-                window.location.href = `item-detail.html?id=${item.auctionId}`;
-            });
-        } else {
-            card.classList.add('winning');
-            card.innerHTML = `
-                <div class="activity-card-img" style="background:var(--sand);"></div>
-                <div class="activity-card-title">${item.auctionTitle || 'Auction'}</div>
-                <div class="activity-card-price">${UI.formatPrice(item.currentBid)}</div>
-                <div class="timer" data-countdown="${item.auctionEndTime}">${UI.formatTime(item.auctionEndTime)}</div>
-            `;
-        }
+        card.className = `activity-card ${statusClass}`;
+        card.innerHTML = `
+            <span class="activity-label">${label}</span>
+            <div class="activity-card-title">${escapeHtml(item.auctionTitle || 'Auction')}</div>
+            <div class="activity-card-price">${UI.formatPrice(item.amount || item.currentBid || 0)}</div>
+            <div class="activity-meta">${meta}</div>
+            <a class="btn btn-sm ${statusClass === 'outbid' ? 'btn-secondary' : 'btn-primary'}" href="${href}" style="width:fit-content;">${actionText}</a>
+        `;
         container.appendChild(card);
     });
-
-    // Add watchlist items if space
-    // ...
 }
 
 function renderEndingSoon(auctions) {
     const container = document.getElementById('endingSoonStrip');
     if (!container) return;
-    if (!auctions || !auctions.length) {
-        container.innerHTML = '<div class="empty-state" style="padding:var(--space-6);"><h3>No live auctions yet</h3><p>Ending-soon items will appear here automatically.</p></div>';
+    if (!Array.isArray(auctions) || !auctions.length) {
+        container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><h3>No live auctions yet</h3><p>Ending-soon items will appear here automatically.</p></div>';
         return;
     }
     container.innerHTML = '';
-    auctions.forEach(auction => {
-        const card = UI.renderAuctionCard(auction);
-        const div = document.createElement('div');
-        div.innerHTML = card;
-        const link = div.querySelector('a');
-        if (link) {
-            // Add urgent class if <1hr remaining
-            const diff = new Date(auction.endTime).getTime() - Date.now();
-            if (diff < 3600000) {
-                link.classList.add('urgent');
-            }
-        }
-        container.appendChild(div.firstChild);
+    auctions.forEach((auction) => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = UI.renderAuctionCard(auction);
+        const card = wrapper.firstElementChild;
+        if (card) container.appendChild(card);
     });
 }
 
-function renderRecommended(auctions, campus) {
+function renderRecommended(auctions) {
     const container = document.getElementById('recommendedGrid');
     if (!container) return;
-    if (!auctions || !auctions.length) {
+    if (!Array.isArray(auctions) || !auctions.length) {
         container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><h3>No recommendations yet</h3><p>Browse explore to build your feed.</p></div>';
         return;
     }
     container.innerHTML = '';
-    auctions.forEach(auction => {
-        const card = UI.renderAuctionCard(auction);
-        const div = document.createElement('div');
-        div.innerHTML = card;
-        const link = div.querySelector('a');
-        if (link) {
-            // Add rival campus pill if applicable
-            // For now, just add placeholder
-            const pill = document.createElement('span');
-            pill.className = 'rival-campus-pill';
-            pill.textContent = '⚔ BITS Pilani leads';
-            link.appendChild(pill);
-        }
-        container.appendChild(div.firstChild);
+    auctions.slice(0, 8).forEach((auction) => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = UI.renderAuctionCard(auction);
+        const card = wrapper.firstElementChild;
+        if (card) container.appendChild(card);
     });
-}
-
-async function fetchCampusLeaderboard(campus) {
-    // Try admin stats endpoint
-    try {
-        const stats = await api.get('/admin/stats');
-        // Not campus-specific
-    } catch {}
-    // Fallback: fetch closed auctions for campus and count per seller
-    const closed = await api.get(`/auctions?campus=${encodeURIComponent(campus)}&status=closed&limit=50`);
-    if (!closed || !closed.length) return [];
-    const sellerMap = {};
-    closed.forEach(auction => {
-        const seller = auction.sellerEmail;
-        if (!seller) return;
-        sellerMap[seller] = (sellerMap[seller] || 0) + 1;
-    });
-    const sorted = Object.entries(sellerMap)
-        .map(([email, count]) => ({ email, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5);
-    // Fetch user names
-    const leaderboard = [];
-    for (const entry of sorted) {
-        // Could call /api/users?email=... but not available
-        leaderboard.push({
-            email: entry.email,
-            name: entry.email.split('@')[0],
-            itemsSold: entry.count,
-            totalVolume: 0 // unknown
-        });
-    }
-    return leaderboard;
-}
-
-function renderLeaderboard(leaderboard, campus) {
-    const container = document.getElementById('leaderboardList');
-    const campusEl = document.getElementById('campusName');
-    if (campusEl) campusEl.textContent = campus;
-    if (!container) return;
-    container.innerHTML = '';
-    if (!leaderboard.length) {
-        container.innerHTML = '<p class="text-muted">No leaderboard data available</p>';
-        return;
-    }
-    leaderboard.forEach((item, idx) => {
-        const row = document.createElement('div');
-        row.className = 'leaderboard-row';
-        const initials = item.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-        row.innerHTML = `
-            <div class="leaderboard-rank">${idx + 1}</div>
-            <div class="leaderboard-avatar">${initials}</div>
-            <div class="leaderboard-name">${item.name}</div>
-            <div class="leaderboard-stats">
-                <div class="leaderboard-stat">${item.itemsSold} sold</div>
-                <div class="leaderboard-stat">${UI.formatPrice(item.totalVolume)}</div>
-            </div>
-        `;
-        container.appendChild(row);
-    });
-}
-
-function renderGamification(profile, user) {
-    const container = document.getElementById('gamificationGrid');
-    if (!container) return;
-    const cards = [
-        { label: 'Bidding streak', value: profile?.stats?.auctionsWon || 0, hint: 'wins this month' },
-        { label: 'Campus rank', value: profile?.college ? `Top ${Math.max(1, profile.stats?.auctionsWon || 0)}` : 'Unranked', hint: profile?.college || 'Set your campus' },
-        { label: 'Profile complete', value: `${profile?.stats?.watchlistCount !== undefined ? Math.min(100, ((Number(Boolean(profile.college)) + Number(Boolean(profile.bio)) + Number(Boolean(profile.avatar)) + Number(Boolean(profile.location?.city))) / 4) * 100) : 0}%`, hint: 'Add hostel block for better replies' },
-        { label: 'Trust score', value: user?.trustScore || 0, hint: 'starts at 0' }
-    ];
-    container.innerHTML = cards.map((card) => `
-        <div class="card" style="padding:var(--space-5);">
-            <p class="text-muted text-sm">${card.label}</p>
-            <h3 style="font-size:var(--text-3xl);margin-top:var(--space-2);">${card.value}</h3>
-            <p class="text-muted text-sm" style="margin-top:var(--space-2);">${card.hint}</p>
-        </div>
-    `).join('');
-}
-
-async function renderSavedSearches() {
-    const panel = document.getElementById('savedSearchesPanel');
-    if (!panel) return;
-    const searches = await api.get('/saved-searches');
-    panel.innerHTML = `
-        <div class="card" style="padding:var(--space-5);">
-            <div class="flex-between" style="margin-bottom:var(--space-4);">
-                <div>
-                    <h3>Saved searches</h3>
-                    <p class="text-muted text-sm">Get notified when matching items are listed.</p>
-                </div>
-                <a href="/explore.html" class="btn btn-ghost btn-sm">Add search</a>
-            </div>
-            ${(searches || []).length ? searches.map(search => `<div class="tag" style="margin-right:8px;margin-bottom:8px;">${search.query || 'Any'} ${search.category ? '· ' + search.category : ''} ${search.maxPrice ? '· under ' + UI.formatPrice(search.maxPrice) : ''}</div>`).join('') : '<p class="text-muted text-sm">No saved searches yet.</p>'}
-        </div>
-    `;
-}
-
-function renderBidWars(wars) {
-    const grid = document.getElementById('bidWarsGrid');
-    if (!grid) return;
-    if (!wars.length) {
-        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><h3>No bid wars right now</h3></div>';
-        return;
-    }
-    grid.innerHTML = wars.slice(0, 6).map((war) => `
-        <a href="/item-detail.html?id=${war.id}" class="card" style="padding:var(--space-5);text-decoration:none;">
-            <span class="badge badge-rivalry">${war.recentBids} bids / 30m</span>
-            <h3 style="margin-top:var(--space-3);">${war.title}</h3>
-            <p class="price" style="margin-top:var(--space-2);">${UI.formatPrice(war.currentBid)}</p>
-        </a>
-    `).join('');
 }
 
 function loadRecentlyViewed() {
     const container = document.getElementById('recentlyViewedStrip');
     const section = document.getElementById('recentlyViewedSection');
     if (!container || !section) return;
-    const recent = JSON.parse(localStorage.getItem('gavel_recently_viewed') || '[]');
+    const recent = JSON.parse(localStorage.getItem('gavel_recently_viewed') || '[]').slice(0, 4);
     if (!recent.length) {
         section.classList.add('hide');
         return;
     }
     section.classList.remove('hide');
-    container.innerHTML = '';
-    recent.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'activity-card';
-        card.innerHTML = `
-            <div class="activity-card-img" style="background-image:url('${item.image}');background-size:cover;"></div>
-            <div class="activity-card-title">${item.name}</div>
-            <div class="activity-card-price">${UI.formatPrice(item.bid)}</div>
-            <a href="item-detail.html?id=${item.id}" class="btn btn-sm btn-ghost">View</a>
-        `;
-        container.appendChild(card);
+    container.innerHTML = recent.map((item) => `
+        <a href="/item-detail.html?id=${item.id}" class="recently-viewed-card" style="text-decoration:none;">
+            <div class="recently-viewed-media" style="${item.image ? `background-image:url('${item.image}')` : ''}"></div>
+            <div class="activity-card-title">${escapeHtml(item.name || 'Listing')}</div>
+            <div class="activity-meta">Last seen bid ${UI.formatPrice(item.bid || 0)}</div>
+            <span class="btn btn-ghost btn-sm" style="width:fit-content;">Open again</span>
+        </a>
+    `).join('');
+}
+
+async function addWalletFunds() {
+    UI.showModal(`
+        <h3>Top up your wallet</h3>
+        <p style="margin-top:var(--space-3);color:var(--text-secondary);">Use Razorpay test mode to add funds to the buyer wallet. Gavel secures the wallet-backed portion of winning bids from here.</p>
+        <div class="form-group" style="margin-top:var(--space-4);">
+            <label class="form-label">Amount</label>
+            <input id="dashboardHomeTopupAmount" class="form-input" type="number" min="100" step="100" value="1000">
+        </div>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+            <button class="btn btn-ghost" onclick="UI.closeModal()" style="flex:1;">Cancel</button>
+            <button class="btn btn-primary" onclick="startDashboardTopup()" style="flex:1;">Continue</button>
+        </div>
+    `);
+}
+
+async function startDashboardTopup() {
+    const amount = Number(document.getElementById('dashboardHomeTopupAmount')?.value || 0);
+    if (!Number.isFinite(amount) || amount < 100) {
+        UI.toast('Enter a valid amount of at least ₹100.', 'error');
+        return;
+    }
+
+    const config = await api.get('/payments/razorpay/config');
+    if (!config?.enabled || !config?.keyId) {
+        const fallback = await api.post('/deposit', { amount });
+        if (!fallback?.success) {
+            UI.toast(fallback?.error || 'Wallet top-up failed.', 'error');
+            return;
+        }
+        applyWalletBalance(fallback.newBalance);
+        UI.closeModal();
+        UI.toast(`Wallet credited with ${UI.formatPrice(amount)} for local testing.`, 'success');
+        return;
+    }
+
+    if (typeof Razorpay !== 'function') {
+        UI.toast('Razorpay checkout script did not load.', 'error');
+        return;
+    }
+
+    const orderRes = await api.post('/payments/razorpay/order', { amount });
+    if (!orderRes?.order?.id) {
+        UI.toast(orderRes?.error || 'Could not create Razorpay order.', 'error');
+        return;
+    }
+
+    const checkout = new Razorpay({
+        key: orderRes.keyId,
+        amount: orderRes.order.amount,
+        currency: orderRes.order.currency || 'INR',
+        order_id: orderRes.order.id,
+        name: 'Gavel Wallet',
+        description: 'Buyer wallet top-up',
+        prefill: {
+            name: profileState?.me?.name || profileState?.user?.name || '',
+            email: profileState?.me?.email || profileState?.user?.email || '',
+            contact: profileState?.me?.phoneNumber || profileState?.user?.phoneNumber || ''
+        },
+        theme: { color: '#5c6b4f' },
+        handler: async function (response) {
+            const verify = await api.post('/payments/razorpay/verify', response);
+            if (!verify?.success) {
+                UI.toast(verify?.error || 'Payment verification failed.', 'error');
+                return;
+            }
+            applyWalletBalance(verify.newBalance);
+            UI.closeModal();
+            UI.toast(`Wallet credited with ${UI.formatPrice(amount)}.`, 'success');
+        }
     });
+    checkout.open();
+}
+
+function applyWalletBalance(newBalance) {
+    if (profileState?.me) profileState.me.walletBalance = newBalance;
+    if (profileState?.user) profileState.user.walletBalance = newBalance;
+    const pill = document.getElementById('walletPill');
+    if (pill) pill.querySelector('.stat-pill-value').textContent = UI.formatPrice(newBalance);
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }

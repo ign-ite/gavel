@@ -8,6 +8,13 @@ const AuditLog = require('../models/AuditLog');
 const { mapAuction, getBidCountMap, pushNotification } = require('../utils/auctionHelpers');
 const { SUPABASE_URL, SUPABASE_ANON_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } = require('../config/env');
 
+function normalizeIndianPhoneNumber(input) {
+    const digits = String(input || '').replace(/\D/g, '');
+    if (digits.length === 10) return digits;
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    return '';
+}
+
 router.get('/profile', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-passwordHash');
@@ -52,6 +59,19 @@ router.post('/presence/ping', requireLogin, async (req, res) => {
         user.lastSeenAt = new Date();
         await user.save();
         res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.post('/profile/contact', requireLogin, async (req, res) => {
+    try {
+        const phoneNumber = normalizeIndianPhoneNumber(req.body.phoneNumber);
+        if (!phoneNumber) return res.status(400).json({ error: 'Enter a valid 10 digit phone number' });
+        const user = await User.findById(req.user.id);
+        user.phoneNumber = phoneNumber;
+        await user.save();
+        res.json({ success: true, phoneNumber: user.phoneNumber });
     } catch (e) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -211,7 +231,7 @@ router.get('/dashboard/summary', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-passwordHash');
         const email = user.email;
-        const me = { id: user._id, email: user.email, fullname: user.fullname, name: user.fullname, role: user.role, walletBalance: user.walletBalance, trustScore: user.trustScore, isAdmin: user.isAdmin || user.isSuperAdmin, isSuperAdmin: user.isSuperAdmin, campusVerified: user.campusVerified, college: user.college, avatar: user.avatar };
+        const me = { id: user._id, email: user.email, fullname: user.fullname, name: user.fullname, role: user.role, walletBalance: user.walletBalance, trustScore: user.trustScore, isAdmin: user.isAdmin || user.isSuperAdmin, isSuperAdmin: user.isSuperAdmin, campusVerified: user.campusVerified, college: user.college, avatar: user.avatar, phoneNumber: user.phoneNumber || '' };
         const result = { user: me, me };
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -394,6 +414,108 @@ router.post('/meetup/:auctionId', requireLogin, async (req, res) => {
     }
 });
 
+router.post('/delivery/:auctionId/confirm', requireLogin, async (req, res) => {
+    try {
+        const auction = await Auction.findById(req.params.auctionId);
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (req.user.email !== auction.winnerEmail) return res.status(403).json({ error: 'Only the buyer can confirm delivery' });
+        const code = String(req.body.code || '').trim();
+        if (!code || code !== String(auction.settlement?.deliveryCode || '')) return res.status(400).json({ error: 'Invalid delivery code' });
+        auction.settlement = auction.settlement || {};
+        auction.settlement.deliveryConfirmedAt = new Date();
+        auction.settlement.releasedByEmail = req.user.email;
+        await auction.save();
+
+        const seller = await User.findOne({ email: auction.sellerEmail });
+        const buyer = await User.findOne({ email: auction.winnerEmail });
+        if (seller) {
+            seller.trustScore = Math.min(500, Number(seller.trustScore || 0) + 10);
+            await seller.save();
+        }
+        if (buyer) {
+            buyer.trustScore = Math.min(500, Number(buyer.trustScore || 0) + 5);
+            await buyer.save();
+        }
+        await pushNotification(auction.sellerEmail, {
+            type: 'delivery_confirmed',
+            title: 'Delivery confirmed',
+            message: `The buyer confirmed delivery for "${auction.title}".`,
+            actionUrl: `/receipt.html?id=${auction._id}`,
+            metadata: { auctionId: auction._id.toString() }
+        });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.post('/disputes/:auctionId', requireLogin, async (req, res) => {
+    try {
+        const auction = await Auction.findById(req.params.auctionId);
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (![auction.sellerEmail, auction.winnerEmail].includes(req.user.email)) return res.status(403).json({ error: 'Unauthorized' });
+        auction.dispute = {
+            status: 'open',
+            raisedByEmail: req.user.email,
+            reason: String(req.body.reason || '').trim(),
+            notes: String(req.body.notes || '').trim(),
+            createdAt: new Date(),
+            resolvedAt: null,
+            resolvedByEmail: ''
+        };
+        await auction.save();
+        const admins = await User.find({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] }).select('email');
+        for (const admin of admins) {
+            await pushNotification(admin.email, {
+                type: 'post_auction_dispute',
+                title: 'Post-auction dispute opened',
+                message: `A dispute was opened for "${auction.title}".`,
+                actionUrl: `/dispute-center.html?id=${auction._id}`,
+                metadata: { auctionId: auction._id.toString() }
+            });
+        }
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.get('/disputes', requireLogin, async (req, res) => {
+    try {
+        const query = req.user.isAdmin || req.user.isSuperAdmin
+            ? { 'dispute.status': 'open' }
+            : { $or: [{ sellerEmail: req.user.email }, { winnerEmail: req.user.email }], 'dispute.status': 'open' };
+        const auctions = await Auction.find(query).sort({ 'dispute.createdAt': -1 }).limit(50);
+        res.json(auctions.map((auction) => ({
+            id: auction._id,
+            title: auction.title,
+            sellerEmail: auction.sellerEmail,
+            winnerEmail: auction.winnerEmail,
+            dispute: auction.dispute || {},
+            settlement: auction.settlement || {}
+        })));
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.post('/disputes/:auctionId/resolve', requireLogin, async (req, res) => {
+    try {
+        if (!(req.user.isAdmin || req.user.isSuperAdmin)) return res.status(403).json({ error: 'Admin access required' });
+        const auction = await Auction.findById(req.params.auctionId);
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        auction.dispute = auction.dispute || {};
+        auction.dispute.status = 'resolved';
+        auction.dispute.notes = String(req.body.notes || auction.dispute.notes || '').trim();
+        auction.dispute.resolvedAt = new Date();
+        auction.dispute.resolvedByEmail = req.user.email;
+        await auction.save();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 router.post('/reviews/:auctionId', requireLogin, async (req, res) => {
     try {
         const auction = await Auction.findById(req.params.auctionId);
@@ -428,6 +550,10 @@ router.get('/receipt/:auctionId', requireLogin, async (req, res) => {
         const auction = await Auction.findById(req.params.auctionId);
         if (!auction) return res.status(404).json({ error: 'Auction not found' });
         if (![auction.sellerEmail, auction.winnerEmail].includes(req.user.email)) return res.status(403).json({ error: 'Unauthorized' });
+        const [seller, buyer] = await Promise.all([
+            User.findOne({ email: auction.sellerEmail }).select('fullname phoneNumber walletBalance trustScore'),
+            User.findOne({ email: auction.winnerEmail }).select('fullname phoneNumber walletBalance trustScore')
+        ]);
         res.json({
             id: auction._id,
             title: auction.title,
@@ -435,7 +561,19 @@ router.get('/receipt/:auctionId', requireLogin, async (req, res) => {
             sellerEmail: auction.sellerEmail,
             winnerEmail: auction.winnerEmail,
             date: auction.updatedAt,
-            meetupSchedule: auction.meetupSchedule || null
+            meetupSchedule: auction.meetupSchedule || null,
+            settlement: auction.settlement || {},
+            dispute: auction.dispute || {},
+            seller: seller ? {
+                name: seller.fullname,
+                phoneNumber: seller.phoneNumber || '',
+                trustScore: seller.trustScore || 0
+            } : null,
+            buyer: buyer ? {
+                name: buyer.fullname,
+                phoneNumber: buyer.phoneNumber || '',
+                trustScore: buyer.trustScore || 0
+            } : null
         });
     } catch (e) {
         res.status(500).json({ error: 'Server error' });

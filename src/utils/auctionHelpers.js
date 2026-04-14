@@ -64,19 +64,21 @@ function getAuctionUrgency(obj) {
     return { earlySellActive, earlySellDeadline, hotLabel };
 }
 
-async function mapAuction(doc, bidCountMap = null) {
+async function mapAuction(doc, bidCountMap = null, options = {}) {
+    const lightweight = Boolean(options.lightweight);
     const bidCount = bidCountMap
         ? (bidCountMap[doc._id.toString()] || 0)
         : await Bid.countDocuments({ auctionId: doc._id });
 
     const seller = await User.findOne({ email: doc.sellerEmail }).select('fullname trustScore campusVerified college');
-    const topBids = await Bid.find({ auctionId: doc._id }).sort({ amount: -1 }).limit(2).lean();
-
     let hasRivalry = false;
-    if (topBids.length >= 2) {
+    if (!lightweight) {
+        const topBids = await Bid.find({ auctionId: doc._id }).sort({ amount: -1 }).limit(2).lean();
+        if (topBids.length >= 2) {
         const b1 = await User.findOne({ email: topBids[0].bidderEmail }).select('college campusVerified');
         const b2 = await User.findOne({ email: topBids[1].bidderEmail }).select('college campusVerified');
         hasRivalry = b1?.college && b2?.college && b1.campusVerified && b2.campusVerified && b1.college !== b2.college;
+        }
     }
 
     const urgency = getAuctionUrgency(doc);

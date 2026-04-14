@@ -416,7 +416,18 @@
       .explore-grid { grid-template-columns: repeat(3, 1fr); }
       .scroll-feed-item {
         grid-template-columns: 1fr;
-        padding-right: var(--space-4);
+        gap: var(--space-4);
+        padding: calc(var(--space-16) + var(--space-2)) var(--space-4) var(--space-4);
+      }
+      .sfi-panel {
+        max-width: 640px;
+        width: 100%;
+        margin: 0 auto;
+      }
+      .sfi-media {
+        max-width: 640px;
+        width: 100%;
+        margin: 0 auto;
       }
       .feed-chat-panel {
         width: calc(100vw - 24px);
@@ -424,8 +435,96 @@
       }
     }
     @media (max-width: 767px) {
+      body { padding-top: 74px !important; }
+      .navbar .container {
+        gap: var(--space-2);
+        align-items: center;
+      }
+      .navbar-nav {
+        order: 3;
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+      .navbar-actions {
+        margin-left: auto;
+        gap: var(--space-2);
+      }
       .explore-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
-      .explore-topbar { top: calc(var(--space-20) + var(--space-2)); }
+      .explore-topbar {
+        top: 74px;
+        padding: var(--space-2) 0;
+      }
+      .explore-topbar .container {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: var(--space-3);
+      }
+      .explore-topbar .search-bar,
+      #conditionFilter,
+      #saveSearchBtn {
+        max-width: none;
+        width: 100%;
+      }
+      .scroll-feed-header {
+        padding: var(--space-3);
+      }
+      .scroll-feed-track {
+        overflow-y: auto;
+        scroll-snap-type: y mandatory;
+      }
+      .scroll-feed-item {
+        position: relative;
+        min-height: 100vh;
+        grid-template-columns: 1fr;
+        justify-items: center;
+        align-content: start;
+        padding: 72px 12px 24px;
+        gap: 12px;
+        scroll-snap-align: start;
+      }
+      .scroll-feed-item.above,
+      .scroll-feed-item.current,
+      .scroll-feed-item.below {
+        transform: none;
+        opacity: 1;
+      }
+      .sfi-media {
+        width: min(100%, 460px);
+        padding: 12px;
+        border-radius: 24px;
+      }
+      .sfi-media-frame {
+        min-height: 68vh;
+        max-height: 72vh;
+      }
+      .sfi-media img,
+      .sfi-media video {
+        max-height: 72vh;
+      }
+      .sfi-info {
+        margin-top: 12px;
+      }
+      .sfi-panel {
+        width: min(100%, 460px);
+        padding: var(--space-4);
+      }
+      .sfi-side {
+        justify-content: space-between;
+      }
+      .sfi-side-btn {
+        flex: 1;
+        justify-content: center;
+      }
+      .feed-chat-panel {
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: min(52vh, 480px);
+        border-radius: 24px 24px 0 0;
+      }
     }
     @media (max-width: 374px) {
       .explore-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
@@ -564,7 +663,7 @@
         document.getElementById('dashboardBtn')?.classList.remove('hide');
       }
 
-      const res = await api.get('/auctions');
+      const res = await api.get('/auctions?lightweight=1');
       if (!res || res.error) { UI.toast('Failed to load auctions', 'error'); return; }
       allAuctions = res;
 

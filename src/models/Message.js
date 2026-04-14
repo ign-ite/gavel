@@ -7,6 +7,12 @@ const MessageSchema = new mongoose.Schema({
     senderEmail: { type: String, required: true },
     senderName: { type: String, required: true },
     message: { type: String, required: true },
+    attachments: [{
+        mediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media' },
+        kind: { type: String, enum: ['image', 'video'] },
+        fileName: { type: String, default: '' },
+        url: { type: String, default: '' }
+    }],
     sentAt: { type: Date, default: Date.now },
     readAt: { type: Date, default: null }
 });

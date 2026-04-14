@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dispute Center | Gavel</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <style>
+    .dispute-shell { padding: calc(var(--space-20) + var(--space-6)) 0 var(--space-16); }
+    .dispute-grid { display:grid; gap: var(--space-5); }
+    .dispute-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
+    }
+    .dispute-meta {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+    .dispute-meta div {
+      background: var(--bg);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-xl);
+      padding: var(--space-4);
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="navbar"><div class="container">
+    <a href="/" class="navbar-brand">Gavel<span>.</span></a>
+    <div class="navbar-actions">
+      <a href="/dashboard.html" class="btn btn-ghost btn-sm">Dashboard</a>
+      <a href="/chats.html" class="btn btn-primary btn-sm">Messages</a>
+    </div>
+  </div></nav>
+  <main class="dispute-shell">
+    <div class="container" style="max-width:980px;">
+      <div id="disputeRoot" class="dispute-grid">
+        <div class="dispute-card"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </main>
+  <footer></footer>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/site.js"></script>
+  <script>
+    let disputes = [];
+    let selectedId = new URLSearchParams(window.location.search).get('id') || '';
+    let selectedAuction = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await Auth.init();
+      await loadDisputes();
+      render();
+    });
+
+    async function loadDisputes() {
+      const res = await api.get('/disputes');
+      disputes = Array.isArray(res) ? res : [];
+      if (selectedId && !disputes.find(item => item.id === selectedId)) {
+        const auction = await api.get('/auction/' + selectedId);
+        if (auction && !auction.error && !auction.message) {
+          selectedAuction = auction;
+        }
+      }
+    }
+
+    function render() {
+      const currentUser = Auth.getUser() || {};
+      const isAdmin = Boolean(currentUser.isAdmin || currentUser.isSuperAdmin);
+      const active = disputes.find(item => item.id === selectedId) || disputes[0] || null;
+
+      if (!active && selectedAuction) {
+        document.getElementById('disputeRoot').innerHTML = `
+          <section class="dispute-card">
+            <h1 style="font-size:var(--text-4xl);">Dispute center</h1>
+            <p class="text-muted" style="margin-top:var(--space-3);">No open dispute exists yet for ${selectedAuction.title}. If the meetup happened but delivery was not acknowledged, or the item condition is being challenged, raise it here for admin review.</p>
+          </section>
+          <section class="dispute-card">
+            <h2>${selectedAuction.title}</h2>
+            <div class="dispute-meta">
+              <div><p class="text-muted text-sm">Seller</p><strong>${selectedAuction.sellerEmail || '—'}</strong></div>
+              <div><p class="text-muted text-sm">Current / final amount</p><strong>${UI.formatPrice(selectedAuction.winningBid || selectedAuction.currentBid || 0)}</strong></div>
+              <div><p class="text-muted text-sm">Status</p><strong>${selectedAuction.status || '—'}</strong></div>
+            </div>
+            <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-6);">
+              <button class="btn btn-primary" onclick="openDisputeNoteModal()">Raise dispute</button>
+              <a class="btn btn-ghost" href="/chat.html?auction=${selectedAuction.id}&with=${encodeURIComponent(currentUser.email === selectedAuction.sellerEmail ? selectedAuction.winnerEmail || '' : selectedAuction.sellerEmail || '')}">Open transaction chat</a>
+            </div>
+          </section>
+        `;
+        return;
+      }
+
+      if (!active) {
+        document.getElementById('disputeRoot').innerHTML = `
+          <div class="dispute-card">
+            <h1>Dispute center</h1>
+            <p class="text-muted" style="margin-top:var(--space-3);">No open disputes right now.</p>
+          </div>
+        `;
+        return;
+      }
+
+      selectedId = active.id;
+      const listMarkup = disputes.map(item => `
+        <button type="button" onclick="selectDispute('${item.id}')" class="dispute-card" style="text-align:left;${item.id === selectedId ? 'border-color:var(--olive);box-shadow:0 0 0 1px var(--olive);' : ''}">
+          <div style="display:flex;justify-content:space-between;gap:var(--space-3);align-items:flex-start;">
+            <div>
+              <strong>${item.title}</strong>
+              <p class="text-muted text-sm" style="margin-top:6px;">${item.dispute?.reason || 'No reason added yet.'}</p>
+            </div>
+            <span class="badge ${item.dispute?.status === 'resolved' ? 'badge-approved' : 'badge-pending'}">${item.dispute?.status || 'open'}</span>
+          </div>
+        </button>
+      `).join('');
+
+      document.getElementById('disputeRoot').innerHTML = `
+        <section class="dispute-card">
+          <h1 style="font-size:var(--text-4xl);">Dispute center</h1>
+          <p class="text-muted" style="margin-top:var(--space-3);">Use this flow if the meetup happened but delivery was not acknowledged, the item condition was disputed, or either side needs admin resolution after auction close.</p>
+        </section>
+
+        <section class="dispute-grid" style="grid-template-columns:minmax(0,320px) minmax(0,1fr);align-items:start;">
+          <div style="display:grid;gap:var(--space-4);">${listMarkup}</div>
+          <div class="dispute-card">
+            <div style="display:flex;justify-content:space-between;gap:var(--space-3);align-items:flex-start;flex-wrap:wrap;">
+              <div>
+                <h2>${active.title}</h2>
+                <p class="text-muted" style="margin-top:var(--space-2);">${active.dispute?.reason || 'Reason not provided.'}</p>
+              </div>
+              <span class="badge ${active.dispute?.status === 'resolved' ? 'badge-approved' : 'badge-pending'}">${active.dispute?.status || 'open'}</span>
+            </div>
+            <div class="dispute-meta">
+              <div><p class="text-muted text-sm">Seller</p><strong>${active.sellerEmail || '—'}</strong></div>
+              <div><p class="text-muted text-sm">Buyer</p><strong>${active.winnerEmail || '—'}</strong></div>
+              <div><p class="text-muted text-sm">Secured amount</p><strong>${UI.formatPrice(active.settlement?.securedAmount || 0)}</strong></div>
+              <div><p class="text-muted text-sm">Delivery confirmed</p><strong>${active.settlement?.deliveryConfirmedAt ? 'Yes' : 'Pending'}</strong></div>
+            </div>
+            <div style="margin-top:var(--space-5);padding:var(--space-4);border-radius:var(--radius-xl);background:var(--bg);border:1px solid var(--border-light);">
+              <p class="text-muted text-sm">Admin notes / party notes</p>
+              <p style="margin-top:var(--space-3);white-space:pre-wrap;">${active.dispute?.notes || 'No notes yet.'}</p>
+            </div>
+            <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-6);">
+              <a class="btn btn-ghost" href="/chat.html?auction=${active.id}&with=${encodeURIComponent(currentUser.email === active.sellerEmail ? active.winnerEmail : active.sellerEmail)}">Open transaction chat</a>
+              ${active.dispute?.status !== 'open' ? '' : `<button class="btn btn-secondary" onclick="openDisputeNoteModal()">Add note / raise dispute</button>`}
+              ${isAdmin && active.dispute?.status === 'open' ? `<button class="btn btn-primary" onclick="resolveDispute()">Resolve dispute</button>` : ''}
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function selectDispute(id) {
+      selectedId = id;
+      render();
+    }
+
+    function openDisputeNoteModal() {
+      UI.showModal(`
+        <h3>${disputes.find(item => item.id === selectedId)?.dispute?.status === 'open' ? 'Update dispute' : 'Open dispute'}</h3>
+        <div class="form-group" style="margin-top:var(--space-4);">
+          <label class="form-label">Reason</label>
+          <input id="disputeReason" class="form-input" placeholder="Seller delivered but buyer did not acknowledge">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <textarea id="disputeNotes" class="form-textarea" placeholder="Add the meetup details, proof, or what happened."></textarea>
+        </div>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+          <button class="btn btn-ghost" onclick="UI.closeModal()" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary" onclick="submitDispute()" style="flex:1;">Submit</button>
+        </div>
+      `);
+    }
+
+    async function submitDispute() {
+      const reason = document.getElementById('disputeReason')?.value.trim();
+      const notes = document.getElementById('disputeNotes')?.value.trim();
+      if (!reason) {
+        UI.toast('Add a dispute reason.', 'error');
+        return;
+      }
+      const res = await api.post('/disputes/' + selectedId, { reason, notes });
+      if (!res?.success) {
+        UI.toast(res?.error || 'Could not submit dispute.', 'error');
+        return;
+      }
+      UI.closeModal();
+      UI.toast('Dispute submitted.', 'success');
+      selectedAuction = null;
+      await loadDisputes();
+      render();
+    }
+
+    async function resolveDispute() {
+      UI.showModal(`
+        <h3>Resolve dispute</h3>
+        <div class="form-group" style="margin-top:var(--space-4);">
+          <label class="form-label">Resolution notes</label>
+          <textarea id="resolutionNotes" class="form-textarea" placeholder="Explain the final decision taken by the admin team."></textarea>
+        </div>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+          <button class="btn btn-ghost" onclick="UI.closeModal()" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary" onclick="submitResolution()" style="flex:1;">Resolve</button>
+        </div>
+      `);
+    }
+
+    async function submitResolution() {
+      const notes = document.getElementById('resolutionNotes')?.value.trim();
+      if (!notes) {
+        UI.toast('Add a resolution note.', 'error');
+        return;
+      }
+      const res = await api.post('/disputes/' + selectedId + '/resolve', { notes });
+      if (!res?.success) {
+        UI.toast(res?.error || 'Could not resolve dispute.', 'error');
+        return;
+      }
+      UI.closeModal();
+      UI.toast('Dispute resolved.', 'success');
+      await loadDisputes();
+      render();
+    }
+  </script>
+</body>
+</html>

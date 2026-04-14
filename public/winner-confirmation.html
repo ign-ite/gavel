@@ -8,38 +8,70 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/animations.css">
   <link rel="stylesheet" href="css/responsive.css">
+  <style>
+    .winner-shell { padding: calc(var(--space-20) + var(--space-8)) 0 var(--space-16); }
+    .winner-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8);
+      box-shadow: var(--shadow-sm);
+    }
+    .winner-grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--space-4);
+      margin-top: var(--space-6);
+    }
+    .winner-stat {
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-light);
+      background: var(--bg);
+      padding: var(--space-4);
+    }
+  </style>
 </head>
 <body>
   <nav class="navbar" id="navbar"><div class="container"><a href="/" class="navbar-brand">Gavel<span>.</span></a></div></nav>
-  <main style="padding:calc(var(--space-20) + var(--space-8)) 0 var(--space-16);">
-    <div class="container" style="max-width:820px;">
-      <div class="card" style="padding:var(--space-8);border-radius:var(--radius-2xl);">
-        <span class="badge badge-approved">Auction won</span>
-        <h1 style="font-size:var(--text-5xl);margin-top:var(--space-4);">You won this auction</h1>
-        <p id="winnerSummary" style="margin-top:var(--space-4);color:var(--text-secondary);">Loading winner details…</p>
-        <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-6);">
-          <a class="btn btn-primary" id="contactSellerBtn" href="#">Contact seller</a>
-          <a class="btn btn-secondary" id="receiptBtn" href="#">View receipt</a>
-          <a class="btn btn-ghost" id="itemBtn" href="#">Open item page</a>
-        </div>
-      </div>
+  <main class="winner-shell">
+    <div class="container" style="max-width:920px;">
+      <div id="winnerRoot" class="winner-card"><div class="spinner"></div></div>
     </div>
   </main>
   <footer></footer>
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
   <script src="js/site.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await Auth.init();
       const id = new URLSearchParams(window.location.search).get('id');
-      const item = await api.get('/auction/' + id);
-      const receipt = await api.get('/receipt/' + id);
-      if (!item || !receipt) return;
-      document.getElementById('winnerSummary').textContent = `You won "${item.title}" at ₹${Number(receipt.finalPrice || 0).toLocaleString('en-IN')}. Message the seller now and schedule the campus handoff.`;
-      document.getElementById('contactSellerBtn').href = `/chat.html?auction=${id}&with=${encodeURIComponent(item.sellerEmail || '')}&prefill=${encodeURIComponent(`Hi, I won ${item.title}. Can we schedule the handoff?`)}`;
-      document.getElementById('receiptBtn').href = `/receipt.html?id=${id}`;
-      document.getElementById('itemBtn').href = `/item-detail.html?id=${id}`;
+      const [item, receipt] = await Promise.all([api.get('/auction/' + id), api.get('/receipt/' + id)]);
+      if (!item || item.error || !receipt || receipt.error) {
+        document.getElementById('winnerRoot').innerHTML = '<h2>Winner details unavailable</h2><p class="text-muted" style="margin-top:var(--space-3);">This post-auction view could not be loaded.</p>';
+        return;
+      }
+
+      document.getElementById('winnerRoot').innerHTML = `
+        <span class="badge badge-approved">Auction won</span>
+        <h1 style="font-size:var(--text-5xl);margin-top:var(--space-4);">You won ${item.title}</h1>
+        <p style="margin-top:var(--space-4);color:var(--text-secondary);line-height:1.8;">Gavel has already secured ${UI.formatPrice(receipt.settlement?.securedAmount || 0)} from your wallet and moved it into the seller-side settlement flow. Pay the remaining ${UI.formatPrice(receipt.settlement?.remainingAmount || 0)} only after the product is received and the delivery handoff is complete.</p>
+
+        <div class="winner-grid">
+          <div class="winner-stat"><p class="text-muted text-sm">Winning bid</p><strong style="font-size:var(--text-2xl);">${UI.formatPrice(receipt.finalPrice || 0)}</strong></div>
+          <div class="winner-stat"><p class="text-muted text-sm">Secured amount</p><strong style="font-size:var(--text-2xl);">${UI.formatPrice(receipt.settlement?.securedAmount || 0)}</strong></div>
+          <div class="winner-stat"><p class="text-muted text-sm">Remaining after delivery</p><strong style="font-size:var(--text-2xl);">${UI.formatPrice(receipt.settlement?.remainingAmount || 0)}</strong></div>
+          <div class="winner-stat"><p class="text-muted text-sm">Seller contact</p><strong style="font-size:var(--text-lg);">${receipt.seller?.phoneNumber || 'Available in receipt'}</strong></div>
+        </div>
+
+        <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-6);">
+          <a class="btn btn-primary" href="/chat.html?auction=${id}&with=${encodeURIComponent(item.sellerEmail || '')}&prefill=${encodeURIComponent(`Hi, I won ${item.title}. Please share the meetup plan and product handoff details.`)}">Message seller</a>
+          <a class="btn btn-secondary" href="/receipt.html?id=${id}">View receipt</a>
+          <a class="btn btn-ghost" href="/dispute-center.html?id=${id}">Dispute portal</a>
+          <a class="btn btn-ghost" href="/item-detail.html?id=${id}">Open item page</a>
+        </div>
+      `;
     });
   </script>
 </body>

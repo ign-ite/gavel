@@ -12,8 +12,8 @@ const cookieOpts = { httpOnly: true, secure: process.env.NODE_ENV === 'productio
 router.post('/register', authLimiter, async (req, res) => {
     try {
         if (!JWT_SECRET) return res.status(503).json({ error: 'Email authentication is disabled.' });
-        const { fullname, email, password, college } = req.body;
-        if (!fullname || !email || !password) return res.status(400).json({ error: 'Missing fields' });
+        const { fullname, email, password, college, phoneNumber } = req.body;
+        if (!fullname || !email || !password || !phoneNumber) return res.status(400).json({ error: 'Missing fields' });
 
         const existing = await User.findOne({ email: email.toLowerCase() });
         if (existing) return res.status(400).json({ error: 'Email already registered' });
@@ -29,6 +29,7 @@ router.post('/register', authLimiter, async (req, res) => {
             email: email.toLowerCase(),
             passwordHash,
             college: college || null,
+            phoneNumber: String(phoneNumber || '').trim(),
             campusVerified,
             isSuperAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase()),
             isAdmin: SUPER_ADMIN_EMAILS.includes(email.toLowerCase())
@@ -39,7 +40,7 @@ router.post('/register', authLimiter, async (req, res) => {
 
          await AuditLog.create({ action: 'USER_REGISTERED', userEmail: newUser.email, details: `Registered: ${fullname}` });
 
-        res.json({ success: true, user: { email: newUser.email, name: newUser.fullname, campusVerified } });
+        res.json({ success: true, user: { email: newUser.email, name: newUser.fullname, campusVerified, phoneNumber: newUser.phoneNumber } });
     } catch (err) {
         console.error('Registration error:', err);
         res.status(500).json({ error: 'Server error during registration' });
@@ -59,7 +60,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
          await AuditLog.create({ action: 'USER_LOGIN', userEmail: user.email, details: `Login: ${user.fullname}` });
 
-        res.json({ success: true, user: { email: user.email, name: user.fullname, role: user.role } });
+        res.json({ success: true, user: { email: user.email, name: user.fullname, role: user.role, phoneNumber: user.phoneNumber || '' } });
     } catch (err) {
         res.status(500).json({ error: 'Server error during login' });
     }
@@ -73,7 +74,7 @@ router.get('/me', require('../middleware/auth').requireLogin, async (req, res) =
             id: dbUser._id, email: dbUser.email, name: dbUser.fullname, role: dbUser.role,
             college: dbUser.college, campusVerified: dbUser.campusVerified, walletBalance: dbUser.walletBalance,
             isAdmin: dbUser.isAdmin || dbUser.isSuperAdmin, isSuperAdmin: dbUser.isSuperAdmin,
-            trustScore: dbUser.trustScore, avatar: dbUser.avatar
+            trustScore: dbUser.trustScore, avatar: dbUser.avatar, phoneNumber: dbUser.phoneNumber || ''
         });
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch profile' });

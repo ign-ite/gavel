@@ -109,6 +109,17 @@
     .wallet-actions { display: flex; gap: var(--space-3); }
     .wallet-actions .btn { background: rgba(255,255,255,0.15); color: var(--parchment); border: 1px solid rgba(255,255,255,0.2); }
     .wallet-actions .btn:hover { background: rgba(255,255,255,0.25); }
+    .wallet-note {
+      margin-top: var(--space-4);
+      padding: var(--space-4);
+      border-radius: var(--radius-xl);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+      color: rgba(250,247,242,0.86);
+      max-width: 560px;
+    }
 
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); }
 
@@ -158,6 +169,8 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/site.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script>
     let data = null;
 
@@ -206,6 +219,7 @@
         <div>
           <div class="wallet-label">Wallet Balance</div>
           <div class="wallet-balance">${UI.formatPrice(u.walletBalance || 0)}</div>
+          <div class="wallet-note">Wallet top-ups flow into Gavel's Razorpay test account first. When you become the highest bidder and win, the secured half is released to the seller wallet automatically, while the remaining half should only be settled after delivery confirmation.</div>
         </div>
         <div class="wallet-actions">
           <button class="btn btn-sm" onclick="addFunds()">Add Funds</button>
@@ -305,18 +319,87 @@
     }
 
     async function addFunds() {
-      const amount = prompt('Enter amount to add (₹):', '1000');
-      if (!amount) return;
-      const num = Number(amount);
-      if (!num || num <= 0) { UI.toast('Invalid amount', 'error'); return; }
-      const res = await api.post('/deposit', { amount: num });
-      if (res?.success) {
-        UI.toast(`₹${num.toLocaleString('en-IN')} added!`, 'success');
-        const balEl = document.querySelector('.wallet-balance');
-        if (balEl) balEl.textContent = UI.formatPrice(res.newBalance);
-      } else {
-        UI.toast(res?.error || 'Deposit failed', 'error');
+      UI.showModal(`
+        <h3>Top up your wallet</h3>
+        <p style="margin-top:var(--space-3);color:var(--text-secondary);">Use Razorpay test mode to add buyer funds into Gavel. These funds secure your active bids and support post-auction settlement.</p>
+        <div class="form-group" style="margin-top:var(--space-4);">
+          <label class="form-label">Amount</label>
+          <input id="walletTopupAmount" class="form-input" type="number" min="100" step="100" value="1000">
+          <p class="text-muted text-sm" style="margin-top:var(--space-2);">Minimum test top-up is ₹100.</p>
+        </div>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+          <button class="btn btn-ghost" onclick="UI.closeModal()" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary" onclick="startWalletTopup()" style="flex:1;">Continue</button>
+        </div>
+      `);
+    }
+
+    async function startWalletTopup() {
+      const num = Number(document.getElementById('walletTopupAmount')?.value || 0);
+      if (!Number.isFinite(num) || num < 100) {
+        UI.toast('Enter a valid amount of at least ₹100.', 'error');
+        return;
       }
+
+      const config = await api.get('/payments/razorpay/config');
+      if (!config?.enabled || !config?.keyId) {
+        const fallback = await api.post('/deposit', { amount: num });
+        if (!fallback?.success) {
+          UI.toast(fallback?.error || 'Wallet top-up failed.', 'error');
+          return;
+        }
+        UI.closeModal();
+        syncWalletBalance(fallback.newBalance);
+        UI.toast(`Razorpay is not configured yet. Wallet credited directly with ${UI.formatPrice(num)} for local testing.`, 'success');
+        return;
+      }
+
+      if (typeof Razorpay !== 'function') {
+        UI.toast('Razorpay checkout script did not load.', 'error');
+        return;
+      }
+
+      const orderRes = await api.post('/payments/razorpay/order', { amount: num });
+      if (!orderRes?.order?.id) {
+        UI.toast(orderRes?.error || 'Could not create Razorpay order.', 'error');
+        return;
+      }
+
+      const razorpay = new Razorpay({
+        key: orderRes.keyId,
+        amount: orderRes.order.amount,
+        currency: orderRes.order.currency || 'INR',
+        name: 'Gavel Wallet',
+        description: 'Buyer wallet top-up',
+        order_id: orderRes.order.id,
+        prefill: {
+          name: data?.user?.name || '',
+          email: data?.user?.email || '',
+          contact: data?.user?.phoneNumber || ''
+        },
+        theme: { color: '#5c6b4f' },
+        modal: {
+          ondismiss: () => UI.toast('Wallet top-up cancelled.', 'info')
+        },
+        handler: async function (response) {
+          const verify = await api.post('/payments/razorpay/verify', response);
+          if (!verify?.success) {
+            UI.toast(verify?.error || 'Payment verification failed.', 'error');
+            return;
+          }
+          UI.closeModal();
+          syncWalletBalance(verify.newBalance);
+          UI.toast(`Wallet credited with ${UI.formatPrice(num)}.`, 'success');
+        }
+      });
+
+      razorpay.open();
+    }
+
+    function syncWalletBalance(newBalance) {
+      if (data?.user) data.user.walletBalance = newBalance;
+      const balEl = document.querySelector('.wallet-balance');
+      if (balEl) balEl.textContent = UI.formatPrice(newBalance);
     }
 
     async function markAllRead() {

@@ -50,7 +50,7 @@
     .review-card-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
 
     .user-row {
-      display: grid; grid-template-columns: 40px 1fr auto auto auto;
+      display: grid; grid-template-columns: 40px 1fr auto auto auto auto;
       gap: var(--space-4); align-items: center;
       padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg);
       background: var(--bg-raised); border: 1px solid var(--border-light);
@@ -76,11 +76,59 @@
     .admin-action-bar {
       display: flex; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-6);
     }
+    .admin-two-col {
+      display:grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.85fr);
+      gap: var(--space-6);
+      align-items:start;
+      margin-top: var(--space-8);
+    }
+    .admin-panel-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-5);
+      box-shadow: var(--shadow-sm);
+    }
+    .admin-notification-list {
+      display:grid;
+      gap: var(--space-3);
+    }
+    .admin-notification {
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-light);
+      background: var(--bg);
+      padding: var(--space-4);
+    }
+    .admin-notification.unread {
+      border-left: 3px solid var(--olive);
+      background: rgba(143,170,126,0.05);
+    }
+    .admin-notification h4 {
+      margin: 0;
+      font-size: var(--text-sm);
+    }
+    .admin-notification p {
+      margin-top: 6px;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .admin-mini-metric {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding: var(--space-3) 0;
+      border-bottom:1px solid var(--border-light);
+      font-size: var(--text-sm);
+    }
+    .admin-mini-metric:last-child { border-bottom:none; }
 
     @media (max-width: 768px) {
       .admin-grid { grid-template-columns: repeat(2, 1fr); }
       .user-row { grid-template-columns: 36px 1fr auto; }
-      .user-row > :nth-child(4), .user-row > :nth-child(5) { display: none; }
+      .user-row > :nth-child(4), .user-row > :nth-child(5), .user-row > :nth-child(6) { display: none; }
+      .admin-two-col { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -119,9 +167,12 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/site.js"></script>
   <script>
     let pendingItems = [];
     let teamData = [];
+    let adminNotifications = [];
+    let disputeQueue = [];
 
     document.addEventListener('DOMContentLoaded', async () => {
       await Auth.init();
@@ -129,12 +180,16 @@
       document.getElementById('logoutBtn').style.display = 'inline-flex';
       window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
 
-      const [stats, pending, users, logs] = await Promise.all([
+      const [stats, pending, users, logs, notifications, disputes] = await Promise.all([
         api.get('/admin/stats'),
         api.get('/admin/pending'),
         api.get('/admin/users'),
-        api.get('/admin/logs')
+        api.get('/admin/logs'),
+        api.get('/notifications'),
+        api.get('/disputes')
       ]);
+      adminNotifications = Array.isArray(notifications) ? notifications : [];
+      disputeQueue = Array.isArray(disputes) ? disputes : [];
 
       if (Auth.isSuperAdmin()) {
         const team = await api.get('/admin/team-overview');
@@ -188,6 +243,42 @@
       }
       html += `</div>`;
 
+      html += `<div class="admin-two-col">`;
+      html += `<div class="admin-panel-card">
+        <div class="admin-section-header" style="margin-bottom:var(--space-4);"><h2 style="margin:0;">Notifications</h2><button class="btn btn-ghost btn-sm" onclick="markAllRead()">Mark all read</button></div>
+        <div class="admin-notification-list">`;
+      if (adminNotifications.length) {
+        adminNotifications.slice(0, 10).forEach((note) => {
+          html += `<div class="admin-notification ${note.read ? '' : 'unread'}">
+            <h4>${note.title || 'Update'}</h4>
+            <p>${note.message || ''}</p>
+            <div class="flex-between" style="margin-top:var(--space-2);gap:var(--space-3);">
+              <span class="text-muted text-xs">${note.createdAt ? UI.formatTimeShort(note.createdAt) : ''}</span>
+              ${note.actionUrl ? `<a href="${note.actionUrl}" class="btn btn-ghost btn-sm">Open</a>` : ''}
+            </div>
+          </div>`;
+        });
+      } else {
+        html += `<div class="empty-state"><h3>No new notifications</h3><p>Your assignment, dispute, and review updates will appear here.</p></div>`;
+      }
+      html += `</div></div>`;
+
+      html += `<div class="admin-panel-card">
+        <div class="admin-section-header" style="margin-bottom:var(--space-4);"><h2 style="margin:0;">Operations pulse</h2><a href="/dispute-center.html" class="btn btn-ghost btn-sm">Dispute portal</a></div>
+        <div class="admin-mini-metric"><span>Pending review items</span><strong>${pending?.length || 0}</strong></div>
+        <div class="admin-mini-metric"><span>Open disputes</span><strong>${disputeQueue.length}</strong></div>
+        <div class="admin-mini-metric"><span>Online reviewers</span><strong>${teamData.filter((t) => t.online).length || 0}</strong></div>
+        <div class="admin-mini-metric"><span>My unread alerts</span><strong>${adminNotifications.filter((n) => !n.read).length}</strong></div>
+        ${disputeQueue.slice(0, 3).map((item) => `
+          <div class="admin-notification" style="margin-top:var(--space-3);">
+            <h4>${item.title}</h4>
+            <p>${item.dispute?.reason || 'Post-auction dispute needs review.'}</p>
+            <a href="/dispute-center.html?id=${item.id}" class="btn btn-ghost btn-sm" style="margin-top:var(--space-2);">Open dispute</a>
+          </div>
+        `).join('')}
+      </div>`;
+      html += `</div>`;
+
       if (teamData.length) {
         html += `<div class="admin-section" id="team">`;
         html += `<div class="admin-section-header"><h2>Team Overview</h2></div>`;
@@ -212,6 +303,7 @@
             <div><div class="user-row-name">${u.fullname || 'Unknown'}</div><div class="user-row-email">${u.email}</div></div>
             <span class="trust-score"><span class="trust-dot"></span> ${u.trustScore || 0}</span>
             <span class="badge ${u.isAdmin || u.isSuperAdmin ? 'badge-approved' : 'badge-closed'}">${u.isSuperAdmin ? 'Super Admin' : u.isAdmin ? 'Admin' : u.role || 'Bidder'}</span>
+            ${Auth.isSuperAdmin() && !u.isSuperAdmin ? `<button class="btn btn-sm btn-ghost" onclick="toggleAdmin('${u._id}', ${!u.isAdmin})">${u.isAdmin ? 'Revoke Admin' : 'Make Admin'}</button>` : '<span></span>'}
             ${Auth.isSuperAdmin() ? `<button class="btn btn-sm btn-ghost" style="color:var(--ember);" onclick="deleteUser('${u._id}')">Delete</button>` : ''}
           </div>`;
         });
@@ -268,6 +360,16 @@
       const res = await api.delete('/admin/users/' + id);
       if (res?.success) { UI.toast('User deleted', 'success'); location.reload(); }
       else UI.toast(res?.error || 'Delete failed', 'error');
+    }
+
+    async function markAllRead() {
+      const res = await api.post('/notifications/read', {});
+      if (!res?.success) {
+        UI.toast(res?.error || 'Could not mark notifications as read.', 'error');
+        return;
+      }
+      UI.toast('Notifications marked as read.', 'success');
+      window.location.reload();
     }
   </script>
 </body>

@@ -99,6 +99,7 @@ router.post('/early-sell', requireAdmin, async (req, res) => {
 router.get('/team-overview', requireSuperAdmin, async (req, res) => {
     try {
         const admins = await User.find({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] }).select('-passwordHash').sort({ fullname: 1 });
+        const onlineWindow = new Date(Date.now() - 2 * 60 * 1000);
         const adminEmails = admins.map(a => a.email);
         const [assignedAgg, approvedAgg, rejectedAgg] = await Promise.all([
             Auction.aggregate([{ $match: { assignedAdminEmail: { $in: adminEmails }, status: { $in: ['pending_review', 'under_review'] } } }, { $group: { _id: '$assignedAdminEmail', count: { $sum: 1 } } }]),
@@ -111,6 +112,7 @@ router.get('/team-overview', requireSuperAdmin, async (req, res) => {
         const team = admins.map(a => ({
             id: a._id.toString(), fullname: a.fullname, email: a.email,
             isSuperAdmin: Boolean(a.isSuperAdmin), isAdmin: Boolean(a.isAdmin || a.isSuperAdmin || a.role === 'admin'),
+            online: Boolean(a.lastSeenAt && a.lastSeenAt >= onlineWindow),
             assignedProducts: assignedMap[a.email] || 0, approvedProducts: approvedMap[a.email] || 0, rejectedProducts: rejectedMap[a.email] || 0
         }));
         res.json(team);

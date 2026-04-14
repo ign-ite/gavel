@@ -42,9 +42,9 @@
     <div class="container">
       <div class="greeting-hero-inner">
         <div class="greeting-left">
-          <h1 id="greetingText">Good morning, Rahul</h1>
-          <div class="campus-badge" id="campusBadge">IIT Delhi</div>
-          <p class="greeting-subline" id="watchlistSubline">3 auctions ending today you're watching</p>
+          <h1 id="greetingText">Loading your dashboard...</h1>
+          <div class="campus-badge hide" id="campusBadge"></div>
+          <p class="greeting-subline" id="watchlistSubline">Track bids, wallet balance, and handoffs from one place.</p>
         </div>
         <div class="greeting-right">
           <div class="stat-pill" id="walletPill">
@@ -59,6 +59,7 @@
             <div class="stat-pill-label">Items Sold</div>
             <div class="stat-pill-value">0</div>
           </div>
+          <button class="btn btn-primary topup-trigger" onclick="addWalletFunds()">Top Up Wallet</button>
         </div>
       </div>
     </div>
@@ -76,7 +77,7 @@
     <div class="container">
       <div class="section-header">
         <h2>Your Activity</h2>
-        <p>Items you're winning, outbid on, or watching</p>
+        <p>Only the bids and listings that still need your attention.</p>
       </div>
       <div class="activity-strip" id="activityStrip">
         <!-- Skeleton loaders -->
@@ -97,8 +98,8 @@
   <section class="section">
     <div class="container">
       <div class="section-header">
-        <h2>⏰ Ending Soon</h2>
-        <p>Place your bids before time runs out</p>
+        <h2>Ending Soon</h2>
+        <p>The live auctions closing first across Gavel.</p>
       </div>
       <div class="ending-soon-strip" id="endingSoonStrip">
         <div class="skeleton" style="width:240px;height:300px;flex-shrink:0;"></div>
@@ -114,7 +115,7 @@
     <div class="container">
       <div class="section-header">
         <h2 class="font-heading">Picked for you</h2>
-        <p>Based on your campus and bid history</p>
+        <p>Fresh listings matched from your browsing and bidding patterns.</p>
       </div>
       <div class="recommended-grid" id="recommendedGrid">
         <div class="skeleton" style="height:300px;"></div>
@@ -125,62 +126,16 @@
     </div>
   </section>
 
-  <!-- CAMPUS LEADERBOARD STRIP -->
-  <section class="leaderboard-section">
-    <div class="container">
-      <div class="leaderboard-inner">
-        <div class="leaderboard-left">
-          <h2>This week on <span id="campusName">Gavel</span></h2>
-          <div class="leaderboard-list" id="leaderboardList">
-            <div class="leaderboard-row skeleton"></div>
-            <div class="leaderboard-row skeleton"></div>
-            <div class="leaderboard-row skeleton"></div>
-            <div class="leaderboard-row skeleton"></div>
-            <div class="leaderboard-row skeleton"></div>
-          </div>
-        </div>
-        <div class="leaderboard-right">
-          <div class="start-selling-card">
-            <h3>Turn your stuff into ₹₹₹</h3>
-            <p>List items in under 2 minutes. Reach thousands of students on campus.</p>
-            <a href="sell-product.html" class="btn btn-primary">Start Selling</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- RECENTLY VIEWED -->
   <section class="section hide" id="recentlyViewedSection">
     <div class="container">
       <div class="section-header">
         <h2>Recently Viewed</h2>
-        <p>Items you've checked out recently</p>
+        <p>Quick return to products you opened recently.</p>
       </div>
       <div class="recently-viewed-strip" id="recentlyViewedStrip">
         <!-- populated by JS -->
       </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="container">
-      <div class="section-header">
-        <h2>Profile & Activity</h2>
-        <p>Streaks, rank, spending, and saved searches</p>
-      </div>
-      <div id="gamificationGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);"></div>
-      <div style="margin-top:var(--space-8);" id="savedSearchesPanel"></div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="container">
-      <div class="section-header">
-        <h2>Bid Wars</h2>
-        <p>Most active auctions in the last 30 minutes</p>
-      </div>
-      <div id="bidWarsGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-4);"></div>
     </div>
   </section>
 
@@ -220,6 +175,7 @@
   <script src="js/api.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/ui.js"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script src="js/dashboard-home.js"></script>
   <script src="js/site.js"></script>
   <script>

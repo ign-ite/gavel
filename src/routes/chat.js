@@ -1,11 +1,14 @@
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { requireLogin } = require('../middleware/auth');
 const Auction = require('../models/Auction');
 const Message = require('../models/Message');
 const User = require('../models/User');
+const Media = require('../models/Media');
 const { getConversationKey, pushNotification } = require('../utils/auctionHelpers');
 const { broadcastChat } = require('../services/websocket');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 router.get('/:auctionId', requireLogin, async (req, res) => {
     const auctionId = req.params.auctionId;
@@ -29,14 +32,14 @@ router.get('/:auctionId', requireLogin, async (req, res) => {
         const otherUser = await User.findOne({ email: otherEmail });
 
         res.json({
-            messages: messages.map(m => ({ senderEmail: m.senderEmail, senderName: m.senderName, message: m.message, sentAt: m.sentAt })),
+            messages: messages.map(m => ({ senderEmail: m.senderEmail, senderName: m.senderName, message: m.message, sentAt: m.sentAt, attachments: m.attachments || [] })),
             auctionTitle: auction.title, myEmail: userEmail,
             otherName: otherUser ? otherUser.fullname : 'Other Party', otherEmail, conversationKey
         });
     } catch (e) { res.status(500).json({ message: 'Error' }); }
 });
 
-router.post('/:auctionId', requireLogin, async (req, res) => {
+router.post('/:auctionId', requireLogin, upload.array('attachments', 4), async (req, res) => {
     const auctionId = req.params.auctionId;
     const { message, recipientEmail } = req.body;
     try {
@@ -47,12 +50,28 @@ router.post('/:auctionId', requireLogin, async (req, res) => {
         const otherEmail = normalizedRecipient || (userEmail === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail);
         if (!otherEmail) return res.status(400).json({ message: 'Counterparty not found.' });
         const text = String(message || '').trim().slice(0, 2000);
-        if (!text) return res.status(400).json({ message: 'Message cannot be empty.' });
+        const files = req.files || [];
+        if (!text && !files.length) return res.status(400).json({ message: 'Message cannot be empty.' });
         const conversationKey = getConversationKey(auctionId, userEmail, otherEmail);
+        const attachments = [];
 
-        await Message.create({ auctionId, conversationKey, recipientEmail: otherEmail, senderEmail: userEmail, senderName: req.user.name, message: text });
+        for (const file of files) {
+            const kind = file.mimetype.startsWith('video/') ? 'video' : 'image';
+            const media = await Media.create({
+                ownerModel: 'Message',
+                ownerId: auction._id,
+                kind,
+                fileName: file.originalname,
+                contentType: file.mimetype,
+                size: file.size,
+                data: file.buffer
+            });
+            attachments.push({ mediaId: media._id, kind, fileName: file.originalname, url: `/api/media/${media._id}` });
+        }
 
-        const saved = { senderEmail: userEmail, senderName: req.user.name, message: text, sentAt: new Date().toISOString() };
+        await Message.create({ auctionId, conversationKey, recipientEmail: otherEmail, senderEmail: userEmail, senderName: req.user.name, message: text || (attachments.length ? 'Shared media' : ''), attachments });
+
+        const saved = { senderEmail: userEmail, senderName: req.user.name, message: text || (attachments.length ? 'Shared media' : ''), attachments, sentAt: new Date().toISOString() };
         broadcastChat(conversationKey, { type: 'chat_msg', auctionId, conversationKey, ...saved });
 
         res.json({ success: true, message: saved });

@@ -99,6 +99,32 @@
     }
     .send-btn:hover { background: var(--olive-dark); }
     .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .attachment-strip {
+      display:flex;
+      gap:var(--space-2);
+      flex-wrap:wrap;
+      margin-top:var(--space-3);
+    }
+    .attachment-chip {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:var(--sand);
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:var(--text-xs);
+    }
+    .msg-attachments {
+      display:grid;
+      gap:8px;
+      margin-top:8px;
+    }
+    .msg-attachments img,
+    .msg-attachments video {
+      max-width:220px;
+      border-radius:12px;
+      display:block;
+    }
 
     .access-denied { text-align: center; padding: var(--space-16) var(--space-6); }
     .access-denied h2 { color: var(--text-secondary); margin-bottom: var(--space-4); }
@@ -156,7 +182,12 @@
               <button type="button" onclick="scheduleMeetup('Tomorrow 11:00 AM', 'Library gate')">Suggest tomorrow</button>
             </div>
             <textarea id="msgInput" rows="1" placeholder="Type a message…" maxlength="2000"></textarea>
+            <div class="attachment-strip" id="attachmentStrip"></div>
           </div>
+          <input type="file" id="chatAttachmentInput" accept="image/*,video/*" multiple style="display:none;">
+          <button class="send-btn" id="attachBtn" title="Attach" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 0 1-7.78-7.78l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95l-8.5 8.49a1.5 1.5 0 0 1-2.12-2.12l7.79-7.78"/></svg>
+          </button>
           <button class="send-btn" id="sendBtn" title="Send">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
           </button>
@@ -181,6 +212,7 @@
     let ws = null;
     let lastDateLabel = null;
     let sending = false;
+    let pendingAttachments = [];
 
     const params = new URLSearchParams(window.location.search);
     const auctionId = params.get('auction');
@@ -203,12 +235,19 @@
 
       const input = document.getElementById('msgInput');
       const sendBtn = document.getElementById('sendBtn');
+      const attachBtn = document.getElementById('attachBtn');
+      const attachmentInput = document.getElementById('chatAttachmentInput');
       if (prefill) {
         input.value = prefill;
         input.dispatchEvent(new Event('input'));
       }
 
       sendBtn.addEventListener('click', sendMessage);
+      attachBtn.addEventListener('click', () => attachmentInput.click());
+      attachmentInput.addEventListener('change', (e) => {
+        pendingAttachments = Array.from(e.target.files || []).slice(0, 4);
+        renderPendingAttachments();
+      });
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
       });
@@ -255,16 +294,16 @@
       const input = document.getElementById('msgInput');
       const sendBtn = document.getElementById('sendBtn');
       const text = input.value.trim();
-      if (!text || !chatData) return;
+      if ((!text && !pendingAttachments.length) || !chatData) return;
 
       sending = true;
       input.disabled = true;
       sendBtn.disabled = true;
-      input.value = '';
-      input.style.height = 'auto';
-
-      // Always use HTTP POST — WS is receive-only
-      const res = await api.post('/chat/' + auctionId, { message: text, recipientEmail: chatData.otherEmail });
+      const formData = new FormData();
+      formData.append('message', text);
+      formData.append('recipientEmail', chatData.otherEmail);
+      pendingAttachments.forEach(file => formData.append('attachments', file));
+      const res = await api.upload('/chat/' + auctionId, formData);
 
       sending = false;
       input.disabled = false;
@@ -273,7 +312,12 @@
 
       if (res?.success) {
         const saved = res.message;
-        appendMsg({ senderEmail: myEmail, senderName: 'You', message: saved.message || text, sentAt: saved.sentAt || new Date().toISOString() });
+        appendMsg({ senderEmail: myEmail, senderName: 'You', message: saved.message || text, attachments: saved.attachments || [], sentAt: saved.sentAt || new Date().toISOString() });
+        input.value = '';
+        input.style.height = 'auto';
+        pendingAttachments = [];
+        document.getElementById('chatAttachmentInput').value = '';
+        renderPendingAttachments();
       } else {
         UI.toast(res?.message || 'Failed to send message', 'error');
         input.value = text;
@@ -337,9 +381,27 @@
       const row = document.createElement('div');
       row.className = `msg-row ${isMine ? 'mine' : 'theirs'}`;
       const time = new Date(sentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-      row.innerHTML = `<div class="msg-bubble">${esc(msg.message || msg.text || '')}</div><div class="msg-meta">${isMine ? 'You' : esc(msg.senderName || 'Unknown')} · ${time}</div>`;
+      const attachments = Array.isArray(msg.attachments) && msg.attachments.length ? `
+        <div class="msg-attachments">
+          ${msg.attachments.map(att => att.kind === 'video'
+            ? `<video controls src="${att.url}"></video>`
+            : `<img src="${att.url}" alt="${esc(att.fileName || 'attachment')}">`).join('')}
+        </div>` : '';
+      row.innerHTML = `<div class="msg-bubble">${esc(msg.message || msg.text || '')}${attachments}</div><div class="msg-meta">${isMine ? 'You' : esc(msg.senderName || 'Unknown')} · ${time}</div>`;
       win.appendChild(row);
       if (scroll) scrollToBottom();
+    }
+
+    function renderPendingAttachments() {
+      const strip = document.getElementById('attachmentStrip');
+      strip.innerHTML = pendingAttachments.map((file, index) => `
+        <span class="attachment-chip">${esc(file.name)} <button type="button" onclick="removeAttachment(${index})" style="border:none;background:none;cursor:pointer;">&times;</button></span>
+      `).join('');
+    }
+
+    function removeAttachment(index) {
+      pendingAttachments.splice(index, 1);
+      renderPendingAttachments();
     }
 
     function scrollToBottom() { const w = document.getElementById('chatWindow'); w.scrollTop = w.scrollHeight; }

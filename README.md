@@ -231,6 +231,11 @@ This creates a super admin, 2 admins, sellers, and buyers with wallet balances.
 
 \* Required only if using Google OAuth. Email/password auth works without Supabase.
 
+Razorpay test setup:
+- Use Razorpay test credentials for `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`.
+- Wallet top-up on `dashboard.html` uses Razorpay Checkout when these keys are present.
+- If the keys are missing, the project falls back to direct local wallet credit so development can continue without blocking checkout wiring.
+
 ---
 
 ## Scripts

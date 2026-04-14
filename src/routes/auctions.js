@@ -38,7 +38,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200
 
 router.get('/', async (req, res) => {
     try {
-        const { status, campus, sellerEmail, q, limit, sort } = req.query;
+        const { status, campus, sellerEmail, q, limit, sort, lightweight } = req.query;
         const query = {};
         const requestedStatuses = status
             ? String(status).split(',').map((value) => value.trim()).filter(Boolean)
@@ -86,9 +86,9 @@ router.get('/', async (req, res) => {
             }
         })();
 
-        const rows = await Auction.find(query).sort(sortSpec).limit(Math.min(Number(limit) || 100, 100));
+        const rows = await Auction.find(query).sort(sortSpec).limit(Math.min(Number(limit) || 100, 100)).lean();
         const bidCountMap = await getBidCountMap(rows.map(r => r._id));
-        let mapped = await Promise.all(rows.map(r => mapAuction(r, bidCountMap)));
+        let mapped = await Promise.all(rows.map(r => mapAuction(r, bidCountMap, { lightweight: lightweight === '1' || lightweight === 'true' })));
         if (campus) mapped = mapped.filter((row) => row.sellerCollege === campus);
         res.json(mapped);
     } catch (e) { res.status(500).json({ error: 'Server error' }); }

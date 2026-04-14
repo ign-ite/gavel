@@ -46,7 +46,9 @@ const UserSchema = new mongoose.Schema({
     college: { type: String, default: null },
     campusVerified: { type: Boolean, default: false },
     hostelBlock: { type: String, default: '' },
+    phoneNumber: { type: String, default: '' },
     lastSeenAt: { type: Date, default: null },
+    bidAgreements: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Auction' }],
     blockedUsers: [{ type: String }],
     adminApplication: {
         status: { type: String, default: 'none', enum: ['none', 'pending', 'approved', 'rejected'] },

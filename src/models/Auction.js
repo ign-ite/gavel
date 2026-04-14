@@ -80,6 +80,24 @@ const AuctionSchema = new mongoose.Schema({
         note: { type: String, default: '' },
         createdAt: { type: Date, default: Date.now }
     }],
+    settlement: {
+        securedAmount: { type: Number, default: 0 },
+        remainingAmount: { type: Number, default: 0 },
+        sellerWalletCredited: { type: Boolean, default: false },
+        creditedAt: { type: Date, default: null },
+        deliveryCode: { type: String, default: '' },
+        deliveryConfirmedAt: { type: Date, default: null },
+        releasedByEmail: { type: String, default: '' }
+    },
+    dispute: {
+        status: { type: String, default: 'none', enum: ['none', 'open', 'resolved'] },
+        raisedByEmail: { type: String, default: '' },
+        reason: { type: String, default: '' },
+        notes: { type: String, default: '' },
+        createdAt: { type: Date, default: null },
+        resolvedAt: { type: Date, default: null },
+        resolvedByEmail: { type: String, default: '' }
+    },
     priceHistory: [{
         amount: { type: Number },
         changedAt: { type: Date, default: Date.now },

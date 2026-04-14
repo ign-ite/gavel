@@ -2,8 +2,9 @@ const Auction = require('../models/Auction');
 const Bid = require('../models/Bid');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const Message = require('../models/Message');
 const { broadcastAuction } = require('./websocket');
-const { pushNotification } = require('../utils/auctionHelpers');
+const { pushNotification, getConversationKey } = require('../utils/auctionHelpers');
 
 async function closeAuction(auctionId) {
     try {
@@ -16,6 +17,12 @@ async function closeAuction(auctionId) {
             item.winnerEmail = highestBid.bidderEmail;
             item.winnerName = highestBid.bidderName;
             item.winningBid = highestBid.amount;
+            item.settlement = item.settlement || {};
+            item.settlement.securedAmount = Math.ceil(Number(highestBid.amount || 0) / 2);
+            item.settlement.remainingAmount = Math.max(0, Number(highestBid.amount || 0) - Number(item.settlement.securedAmount || 0));
+            item.settlement.deliveryCode = String(Math.floor(100000 + Math.random() * 900000));
+            item.settlement.sellerWalletCredited = true;
+            item.settlement.creditedAt = new Date();
 
             const winner = await User.findOne({ email: highestBid.bidderEmail });
             if (winner) {
@@ -25,6 +32,7 @@ async function closeAuction(auctionId) {
 
             const seller = await User.findOne({ email: item.sellerEmail });
             if (seller) {
+                seller.walletBalance = Number(seller.walletBalance || 0) + Number(item.settlement.securedAmount || 0);
                 seller.trustScore = Math.min(500, Number(seller.trustScore || 0) + 5);
                 await seller.save();
             }
@@ -35,6 +43,16 @@ async function closeAuction(auctionId) {
                 message: `You won "${item.title}" at ₹${highestBid.amount.toLocaleString('en-IN')}`,
                 actionUrl: `/winner-confirmation.html?id=${item._id}`,
                 metadata: { auctionId: item._id.toString() }
+            });
+
+            const conversationKey = getConversationKey(item._id.toString(), item.sellerEmail, highestBid.bidderEmail);
+            await Message.create({
+                auctionId: item._id,
+                conversationKey,
+                recipientEmail: highestBid.bidderEmail,
+                senderEmail: item.sellerEmail,
+                senderName: item.sellerName || 'Seller',
+                message: `Congratulations, you have won the bid for "${item.title}" at ₹${highestBid.amount.toLocaleString('en-IN')}. ₹${Number(item.settlement.securedAmount || 0).toLocaleString('en-IN')} has already been transferred to my seller wallet from Gavel. Please pay the remaining ₹${Number(item.settlement.remainingAmount || 0).toLocaleString('en-IN')} after the product is received, as per the terms between buyer and seller. Gavel recommends settling the remaining half only after delivery confirmation. Delivery code: ${item.settlement.deliveryCode}.`
             });
 
             await pushNotification(item.sellerEmail, {

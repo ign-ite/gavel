@@ -35,7 +35,9 @@ async function applyBidToAuction(options) {
     const previousLeaderEmail = latestBid ? latestBid.bidderEmail : null;
     const previousLeaderAmount = latestBid ? Number(latestBid.amount || 0) : 0;
     const sameLeader = previousLeaderEmail === bidderEmail;
-    const holdRequired = sameLeader ? Math.max(0, numericAmount - previousLeaderAmount) : numericAmount;
+    const newSecured = Math.ceil(numericAmount / 2);
+    const previousSecured = Math.ceil(previousLeaderAmount / 2);
+    const holdRequired = sameLeader ? Math.max(0, newSecured - previousSecured) : newSecured;
 
     const dbUser = await User.findOne({ email: bidderEmail });
     if (!dbUser || Number(dbUser.walletBalance || 0) < holdRequired) return null;
@@ -43,7 +45,7 @@ async function applyBidToAuction(options) {
     if (!sameLeader && previousLeaderEmail) {
         const prevUser = await User.findOne({ email: previousLeaderEmail });
         if (prevUser) {
-            prevUser.walletBalance = Number(prevUser.walletBalance || 0) + previousLeaderAmount;
+            prevUser.walletBalance = Number(prevUser.walletBalance || 0) + previousSecured;
             await prevUser.save();
             await pushNotification(previousLeaderEmail, {
                 type: 'outbid',
@@ -68,6 +70,9 @@ async function applyBidToAuction(options) {
 
     item.currentBid = numericAmount;
     item.bidCount = (item.bidCount || 0) + 1;
+    item.settlement = item.settlement || {};
+    item.settlement.securedAmount = newSecured;
+    item.settlement.remainingAmount = Math.max(0, numericAmount - newSecured);
     await item.save();
 
     trackBidActivity(item._id, bidderEmail);
@@ -105,10 +110,7 @@ async function resolveAutoBids(auctionId) {
         const ab = activeAutoBids[0];
         const nextBid = currentBid + increment;
         if (ab.bidderEmail !== currentLeaderEmail && Number(ab.maxAmount) >= nextBid) {
-            const bidder = await User.findOne({ email: ab.bidderEmail });
-            if (bidder && Number(bidder.walletBalance || 0) >= nextBid) {
-                await applyBidToAuction({ auction: item, bidderEmail: ab.bidderEmail, bidderName: ab.bidderName, amount: nextBid });
-            }
+            await applyBidToAuction({ auction: item, bidderEmail: ab.bidderEmail, bidderName: ab.bidderName, amount: nextBid });
         }
         return;
     }
@@ -116,18 +118,14 @@ async function resolveAutoBids(auctionId) {
     const topAB = activeAutoBids[0];
     const runnerAB = activeAutoBids[1];
     const finalAmount = Math.min(Number(topAB.maxAmount), Number(runnerAB.maxAmount) + increment);
-    const nextBid = Math.max(currentBid + increment, finalAmount);
 
     if (topAB.bidderEmail !== currentLeaderEmail && finalAmount >= currentBid + increment && Number(topAB.maxAmount) >= currentBid + increment) {
-        const bidder = await User.findOne({ email: topAB.bidderEmail });
-        if (bidder && Number(bidder.walletBalance || 0) >= nextBid) {
-            await applyBidToAuction({ auction: item, bidderEmail: topAB.bidderEmail, bidderName: topAB.bidderName, amount: finalAmount });
-        }
+        await applyBidToAuction({ auction: item, bidderEmail: topAB.bidderEmail, bidderName: topAB.bidderName, amount: finalAmount });
     }
 }
 
 async function handlePlaceBid(req, res) {
-    const { bidAmount, isAuto } = req.body;
+    const { bidAmount, isAuto, bidAgreement } = req.body;
     const id = req.params.listingId;
     const amount = Number(bidAmount);
     try {
@@ -143,6 +141,20 @@ async function handlePlaceBid(req, res) {
             const latestBid = await Bid.findOne({ auctionId: item._id }).sort({ placedAt: -1 });
             const isCurrentLeader = latestBid && latestBid.bidderEmail === req.user.email;
             if (isCurrentLeader && !isAuto) return { code: 400, body: { success: false, message: 'You already hold the top bid.' } };
+            const bidderUser = await User.findOne({ email: req.user.email });
+            if (!String(bidderUser?.phoneNumber || '').trim()) {
+                return { code: 400, body: { success: false, requiresPhoneNumber: true, message: 'Add your phone number before bidding.' } };
+            }
+            const previousBid = await Bid.findOne({ auctionId: item._id, bidderEmail: req.user.email });
+            const hasAgreed = (bidderUser?.bidAgreements || []).some((auctionId) => String(auctionId) === String(item._id));
+            if (!previousBid && !hasAgreed) {
+                if (!bidAgreement) {
+                    return { code: 400, body: { success: false, requiresBidAgreement: true, message: 'You must agree to the bidding commitment before placing your first bid on this product.' } };
+                }
+                bidderUser.bidAgreements = bidderUser.bidAgreements || [];
+                bidderUser.bidAgreements.push(item._id);
+                await bidderUser.save();
+            }
 
             if (isAuto) {
                 await AutoBid.findOneAndUpdate(
@@ -204,13 +216,27 @@ async function handlePlaceBid(req, res) {
 }
 
 router.post('/auto-bid', requireLogin, bidLimiter, async (req, res) => {
-    const { listingId, maxAmount } = req.body;
+    const { listingId, maxAmount, bidAgreement } = req.body;
     try {
         const item = await Auction.findById(listingId);
         if (!item || item.status !== 'active') return res.status(400).json({ success: false, message: 'Only live listings can accept auto-bids.' });
         if (item.sellerEmail === req.user.email) return res.status(403).json({ success: false, message: 'Cannot auto-bid on your own listing.' });
         if (!Number.isInteger(Number(maxAmount)) || Number(maxAmount) <= Number(item.currentBid || 0))
             return res.status(400).json({ success: false, message: `Auto-bid max must be higher than ₹${Number(item.currentBid || 0).toLocaleString('en-IN')}.` });
+        const bidderUser = await User.findOne({ email: req.user.email });
+        if (!String(bidderUser?.phoneNumber || '').trim()) {
+            return res.status(400).json({ success: false, requiresPhoneNumber: true, message: 'Add your phone number before setting auto-bid.' });
+        }
+        const previousBid = await Bid.findOne({ auctionId: item._id, bidderEmail: req.user.email });
+        const hasAgreed = (bidderUser?.bidAgreements || []).some((auctionId) => String(auctionId) === String(item._id));
+        if (!previousBid && !hasAgreed) {
+            if (!bidAgreement) {
+                return res.status(400).json({ success: false, requiresBidAgreement: true, message: 'You must agree to the bidding commitment before your first bid on this product.' });
+            }
+            bidderUser.bidAgreements = bidderUser.bidAgreements || [];
+            bidderUser.bidAgreements.push(item._id);
+            await bidderUser.save();
+        }
 
         await AutoBid.findOneAndUpdate(
             { auctionId: item._id, bidderEmail: req.user.email },

@@ -72,15 +72,15 @@ app.get('/api/me', async (req, res) => {
             try {
                 const decoded = jwt.verify(token, JWT_SECRET);
                 const dbUser = await User.findById(decoded.id);
-                if (dbUser) return res.json({ loggedIn: true, user: { id: dbUser._id, email: dbUser.email, name: dbUser.fullname, role: dbUser.role, isAdmin: dbUser.isAdmin || dbUser.isSuperAdmin, isSuperAdmin: dbUser.isSuperAdmin } });
+                if (dbUser) return res.json({ loggedIn: true, user: { id: dbUser._id, email: dbUser.email, name: dbUser.fullname, role: dbUser.role, isAdmin: dbUser.isAdmin || dbUser.isSuperAdmin, isSuperAdmin: dbUser.isSuperAdmin, phoneNumber: dbUser.phoneNumber || '' } });
             } catch (e) { /* fallthrough */ }
         }
         if (supabase) {
             const { data, error } = await supabase.auth.getUser(token);
             if (data?.user) {
                 const dbUser = await User.findOne({ email: data.user.email });
-                if (dbUser) return res.json({ loggedIn: true, user: { id: dbUser._id, email: dbUser.email, name: dbUser.fullname, role: dbUser.role, isAdmin: dbUser.isAdmin || dbUser.isSuperAdmin, isSuperAdmin: dbUser.isSuperAdmin } });
-                return res.json({ loggedIn: true, user: { email: data.user.email, name: data.user.user_metadata?.full_name || data.user.email, role: 'bidder' } });
+                if (dbUser) return res.json({ loggedIn: true, user: { id: dbUser._id, email: dbUser.email, name: dbUser.fullname, role: dbUser.role, isAdmin: dbUser.isAdmin || dbUser.isSuperAdmin, isSuperAdmin: dbUser.isSuperAdmin, phoneNumber: dbUser.phoneNumber || '' } });
+                return res.json({ loggedIn: true, user: { email: data.user.email, name: data.user.user_metadata?.full_name || data.user.email, role: 'bidder', phoneNumber: '' } });
             }
         }
         res.json({ loggedIn: false });
@@ -115,7 +115,7 @@ app.post('/api/user/sync', async (req, res) => {
                 res.cookie('jwt_token', jwtToken, cookieOpts);
             }
             res.cookie('sb_access_token', token, cookieOptsShort);
-            return res.json({ success: true, user: { id: existing._id, email: existing.email, name: existing.fullname, isAdmin: existing.isAdmin || existing.isSuperAdmin, isSuperAdmin: existing.isSuperAdmin } });
+            return res.json({ success: true, user: { id: existing._id, email: existing.email, name: existing.fullname, isAdmin: existing.isAdmin || existing.isSuperAdmin, isSuperAdmin: existing.isSuperAdmin, phoneNumber: existing.phoneNumber || '' } });
         }
 
         const newUser = await User.create({
@@ -128,7 +128,7 @@ app.post('/api/user/sync', async (req, res) => {
             res.cookie('jwt_token', jwtToken, cookieOpts);
         }
         res.cookie('sb_access_token', token, cookieOptsShort);
-        res.json({ success: true, user: { id: newUser._id, email: newUser.email, name: newUser.fullname, isAdmin: newUser.isAdmin || newUser.isSuperAdmin, isSuperAdmin: newUser.isSuperAdmin } });
+        res.json({ success: true, user: { id: newUser._id, email: newUser.email, name: newUser.fullname, isAdmin: newUser.isAdmin || newUser.isSuperAdmin, isSuperAdmin: newUser.isSuperAdmin, phoneNumber: newUser.phoneNumber || '' } });
     } catch (e) { res.status(500).json({ error: 'Sync failed' }); }
 });
 

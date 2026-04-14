@@ -45,6 +45,11 @@
           <input class="form-input" type="text" id="college" placeholder="e.g. IIT Delhi">
         </div>
         <div class="form-group">
+          <label class="form-label" for="phoneNumber">Phone Number</label>
+          <input class="form-input" type="tel" id="phoneNumber" placeholder="Your contact number" required>
+          <p class="form-hint">Saved for buyer-seller contact after a sale closes.</p>
+        </div>
+        <div class="form-group">
           <label class="form-label" for="password">Password</label>
           <input class="form-input" type="password" id="password" placeholder="Min 6 characters" required autocomplete="new-password" minlength="6">
         </div>
@@ -86,7 +91,8 @@
           fullname: document.getElementById('fullname').value,
           email: document.getElementById('email').value,
           password: document.getElementById('password').value,
-          college: document.getElementById('college').value
+          college: document.getElementById('college').value,
+          phoneNumber: document.getElementById('phoneNumber').value
         });
         if (res?.success) {
           UI.toast('Account created!', 'success');

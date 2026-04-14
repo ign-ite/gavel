@@ -1,5 +1,6 @@
 const Site = (() => {
     const storageKey = 'gavel_page_state_v1';
+    const phonePromptCooldownKey = 'gavel_phone_prompt_cooldown';
 
     function getPageKey() {
         return `${window.location.pathname}${window.location.search}`;
@@ -115,6 +116,122 @@ const Site = (() => {
         }
     }
 
+    function normalizePhoneNumber(input) {
+        const digits = String(input || '').replace(/\D/g, '');
+        if (digits.length === 10) return digits;
+        if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+        return '';
+    }
+
+    function buildPhoneModal() {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.innerHTML = `
+            <div class="modal" style="max-width:520px;width:min(92vw,520px);padding:0;overflow:hidden;">
+                <div style="padding:var(--space-6);background:linear-gradient(135deg,var(--forest) 0%,var(--olive-dark) 100%);color:var(--parchment);">
+                    <p style="font-size:var(--text-xs);letter-spacing:0.08em;text-transform:uppercase;opacity:0.8;">Contact verification</p>
+                    <h3 style="margin-top:var(--space-2);font-size:var(--text-2xl);color:var(--parchment);">Add your phone number</h3>
+                    <p style="margin-top:var(--space-3);opacity:0.82;line-height:1.6;">This is required for post-auction coordination, delivery confirmation, and buyer-seller contact after the sale closes.</p>
+                </div>
+                <div style="padding:var(--space-6);">
+                    <div style="display:grid;gap:var(--space-4);">
+                        <div class="form-group" style="margin:0;">
+                            <label class="form-label" for="sitePhoneInput">10 digit phone number</label>
+                            <input id="sitePhoneInput" class="form-input" type="tel" inputmode="numeric" maxlength="10" placeholder="9876543210" autocomplete="tel">
+                            <p id="sitePhoneHelp" class="text-muted text-sm" style="margin-top:var(--space-2);">Only Indian 10 digit mobile numbers are accepted.</p>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
+                            <button type="button" class="btn btn-ghost" id="sitePhoneSkipBtn">Later</button>
+                            <button type="button" class="btn btn-primary" id="sitePhoneSaveBtn">Save number</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(backdrop);
+        return backdrop;
+    }
+
+    function requestPhoneNumber(options = {}) {
+        const { force = false } = options;
+        const cooldown = Number(sessionStorage.getItem(phonePromptCooldownKey) || 0);
+        if (!force && cooldown && Date.now() - cooldown < 10 * 60 * 1000) {
+            return Promise.resolve(false);
+        }
+
+        return new Promise((resolve) => {
+            const backdrop = buildPhoneModal();
+            const input = backdrop.querySelector('#sitePhoneInput');
+            const help = backdrop.querySelector('#sitePhoneHelp');
+            const saveBtn = backdrop.querySelector('#sitePhoneSaveBtn');
+            const skipBtn = backdrop.querySelector('#sitePhoneSkipBtn');
+
+            const close = (saved) => {
+                backdrop.remove();
+                if (!saved) sessionStorage.setItem(phonePromptCooldownKey, String(Date.now()));
+                resolve(saved);
+            };
+
+            const setError = (message) => {
+                help.textContent = message;
+                help.style.color = 'var(--ember)';
+            };
+
+            const resetHelp = () => {
+                help.textContent = 'Only Indian 10 digit mobile numbers are accepted.';
+                help.style.color = '';
+            };
+
+            input.addEventListener('input', () => {
+                input.value = String(input.value || '').replace(/\D/g, '').slice(0, 10);
+                resetHelp();
+            });
+
+            skipBtn.addEventListener('click', () => {
+                if (force) {
+                    setError('Phone number is required to continue with this action.');
+                    input.focus();
+                    return;
+                }
+                close(false);
+            });
+
+            saveBtn.addEventListener('click', async () => {
+                const phoneNumber = normalizePhoneNumber(input.value);
+                if (!phoneNumber) {
+                    setError('Enter a valid 10 digit phone number.');
+                    input.focus();
+                    return;
+                }
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
+                try {
+                    const response = await fetch('/api/profile/contact', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ phoneNumber })
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.error || 'Could not save phone number.');
+                    }
+                    close(true);
+                } catch (error) {
+                    setError(error.message || 'Could not save phone number.');
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save number';
+                }
+            });
+
+            backdrop.addEventListener('click', (event) => {
+                if (event.target === backdrop && !force) close(false);
+            });
+
+            input.focus();
+        });
+    }
+
     async function pollNotifications() {
         try {
             const response = await fetch('/api/notifications', { credentials: 'include' });
@@ -135,6 +252,19 @@ const Site = (() => {
         } catch (error) {}
     }
 
+    async function ensurePhoneNumber(options = {}) {
+        try {
+            const response = await fetch('/api/me', { credentials: 'include' });
+            if (!response.ok) return;
+            const me = await response.json();
+            if (!me.loggedIn || String(me.user?.phoneNumber || '').trim()) return true;
+            if (window.location.pathname.endsWith('/signup.html') || window.location.pathname.endsWith('/login.html')) return;
+            return await requestPhoneNumber(options);
+        } catch (error) {
+            return false;
+        }
+    }
+
     function startPresencePing() {
         fetch('/api/presence/ping', { method: 'POST', credentials: 'include' }).catch(() => {});
         window.setInterval(() => {
@@ -149,6 +279,7 @@ const Site = (() => {
         bindPersistence();
         restorePageState();
         askNotificationPermission();
+        ensurePhoneNumber();
         startPresencePing();
     }
 
@@ -156,7 +287,9 @@ const Site = (() => {
         init,
         savePageState,
         restorePageState,
-        getPageState
+        getPageState,
+        ensurePhoneNumber,
+        requestPhoneNumber
     };
 })();
 

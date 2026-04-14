@@ -1,4 +1,17 @@
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+[
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(process.cwd(), '.env.local'),
+    path.resolve(process.cwd(), '..', '.env'),
+    path.resolve(process.cwd(), '..', '.env.local')
+].forEach((candidate) => {
+    if (fs.existsSync(candidate)) {
+        dotenv.config({ path: candidate, override: false });
+    }
+});
 
 module.exports = {
     JWT_SECRET: process.env.JWT_SECRET || '',
