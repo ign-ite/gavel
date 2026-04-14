@@ -30,7 +30,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
 router.get('/pending', requireAdmin, async (req, res) => {
     try {
         const query = req.adminUser.isSuperAdmin
-            ? { status: { $in: ['pending_review', 'under_review', 'rejected'] } }
+            ? { status: { $in: ['pending_review', 'under_review'] } }
             : { assignedAdminEmail: req.adminUser.email, status: { $in: ['pending_review', 'under_review'] } };
         const pending = await Auction.find(query).sort({ createdAt: 1 });
         res.json(await Promise.all(pending.map(mapAuction)));

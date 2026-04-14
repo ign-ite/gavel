@@ -84,6 +84,7 @@
       transition: background var(--transition); flex-shrink: 0;
     }
     .send-btn:hover { background: var(--olive-dark); }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .access-denied { text-align: center; padding: var(--space-16) var(--space-6); }
     .access-denied h2 { color: var(--text-secondary); margin-bottom: var(--space-4); }
@@ -128,7 +129,7 @@
 
         <div class="chat-window" id="chatWindow">
           <div class="empty-state" style="flex:1;display:flex;align-items:center;justify-content:center;">
-            <p style="color:var(--text-muted);">This conversation opens after a valid product interaction.</p>
+            <p style="color:var(--text-muted);">No messages yet. Say hello!</p>
           </div>
         </div>
 
@@ -156,15 +157,16 @@
     let myEmail = null;
     let ws = null;
     let lastDateLabel = null;
+    let sending = false;
+
+    const params = new URLSearchParams(window.location.search);
+    const auctionId = params.get('auction');
+    const otherEmailParam = params.get('with');
 
     document.addEventListener('DOMContentLoaded', async () => {
       await Auth.init();
       if (!Auth.isLoggedIn()) { window.location.href = `/login.html?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`; return; }
       window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
-
-      const params = new URLSearchParams(window.location.search);
-      const auctionId = params.get('auction');
-      const otherEmailParam = params.get('with');
 
       if (!auctionId) { showError('No auction specified.'); return; }
 
@@ -172,6 +174,23 @@
       if (!me?.loggedIn) { window.location.href = '/login.html'; return; }
       myEmail = me.user.email;
 
+      await loadChat();
+      connectWS();
+
+      const input = document.getElementById('msgInput');
+      const sendBtn = document.getElementById('sendBtn');
+
+      sendBtn.addEventListener('click', sendMessage);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+      });
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      });
+    });
+
+    async function loadChat() {
       const suffix = otherEmailParam ? `?with=${encodeURIComponent(otherEmailParam)}` : '';
       const res = await api.get('/chat/' + auctionId + suffix);
       if (!res || res.message) { showError(res?.message || 'Access denied.'); return; }
@@ -184,44 +203,64 @@
       document.getElementById('otherAvatar').textContent = (chatData.otherName || '?').charAt(0).toUpperCase();
 
       renderMessages(chatData.messages || []);
-      connectWS(auctionId);
+    }
 
+    async function sendMessage() {
+      if (sending) return;
       const input = document.getElementById('msgInput');
       const sendBtn = document.getElementById('sendBtn');
+      const text = input.value.trim();
+      if (!text || !chatData) return;
 
-      function sendMessage() {
-        const text = input.value.trim();
-        if (!text) return;
-        input.value = '';
-        input.style.height = 'auto';
+      sending = true;
+      input.disabled = true;
+      sendBtn.disabled = true;
+      input.value = '';
+      input.style.height = 'auto';
 
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'chat_msg', auctionId, text, recipientEmail: chatData.otherEmail }));
-        } else {
-          api.post('/chat/' + auctionId, { message: text, recipientEmail: chatData.otherEmail }).then(r => {
-            if (r?.message) appendMsg({ senderEmail: myEmail, senderName: 'You', message: r.message.message || text, sentAt: r.message.sentAt || new Date().toISOString() });
-          });
-        }
+      // Always use HTTP POST — WS is receive-only
+      const res = await api.post('/chat/' + auctionId, { message: text, recipientEmail: chatData.otherEmail });
+
+      sending = false;
+      input.disabled = false;
+      sendBtn.disabled = false;
+      input.focus();
+
+      if (res?.success) {
+        const saved = res.message;
+        appendMsg({ senderEmail: myEmail, senderName: 'You', message: saved.message || text, sentAt: saved.sentAt || new Date().toISOString() });
+      } else {
+        UI.toast(res?.message || 'Failed to send message', 'error');
+        input.value = text;
       }
+    }
 
-      sendBtn.addEventListener('click', sendMessage);
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
-      input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 120) + 'px'; });
-    });
-
-    function connectWS(auctionId) {
+    function connectWS() {
+      const token = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('jwt_token='))?.split('=')[1] || '';
       const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-      ws = new WebSocket(`${protocol}://${location.host}/ws`);
+      ws = new WebSocket(`${protocol}://${location.host}/ws?token=${encodeURIComponent(token)}`);
       const dot = document.getElementById('connDot');
 
       ws.addEventListener('open', () => {
         dot.className = 'conn-dot online';
-        ws.send(JSON.stringify({ type: 'join_chat', conversationKey: chatData.conversationKey, email: myEmail, name: chatData.otherName }));
+        if (chatData?.conversationKey) {
+          ws.send(JSON.stringify({ type: 'join_chat', conversationKey: chatData.conversationKey, email: myEmail }));
+        }
       });
-      ws.addEventListener('close', () => { dot.className = 'conn-dot offline'; });
+
+      ws.addEventListener('close', () => {
+        dot.className = 'conn-dot offline';
+        setTimeout(connectWS, 3000);
+      });
+
       ws.addEventListener('message', (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'chat_msg' && msg.conversationKey === chatData.conversationKey) appendMsg(msg);
+        try {
+          const msg = JSON.parse(event.data);
+          // Only show incoming messages from the other person (our own are appended immediately on send)
+          if (msg.type === 'chat_msg' && msg.conversationKey === chatData?.conversationKey && msg.senderEmail !== myEmail) {
+            appendMsg(msg);
+          }
+        } catch (e) {}
       });
     }
 
@@ -239,7 +278,8 @@
       const empty = win.querySelector('.empty-state');
       if (empty) empty.remove();
 
-      const dateLabel = new Date(msg.sentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+      const sentAt = msg.sentAt || new Date().toISOString();
+      const dateLabel = new Date(sentAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
       if (dateLabel !== lastDateLabel) {
         lastDateLabel = dateLabel;
         const div = document.createElement('div');
@@ -251,7 +291,7 @@
       const isMine = msg.senderEmail === myEmail;
       const row = document.createElement('div');
       row.className = `msg-row ${isMine ? 'mine' : 'theirs'}`;
-      const time = new Date(msg.sentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      const time = new Date(sentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
       row.innerHTML = `<div class="msg-bubble">${esc(msg.message || msg.text || '')}</div><div class="msg-meta">${isMine ? 'You' : esc(msg.senderName || 'Unknown')} · ${time}</div>`;
       win.appendChild(row);
       if (scroll) scrollToBottom();

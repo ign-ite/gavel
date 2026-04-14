@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const path = require('path');
 
-const Auction = require('../models/Auction');
-const User = require('../models/User');
+const Auction = require('../src/models/Auction');
+const User = require('../src/models/User');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 

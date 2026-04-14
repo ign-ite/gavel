@@ -224,7 +224,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.endAuction = async (id) => {
         if (!confirm("End this market now? The current highest bidder will win.")) return;
         try {
-            const res  = await fetch('/api/end-auction', {
+            const res  = await fetch('/api/auctions/end-auction', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id })
             });
@@ -237,7 +237,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.withdrawItem = async (id) => {
         if (!confirm("Withdraw this listing? It will be permanently removed.")) return;
         try {
-            const res  = await fetch('/api/remove-item', {
+            const res  = await fetch('/api/auctions/remove-item', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id })
             });

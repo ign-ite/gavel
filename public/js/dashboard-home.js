@@ -43,7 +43,11 @@
 
     // Load recently viewed
     loadRecentlyViewed();
-
+    document.getElementById('loginBtn')?.classList.add('hide');
+    document.getElementById('signupBtn')?.classList.add('hide');
+    document.getElementById('messagesBtn')?.classList.remove('hide');
+    document.getElementById('myListingsBtn')?.classList.remove('hide');
+    document.getElementById('dashboardBtn')?.classList.remove('hide');
     // Show admin banner if admin
     if (user.isAdmin || user.isSuperAdmin) {
         document.getElementById('adminBanner').classList.remove('hide');

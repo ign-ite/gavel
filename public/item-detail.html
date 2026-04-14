@@ -9,6 +9,13 @@
   <link rel="stylesheet" href="css/animations.css">
   <link rel="stylesheet" href="css/responsive.css">
   <link rel="icon" href="images/logo.png">
+  <style>
+    /* Fix: remove dark gradient overlay on the bid panel card */
+    .detail-bid-card > div:first-child::after { display: none !important; }
+    .detail-bid-card { overflow: visible !important; }
+    .detail-bid-card:hover { transform: none !important; box-shadow: var(--shadow-sm) !important; }
+    @media (max-width:1023px) { .detail-grid { grid-template-columns: 1fr !important; } }
+  </style>
 </head>
 <body style="padding-top:var(--space-20);">
   <nav class="navbar" id="navbar"><div class="container">
@@ -21,7 +28,9 @@
     <div class="navbar-actions">
       <a href="login.html" class="btn btn-ghost btn-sm" id="loginBtn">Log in</a>
       <a href="signup.html" class="btn btn-primary btn-sm" id="signupBtn">Get Started</a>
-      <a href="dashboard.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
+      <a href="chats.html" class="btn btn-ghost btn-sm hide" id="messagesBtn">Messages</a>
+      <a href="my-products.html" class="btn btn-ghost btn-sm hide" id="myListingsBtn">My Listings</a>
+      <a href="dashboard-home.html" class="btn btn-primary btn-sm hide" id="dashboardBtn">Dashboard</a>
     </div>
   </div></nav>
 
@@ -44,21 +53,12 @@
     let ws = null;
     let countdownInterval = null;
 
-    // DASHBOARD-HOME ADDITION: track recently viewed items for dashboard-home.html
     function trackRecentlyViewed(auction) {
         const key = 'gavel_recently_viewed';
         const maxItems = 10;
         let items = JSON.parse(localStorage.getItem(key) || '[]');
-        // Remove duplicate if same id
         items = items.filter(item => item.id !== auction._id);
-        // Prepend new item
-        items.unshift({
-            id: auction._id,
-            name: auction.title,
-            image: auction.images?.[0] || '',
-            bid: auction.currentBid || 0
-        });
-        // Keep only latest maxItems
+        items.unshift({ id: auction._id, name: auction.title, image: auction.images?.[0] || '', bid: auction.currentBid || 0 });
         if (items.length > maxItems) items = items.slice(0, maxItems);
         localStorage.setItem(key, JSON.stringify(items));
     }
@@ -66,6 +66,15 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await Auth.init();
       window.addEventListener('scroll', () => document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20));
+
+      const user = Auth.getUser();
+      if (user) {
+        document.getElementById('loginBtn')?.classList.add('hide');
+        document.getElementById('signupBtn')?.classList.add('hide');
+        document.getElementById('messagesBtn')?.classList.remove('hide');
+        document.getElementById('myListingsBtn')?.classList.remove('hide');
+        document.getElementById('dashboardBtn')?.classList.remove('hide');
+      }
 
       const params = new URLSearchParams(window.location.search);
       const id = params.get('id');
@@ -79,8 +88,26 @@
       connectWS(id);
     });
 
+    function renderClosedBlock(a) {
+      const u = Auth.getUser();
+      const winnerLine = a.winnerName
+        ? `<p class="text-sm" style="margin-top:var(--space-2);">Won by ${a.winnerName} at ${UI.formatPrice(a.winningBid)}</p>`
+        : '<p class="text-muted text-sm" style="margin-top:var(--space-2);">No bids placed</p>';
+
+      let chatBtn = '';
+      if (u && a.winnerEmail && (u.email === a.sellerEmail || u.email === a.winnerEmail)) {
+        const withEmail = u.email === a.sellerEmail ? a.winnerEmail : a.sellerEmail;
+        const label = u.email === a.sellerEmail ? 'Message Buyer' : 'Message Seller';
+        chatBtn = `<a href="/chat.html?auction=${a.id}&with=${withEmail}" class="btn btn-primary btn-sm" style="margin-top:var(--space-3);width:100%;display:block;">${label}</a>`;
+      }
+
+      return `<div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;"><p style="font-weight:600;">Auction Ended</p>${winnerLine}${chatBtn}</div>`;
+    }
+
     function renderDetail() {
       const a = auction;
+      const u = Auth.getUser();
+      const isSeller = u && u.email === a.sellerEmail;
       const imgs = a.images || [];
       const mainImg = imgs[0] || '';
       const fallback = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="450" fill="%23ebe4d6"><rect width="600" height="450"/><text x="50%" y="50%" text-anchor="middle" fill="%238b7355" font-family="Georgia" font-size="20">No Image</text></svg>');
@@ -104,12 +131,12 @@
             </div>
             <div style="margin-top:var(--space-6);">
               <h3 style="font-size:var(--text-lg);margin-bottom:var(--space-4);">Bid History</h3>
-              <div id="bidHistory" class="spinner" style="padding:var(--space-4);"></div>
+              <div id="bidHistory" style="padding:var(--space-4);"><div class="spinner"></div></div>
             </div>
           </div>
 
           <div style="position:sticky;top:5rem;">
-            <div class="card" style="border-radius:var(--radius-2xl);">
+            <div class="card detail-bid-card" style="border-radius:var(--radius-2xl);">
               <div class="card-body" style="padding:var(--space-6);">
                 <h1 style="font-size:var(--text-2xl);margin-bottom:var(--space-3);">${a.title}</h1>
                 <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4);flex-wrap:wrap;">
@@ -130,6 +157,12 @@
 
                 ${a.status === 'active' ? `
                 <div id="bidForm">
+                  ${isSeller ? `
+                  <div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-3);text-align:center;margin-bottom:var(--space-3);">
+                    <p class="text-sm text-muted">This is your listing</p>
+                  </div>
+                  <button class="btn btn-danger btn-sm" style="width:100%;" onclick="endAuctionEarly()">End Auction Early</button>
+                  ` : `
                   <div class="form-group">
                     <label class="form-label">Your Bid</label>
                     <input class="form-input" type="number" id="bidAmount" min="${minBid}" step="${a.increment || 500}" placeholder="${minBid}" value="${minBid}">
@@ -142,8 +175,9 @@
                     </div>
                     <button class="btn btn-secondary btn-sm" style="width:100%;" onclick="setAutoBid()">Set Auto-Bid</button>
                   </div>
+                  `}
                 </div>
-                ` : a.status === 'closed' ? `<div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;"><p style="font-weight:600;">Auction Ended</p>${a.winnerName ? `<p class="text-sm" style="margin-top:var(--space-2);">Won by ${a.winnerName} at ${UI.formatPrice(a.winningBid)}</p>` : '<p class="text-muted text-sm" style="margin-top:var(--space-2);">No bids placed</p>'}</div>` : `<div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;"><p style="font-weight:600;">${a.status === 'pending_review' ? 'Pending Review' : a.status === 'under_review' ? 'Under Review' : a.status === 'rejected' ? 'Rejected' : a.status}</p></div>`}
+                ` : a.status === 'closed' ? renderClosedBlock(a) : `<div style="background:var(--sand);border-radius:var(--radius-lg);padding:var(--space-4);text-align:center;"><p style="font-weight:600;">${a.status === 'pending_review' ? 'Pending Review' : a.status === 'under_review' ? 'Under Review' : a.status === 'rejected' ? 'Rejected' : a.status}</p></div>`}
 
                 <div style="margin-top:var(--space-4);display:flex;gap:var(--space-2);">
                   <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="toggleWatchlist()" id="watchlistBtn">♡ Watchlist</button>
@@ -167,6 +201,13 @@
       }
 
       loadBidHistory(a.id);
+    }
+
+    async function endAuctionEarly() {
+      if (!confirm('End this auction now? This cannot be undone.')) return;
+      const res = await api.post('/auctions/end-auction', { id: auction.id });
+      if (res?.success) { UI.toast('Auction ended.', 'success'); setTimeout(() => location.reload(), 1500); }
+      else UI.toast(res?.message || 'Failed to end auction', 'error');
     }
 
     async function loadBidHistory(auctionId) {
@@ -249,9 +290,5 @@
       };
     }
   </script>
-
-  <style>
-    @media (max-width:1023px) { .detail-grid { grid-template-columns: 1fr !important; } }
-  </style>
 </body>
 </html>

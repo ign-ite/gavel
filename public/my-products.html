@@ -170,14 +170,14 @@
 
     async function endAuction(id) {
       if (!confirm('End this auction early?')) return;
-      const res = await api.post('/end-auction', { id });
+      const res = await api.post('/auctions/end-auction', { id });
       if (res?.success) { UI.toast('Auction ended', 'success'); location.reload(); }
       else UI.toast(res?.message || 'Failed to end auction', 'error');
     }
 
     async function removeItem(id) {
       if (!confirm('Remove this listing permanently?')) return;
-      const res = await api.post('/remove-item', { id });
+      const res = await api.post('/auctions/remove-item', { id });
       if (res?.success) { UI.toast('Listing removed', 'success'); location.reload(); }
       else UI.toast(res?.message || 'Failed to remove', 'error');
     }

@@ -645,7 +645,7 @@
       submitBtn.textContent = 'Submitting…';
 
       try {
-        const res = await api.upload('/sell', formData);
+        const res = await api.upload('/auctions/sell', formData);
         if (res && res.success) {
           UI.toast('Listing submitted for review!', 'success');
           setTimeout(() => { window.location.href = '/my-products.html'; }, 1500);

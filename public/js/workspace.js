@@ -50,7 +50,7 @@
 
         const [summaryRes, chatsRes] = await Promise.allSettled([
             fetch('/api/dashboard/summary'),
-            fetch('/api/my-chats')
+            fetch('/api/my-chats/list')
         ]);
 
         if (summaryRes.status !== 'fulfilled' || !summaryRes.value.ok) {
