@@ -57,7 +57,34 @@ const AuctionSchema = new mongoose.Schema({
     snipeCount: { type: Number, default: 0 },
     isWar: { type: Boolean, default: false },
     velocityScore: { type: Number, default: 0 },
-    velocityUpdatedAt: { type: Date }
+    velocityUpdatedAt: { type: Date },
+    condition: { type: String, default: '' },
+    viewCount: { type: Number, default: 0 },
+    meetupSchedule: {
+        proposedByEmail: { type: String, default: '' },
+        proposedSlot: { type: String, default: '' },
+        location: { type: String, default: '' },
+        notes: { type: String, default: '' },
+        status: { type: String, default: 'none', enum: ['none', 'proposed', 'accepted', 'completed'] }
+    },
+    reviews: [{
+        reviewerEmail: { type: String },
+        reviewerRole: { type: String },
+        score: { type: Number, min: 1, max: 5 },
+        comment: { type: String, default: '' },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    reports: [{
+        reporterEmail: { type: String },
+        category: { type: String },
+        note: { type: String, default: '' },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    priceHistory: [{
+        amount: { type: Number },
+        changedAt: { type: Date, default: Date.now },
+        changedByEmail: { type: String, default: '' }
+    }]
 }, { timestamps: true });
 
 AuctionSchema.virtual('isExpired').get(function() {

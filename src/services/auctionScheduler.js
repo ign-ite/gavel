@@ -19,13 +19,13 @@ async function closeAuction(auctionId) {
 
             const winner = await User.findOne({ email: highestBid.bidderEmail });
             if (winner) {
-                winner.trustScore = Math.min(500, (winner.trustScore || 50) + 5);
+                winner.trustScore = Math.min(500, Number(winner.trustScore || 0) + 5);
                 await winner.save();
             }
 
             const seller = await User.findOne({ email: item.sellerEmail });
             if (seller) {
-                seller.trustScore = Math.min(500, (seller.trustScore || 50) + 5);
+                seller.trustScore = Math.min(500, Number(seller.trustScore || 0) + 5);
                 await seller.save();
             }
 
@@ -33,7 +33,7 @@ async function closeAuction(auctionId) {
                 type: 'won',
                 title: 'You won!',
                 message: `You won "${item.title}" at ₹${highestBid.amount.toLocaleString('en-IN')}`,
-                actionUrl: `/item-detail.html?id=${item._id}`,
+                actionUrl: `/winner-confirmation.html?id=${item._id}`,
                 metadata: { auctionId: item._id.toString() }
             });
 

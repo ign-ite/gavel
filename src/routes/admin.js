@@ -135,8 +135,9 @@ router.post('/set-admin', requireSuperAdmin, async (req, res) => {
 
 router.post('/assign-sell-requests', requireSuperAdmin, async (req, res) => {
     try {
-        const admins = await User.find({ $or: [{ isAdmin: true }, { role: 'admin' }], isSuperAdmin: false });
-        if (!admins.length) return res.status(400).json({ error: 'No admins available' });
+        const onlineWindow = new Date(Date.now() - 2 * 60 * 1000);
+        const admins = await User.find({ $or: [{ isAdmin: true }, { role: 'admin' }], isSuperAdmin: false, lastSeenAt: { $gte: onlineWindow } });
+        if (!admins.length) return res.status(400).json({ error: 'No online admins available' });
         const pending = await Auction.find({ status: 'pending_review', assignedAdminEmail: { $exists: false } });
         for (let i = 0; i < pending.length; i++) {
             const admin = admins[i % admins.length];
@@ -146,7 +147,7 @@ router.post('/assign-sell-requests', requireSuperAdmin, async (req, res) => {
             await pending[i].save();
             await pushNotification(admin.email, { type: 'sell_request_assigned', title: 'New listing assigned', message: `"${pending[i].title}" assigned to you for review.`, actionUrl: `/workspace/review.html?id=${pending[i]._id}`, metadata: { auctionId: pending[i]._id.toString() } });
         }
-        res.json({ success: true, assigned: pending.length });
+        res.json({ success: true, assigned: pending.length, onlineAdmins: admins.length });
     } catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -176,15 +177,32 @@ router.post('/assign-reviewer', requireSuperAdmin, async (req, res) => {
 
 router.post('/review-request', requireAdmin, async (req, res) => {
     try {
-        const { auctionId, decision, reviewNotes } = req.body;
+        const { auctionId, decision, reviewNotes, moderationChecklist } = req.body;
         const item = await Auction.findById(auctionId);
         if (!item) return res.status(404).json({ error: 'Listing not found' });
         if (!req.adminUser.isSuperAdmin && item.assignedAdminEmail !== req.adminUser.email)
             return res.status(403).json({ error: 'This listing is not assigned to you.' });
 
         if (decision === 'approve') {
-            const mc = item.moderationChecklist || {};
-            const allChecked = Object.values(mc).every(Boolean);
+            const mc = moderationChecklist || {};
+            const requiredChecklist = [
+                'clearMediaOnly',
+                'noFacesVisible',
+                'noSexualContent',
+                'noViolenceOrHarm',
+                'categoryAndClaimsVerified'
+            ];
+            const allChecked = requiredChecklist.every((key) => Boolean(mc[key]));
+            if (!allChecked) {
+                return res.status(400).json({ error: 'All approval checklist items must be completed before approval.' });
+            }
+            item.moderationChecklist = {
+                clearMediaOnly: Boolean(mc.clearMediaOnly),
+                noFacesVisible: Boolean(mc.noFacesVisible),
+                noSexualContent: Boolean(mc.noSexualContent),
+                noViolenceOrHarm: Boolean(mc.noViolenceOrHarm),
+                categoryAndClaimsVerified: Boolean(mc.categoryAndClaimsVerified)
+            };
             item.status = 'active';
             item.verified = true;
             item.reviewNotes = reviewNotes || 'Approved';
@@ -194,6 +212,9 @@ router.post('/review-request', requireAdmin, async (req, res) => {
             await pushNotification(item.sellerEmail, { type: 'approved', title: 'Listing approved!', message: `"${item.title}" is now live.`, actionUrl: `/item-detail.html?id=${item._id}`, metadata: { auctionId: item._id.toString() } });
             await AuditLog.create({ action: 'SELL_REQUEST_APPROVED', userEmail: req.adminUser.email, details: `Approved ${item.title} (${item._id})` });
         } else if (decision === 'reject') {
+            if (!String(reviewNotes || '').trim()) {
+                return res.status(400).json({ error: 'Rejection note is required.' });
+            }
             item.status = 'rejected';
             item.rejectionReason = reviewNotes || 'Rejected';
             item.reviewedAt = new Date();

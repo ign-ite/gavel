@@ -46,6 +46,17 @@ router.get('/watchlist', requireLogin, async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
+router.post('/presence/ping', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.lastSeenAt = new Date();
+        await user.save();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 router.post('/watchlist/toggle', requireLogin, async (req, res) => {
     try {
         const { auctionId } = req.body;
@@ -72,6 +83,58 @@ router.post('/deposit', requireLogin, async (req, res) => {
         await AuditLog.create({ action: 'FUNDS_DEPOSITED', userEmail: req.user.email, details: `Deposited ₹${num}`, ipAddress: req.ip });
         res.json({ success: true, newBalance: user.walletBalance });
     } catch (e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.get('/saved-searches', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('savedSearches');
+        res.json(user.savedSearches || []);
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.post('/saved-searches', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.savedSearches = user.savedSearches || [];
+        user.savedSearches.push({
+            query: String(req.body.query || '').trim(),
+            category: String(req.body.category || '').trim(),
+            condition: String(req.body.condition || '').trim(),
+            maxPrice: Number(req.body.maxPrice || 0),
+            notify: req.body.notify !== false
+        });
+        await user.save();
+        res.json({ success: true, savedSearches: user.savedSearches });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.delete('/saved-searches/:id', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.savedSearches = (user.savedSearches || []).filter((search) => String(search._id) !== String(req.params.id));
+        await user.save();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.post('/block-user', requireLogin, async (req, res) => {
+    try {
+        const email = String(req.body.email || '').trim().toLowerCase();
+        if (!email) return res.status(400).json({ error: 'Email is required' });
+        const user = await User.findById(req.user.id);
+        user.blockedUsers = user.blockedUsers || [];
+        if (!user.blockedUsers.includes(email)) user.blockedUsers.push(email);
+        await user.save();
+        res.json({ success: true, blockedUsers: user.blockedUsers });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 router.get('/notifications', requireLogin, async (req, res) => {
@@ -148,7 +211,16 @@ router.get('/dashboard/summary', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-passwordHash');
         const email = user.email;
-        const result = { user: { id: user._id, email: user.email, name: user.fullname, role: user.role, walletBalance: user.walletBalance, trustScore: user.trustScore, isAdmin: user.isAdmin || user.isSuperAdmin, isSuperAdmin: user.isSuperAdmin, campusVerified: user.campusVerified, college: user.college, avatar: user.avatar } };
+        const me = { id: user._id, email: user.email, fullname: user.fullname, name: user.fullname, role: user.role, walletBalance: user.walletBalance, trustScore: user.trustScore, isAdmin: user.isAdmin || user.isSuperAdmin, isSuperAdmin: user.isSuperAdmin, campusVerified: user.campusVerified, college: user.college, avatar: user.avatar };
+        const result = { user: me, me };
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const closedSales = await Auction.find({ sellerEmail: email, status: 'closed', updatedAt: { $gte: monthStart } });
+        const closedWins = await Auction.find({ winnerEmail: email, status: 'closed', updatedAt: { $gte: monthStart } });
+        const campusBuyers = await Auction.find({ winnerEmail: { $exists: true, $ne: null }, status: 'closed' }).select('winnerEmail winnerName updatedAt');
+        const profileFields = [user.fullname, user.college, user.hostelBlock, user.bio, user.avatar].filter((value) => String(value || '').trim());
+        const completeness = Math.round((profileFields.length / 5) * 100);
+        const reviewsGiven = await Auction.countDocuments({ 'reviews.reviewerEmail': email });
 
         result.stats = {
             activeListings: await Auction.countDocuments({ sellerEmail: email, status: 'active' }),
@@ -160,7 +232,13 @@ router.get('/dashboard/summary', requireLogin, async (req, res) => {
             watchlistCount: user.watchlist?.length || 0,
             totalUsers: await User.countDocuments(),
             totalAuctions: await Auction.countDocuments(),
-            totalBids: await Bid.countDocuments()
+            totalBids: await Bid.countDocuments(),
+            monthlySpent: closedWins.reduce((sum, item) => sum + Number(item.winningBid || item.currentBid || 0), 0),
+            monthlyEarned: closedSales.reduce((sum, item) => sum + Number(item.winningBid || item.currentBid || 0), 0),
+            unreadNotifications: (user.notifications || []).filter((n) => !n.read).length,
+            profileCompleteness: completeness,
+            wonPurchases: await Auction.countDocuments({ winnerEmail: email, status: 'closed' }),
+            platformUsers: await User.countDocuments()
         };
 
         const myListings = await Auction.find({ sellerEmail: email }).sort({ createdAt: -1 }).limit(10);
@@ -171,18 +249,72 @@ router.get('/dashboard/summary', requireLogin, async (req, res) => {
         result.recentBids = recentBids.filter(b => b.auctionId).map(b => ({ auctionId: b.auctionId._id, title: b.auctionId.title, amount: b.amount, placedAt: b.placedAt, status: b.auctionId.status }));
 
         result.notifications = (user.notifications || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 20);
+        result.savedSearches = user.savedSearches || [];
+        result.gamification = {
+            biddingStreak: closedWins.length,
+            campusRank: Math.max(1, campusBuyers.filter((entry) => entry.winnerEmail === email).length),
+            profileCompleteness: completeness,
+            monthlySpent: result.stats.monthlySpent,
+            monthlyEarned: result.stats.monthlyEarned,
+            reviewsGiven
+        };
+        const watchlistItems = await Auction.find({ _id: { $in: user.watchlist || [] } }).sort({ endTime: 1 }).limit(10);
+        result.watchlist = await Promise.all(watchlistItems.map(mapAuction));
+        result.salesHistory = closedSales.slice(0, 10).map((item) => ({
+            id: item._id,
+            title: item.title,
+            winningBid: item.winningBid,
+            currentBid: item.currentBid,
+            winnerEmail: item.winnerEmail
+        }));
+        result.purchaseHistory = closedWins.slice(0, 10).map((item) => ({
+            id: item._id,
+            title: item.title,
+            winningBid: item.winningBid,
+            currentBid: item.currentBid,
+            sellerEmail: item.sellerEmail
+        }));
+        const walletLogs = await AuditLog.find({ userEmail: email, action: { $in: ['FUNDS_DEPOSITED', 'WALLET_TOP_UP', 'BID_PLACED'] } }).sort({ createdAt: -1 }).limit(10);
+        result.walletActivity = walletLogs;
 
         if (user.isAdmin || user.isSuperAdmin) {
+            const assignedRequests = await Auction.find({ assignedAdminEmail: email, status: { $in: ['pending_review', 'under_review'] } }).sort({ createdAt: 1 });
             result.adminWorkspace = {
-                assignedReviews: await Auction.countDocuments({ assignedAdminEmail: email, status: { $in: ['pending_review', 'under_review'] } })
+                assignedReviews: assignedRequests.length,
+                assignedRequests: await Promise.all(assignedRequests.map(mapAuction)),
+                pendingTally: assignedRequests.length
             };
         }
         if (user.isSuperAdmin) {
             const admins = await User.find({ $or: [{ isAdmin: true }, { isSuperAdmin: true }, { role: 'admin' }] }).select('-passwordHash');
             const pendingReview = await Auction.find({ status: 'pending_review' });
+            const underReview = await Auction.find({ status: 'under_review' });
+            const rejected = await Auction.find({ status: 'rejected' }).sort({ reviewedAt: -1 }).limit(20);
+            const onlineWindow = new Date(Date.now() - 2 * 60 * 1000);
+            const adminEmails = admins.map((a) => a.email);
+            const assignedCountsAgg = await Auction.aggregate([
+                { $match: { assignedAdminEmail: { $in: adminEmails }, status: { $in: ['pending_review', 'under_review'] } } },
+                { $group: { _id: '$assignedAdminEmail', count: { $sum: 1 } } }
+            ]);
+            const approvedCountsAgg = await Auction.aggregate([
+                { $match: { reviewedByEmail: { $in: adminEmails }, status: 'active' } },
+                { $group: { _id: '$reviewedByEmail', count: { $sum: 1 } } }
+            ]);
+            const rejectedCountsAgg = await Auction.aggregate([
+                { $match: { reviewedByEmail: { $in: adminEmails }, status: 'rejected' } },
+                { $group: { _id: '$reviewedByEmail', count: { $sum: 1 } } }
+            ]);
+            const assignedMap = Object.fromEntries(assignedCountsAgg.map((row) => [row._id, row.count]));
+            const approvedMap = Object.fromEntries(approvedCountsAgg.map((row) => [row._id, row.count]));
+            const rejectedMap = Object.fromEntries(rejectedCountsAgg.map((row) => [row._id, row.count]));
             result.superAdminWorkspace = {
-                reviewQueue: pendingReview.length,
-                adminOverview: admins.map(a => ({ id: a._id, fullname: a.fullname, email: a.email, isSuperAdmin: a.isSuperAdmin }))
+                reviewQueue: pendingReview,
+                admins: admins.map(a => ({ id: a._id, fullname: a.fullname, email: a.email, isSuperAdmin: a.isSuperAdmin, online: Boolean(a.lastSeenAt && a.lastSeenAt >= onlineWindow), assignedCount: assignedMap[a.email] || 0, approvedCount: approvedMap[a.email] || 0, rejectedCount: rejectedMap[a.email] || 0 })),
+                candidates: (await User.find({ isAdmin: false, isSuperAdmin: false }).limit(20).select('fullname email role')).map((candidate) => ({ id: candidate._id, fullname: candidate.fullname, email: candidate.email, role: candidate.role })),
+                metrics: { reviewQueue: pendingReview.length, unassigned: pendingReview.length, underReview: underReview.length, rejected: rejected.length },
+                assignableReviewers: admins.filter((a) => a.lastSeenAt && a.lastSeenAt >= onlineWindow).map(a => ({ id: a._id, fullname: a.fullname, email: a.email, online: true })),
+                adminOverview: admins.map(a => ({ id: a._id, fullname: a.fullname, email: a.email, isSuperAdmin: a.isSuperAdmin })),
+                rejectionLog: rejected.map((item) => ({ title: item.title, sellerEmail: item.sellerEmail, reviewedByEmail: item.reviewedByEmail, rejectionReason: item.rejectionReason, reviewNotes: item.reviewNotes, reviewedAt: item.reviewedAt }))
             };
         }
 
@@ -202,6 +334,112 @@ router.get('/analytics', async (req, res) => {
         const totalBids = await Bid.countDocuments();
         res.json({ totalUsers, activeAuctions, closedAuctions, totalVolume, totalBids, pendingRequests, adminCount });
     } catch (e) { res.status(500).json({ error: 'Failed to fetch analytics' }); }
+});
+
+router.post('/admin-application', requireLogin, async (req, res) => {
+    try {
+        const { qualificationChecklist, note } = req.body;
+        const user = await User.findById(req.user.id);
+        user.adminApplication = {
+            status: 'pending',
+            qualificationChecklist: Array.isArray(qualificationChecklist) ? qualificationChecklist : [],
+            note: String(note || '').trim(),
+            appliedAt: new Date(),
+            reviewedAt: null
+        };
+        await user.save();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to save application' });
+    }
+});
+
+router.get('/winner/:auctionId', requireLogin, async (req, res) => {
+    try {
+        const auction = await Auction.findById(req.params.auctionId);
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (!auction.winnerEmail) return res.json({ noBids: true });
+        res.json({ email: auction.winnerEmail, name: auction.winnerName, winningBid: auction.winningBid, sellerEmail: auction.sellerEmail });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.post('/meetup/:auctionId', requireLogin, async (req, res) => {
+    try {
+        const auction = await Auction.findById(req.params.auctionId);
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (![auction.sellerEmail, auction.winnerEmail].includes(req.user.email)) return res.status(403).json({ error: 'Unauthorized' });
+        auction.meetupSchedule = {
+            proposedByEmail: req.user.email,
+            proposedSlot: String(req.body.slot || '').trim(),
+            location: String(req.body.location || '').trim(),
+            notes: String(req.body.notes || '').trim(),
+            status: 'proposed'
+        };
+        await auction.save();
+        const other = req.user.email === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail;
+        if (other) {
+            await pushNotification(other, {
+                type: 'meetup_proposed',
+                title: 'Meetup proposed',
+                message: `${req.user.name} suggested ${auction.meetupSchedule.proposedSlot || 'a meetup time'} for "${auction.title}".`,
+                actionUrl: `/chat.html?auction=${auction._id}&with=${encodeURIComponent(req.user.email)}`,
+                metadata: { auctionId: auction._id.toString() }
+            });
+        }
+        res.json({ success: true, meetupSchedule: auction.meetupSchedule });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.post('/reviews/:auctionId', requireLogin, async (req, res) => {
+    try {
+        const auction = await Auction.findById(req.params.auctionId);
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (![auction.sellerEmail, auction.winnerEmail].includes(req.user.email)) return res.status(403).json({ error: 'Unauthorized' });
+        const reviewerRole = req.user.email === auction.sellerEmail ? 'seller' : 'buyer';
+        auction.reviews = auction.reviews || [];
+        auction.reviews.push({
+            reviewerEmail: req.user.email,
+            reviewerRole,
+            score: Number(req.body.score || 0),
+            comment: String(req.body.comment || '').trim()
+        });
+        await auction.save();
+        const otherEmail = req.user.email === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail;
+        const otherUser = otherEmail ? await User.findOne({ email: otherEmail }) : null;
+        if (otherUser) {
+            otherUser.ratings = otherUser.ratings || [];
+            otherUser.ratings.push({ score: Number(req.body.score || 0), comment: String(req.body.comment || '').trim() });
+            const trustDelta = Math.max(-2, Math.min(5, Number(req.body.score || 0) - 2));
+            otherUser.trustScore = Math.max(0, Math.min(500, Number(otherUser.trustScore || 0) + trustDelta));
+            await otherUser.save();
+        }
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+router.get('/receipt/:auctionId', requireLogin, async (req, res) => {
+    try {
+        const auction = await Auction.findById(req.params.auctionId);
+        if (!auction) return res.status(404).json({ error: 'Auction not found' });
+        if (![auction.sellerEmail, auction.winnerEmail].includes(req.user.email)) return res.status(403).json({ error: 'Unauthorized' });
+        res.json({
+            id: auction._id,
+            title: auction.title,
+            finalPrice: auction.winningBid || auction.currentBid,
+            sellerEmail: auction.sellerEmail,
+            winnerEmail: auction.winnerEmail,
+            date: auction.updatedAt,
+            meetupSchedule: auction.meetupSchedule || null
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 router.get('/listings/:id/velocity', async (req, res) => {

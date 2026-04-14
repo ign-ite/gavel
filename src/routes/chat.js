@@ -13,7 +13,10 @@ router.get('/:auctionId', requireLogin, async (req, res) => {
         const auction = await Auction.findById(auctionId);
         if (!auction) return res.status(404).json({ message: 'Auction not found.' });
         const userEmail = req.user.email;
-        const otherEmail = userEmail === auction.sellerEmail ? (req.query.with || auction.winnerEmail) : auction.sellerEmail;
+        const requestedOther = String(req.query.with || '').trim().toLowerCase();
+        const otherEmail = userEmail === auction.sellerEmail
+            ? (requestedOther || auction.winnerEmail)
+            : auction.sellerEmail;
         if (!otherEmail) return res.status(400).json({ message: 'Counterparty not found.' });
         const conversationKey = getConversationKey(auctionId, userEmail, otherEmail);
 
@@ -40,7 +43,8 @@ router.post('/:auctionId', requireLogin, async (req, res) => {
         const auction = await Auction.findById(auctionId);
         if (!auction) return res.status(404).json({ message: 'Auction not found.' });
         const userEmail = req.user.email;
-        const otherEmail = recipientEmail || (userEmail === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail);
+        const normalizedRecipient = String(recipientEmail || '').trim().toLowerCase();
+        const otherEmail = normalizedRecipient || (userEmail === auction.sellerEmail ? auction.winnerEmail : auction.sellerEmail);
         if (!otherEmail) return res.status(400).json({ message: 'Counterparty not found.' });
         const text = String(message || '').trim().slice(0, 2000);
         if (!text) return res.status(400).json({ message: 'Message cannot be empty.' });
@@ -78,7 +82,7 @@ router.get('/my-chats/list', requireLogin, async (req, res) => {
                     chats.push({
                         auctionId: msg.auctionId, auctionTitle: auction.title,
                         otherEmail, otherName: otherUser?.fullname || 'Unknown',
-                        lastMessage: msg.message, lastMessageAt: msg.sentAt, unreadCount,
+                        lastMessage: { message: msg.message, sentAt: msg.sentAt }, lastMessageAt: msg.sentAt, unreadCount, unread: unreadCount,
                         image: images[0] || null,
                         role: auction.sellerEmail === email ? 'seller' : 'buyer'
                     });
